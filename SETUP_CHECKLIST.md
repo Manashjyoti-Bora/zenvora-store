@@ -24,9 +24,13 @@ For every credential the pattern is the same and non-negotiable:
 - **Where to get it**: local install (Devuan/Ubuntu: `apt install postgresql`),
   or managed: Neon, Supabase, Railway, Render, AWS RDS.
 - **Where to enter**: `DATABASE_URL` in `.env` —
-  `postgresql://USER:PASSWORD@HOST:5432/DBNAME?schema=public`
+  `postgresql://USER:PASSWORD@HOST:5432/DBNAME?schema=public`.
+  Also set `DIRECT_URL` (non-pooled). Locally it equals `DATABASE_URL`; on
+  Neon/Vercel, `DATABASE_URL` = pooled (`-pooler` host, `?pgbouncer=true&connect_timeout=15`)
+  and `DIRECT_URL` = direct — the Prisma CLI migrates via `DIRECT_URL`.
 - **Secret?** The connection string contains a password → treat as secret.
-- **Then run**: `npx prisma migrate deploy` (creates all tables).
+- **Then run**: `npx prisma migrate deploy` (creates all tables). On Vercel this
+  runs automatically during the build — see `docs/DEPLOY_VERCEL_NEON.md`.
 - **Without it**: nothing runs.
 
 ## 2. Admin account (🔴)
