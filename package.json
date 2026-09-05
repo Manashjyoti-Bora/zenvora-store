@@ -1,0 +1,73 @@
+{
+  "name": "resellix",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Resellix - production-ready automated reselling/dropshipping e-commerce platform (Next.js + PostgreSQL + Prisma + Razorpay-ready)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,css,md}\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:push": "prisma db push",
+    "db:seed": "tsx --env-file=.env prisma/seed.ts",
+    "cleanup:demo": "tsx --env-file=.env scripts/production-cleanup.ts",
+    "db:reset": "prisma migrate reset --force",
+    "db:studio": "prisma studio",
+    "audit:deps": "npm audit --audit-level=moderate",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
+  },
+  "prisma": {
+    "seed": "tsx --env-file=.env prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.0",
+    "bcryptjs": "^3.0.2",
+    "clsx": "^2.1.1",
+    "next": "^15.5.0",
+    "nodemailer": "^10.0.0",
+    "razorpay": "^2.9.6",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.30.0",
+    "@types/node": "^20.19.0",
+    "@types/nodemailer": "^6.4.17",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "autoprefixer": "^10.4.21",
+    "dotenv": "^16.4.7",
+    "eslint": "^9.30.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "postcss": "^8.5.28",
+    "prettier": "^3.6.0",
+    "prettier-plugin-tailwindcss": "^0.6.11",
+    "prisma": "^6.16.0",
+    "sharp": "^0.35.4",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.35.0",
+    "vitest": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.28",
+    "deepmerge-ts": "^8.0.2"
+  }
+}
