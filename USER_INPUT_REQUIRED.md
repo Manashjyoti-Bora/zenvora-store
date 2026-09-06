@@ -1,96 +1,80 @@
-# USER_INPUT_REQUIRED.md — ZENVORA
+# USER INPUT REQUIRED — consolidated (2026-09-05, post-audit)
 
-## ✅ Decisions recorded (2026-09-05)
+Legend: 🔴 launch blocker · 🟠 required for automated reselling · 🟡 required before public
+marketing/traffic · ⚪ optional. "Where" = exactly where to enter it. NEVER paste secrets
+into chat; secrets go directly into Vercel → Project → Settings → Environment Variables.
 
-| Question | Your answer | What happens next |
-|---|---|---|
-| C1 Supplier path | **Still deciding** | See `docs/SUPPLIER_OPTIONS.md` (4 realistic India paths + due-diligence checklist). MANUAL fulfilment works from day one; POD APIs (Printrove/Qikink) are the fastest automation route — reply with a choice when ready. |
-| B1 Razorpay | **Will create account** | Signup (free) → Settings → API Keys → generate TEST keys → enter `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET` (+ `RAZORPAY_WEBHOOK_SECRET` once domain exists) in `.env` / Vercel env. Keys go ONLY there, never chat. |
-| D1 Hosting | **Vercel + Neon** | Full step-by-step runbook: `docs/DEPLOY_VERCEL_NEON.md` (incl. honest Vercel caveats: ephemeral uploads, in-memory rate limits). |
-| E1 Brand | **Zenvora is final** | Already applied (APP_NAME, settings, emails). Internal `resellix_*` identifiers stay as-is. Remaining E-items (legal name, GSTIN, policy details, support contact) still open — answer via the template below when ready. |
+## 🔴 B1 — Vercel deployment is DISABLED (HTTP 402 DEPLOYMENT_DISABLED)
+- What: https://zenvora-store.vercel.app returns 402 "Payment required", header
+  `x-vercel-error: DEPLOYMENT_DISABLED`. The build succeeded but Vercel is not serving it.
+- Why: account/plan level (missing payment method, plan limit, or verification banner).
+  Only visible/clearable in your Vercel dashboard.
+- Where: Vercel dashboard → this project (and account billing page) → follow the banner
+  (add payment method / upgrade / verify). Then redeploy or wait for auto-restore.
+- Verify after: `GET https://zenvora-store.vercel.app/api/health` must return 200 JSON.
 
-Everything the codebase needs from YOU, grouped by what it unlocks. **Never paste secrets/passwords/API keys into this chat** — every sensitive value goes directly into `.env` on the machine that runs the app (or your host's secret manager). Each blocker below says exactly what is needed, why, where to get it, where to enter it, and what keeps working without it.
+## 🔴 B2 — Push the v4 code (Razorpay key guard + audit fixes)
+- What: zip `zenvora-store-v4.zip` (this workspace) supersedes v3.
+- Where: Termux: unzip -o over your repo clone → `git add -A` → commit → push origin main.
+- Verify: GitHub Actions "CI" green; then Vercel redeploy green.
 
-Quick answer format (copy, fill, reply — no secrets):
+## 🔴 B3 — APP_URL must equal the real production URL
+- What/where: Vercel env `APP_URL=https://zenvora-store.vercel.app` (or your custom domain),
+  then redeploy. Used for emails, sitemap, robots, OG URLs.
 
-```
-A1: done / not yet
-B1: have Razorpay account? yes/no; keys entered in .env? yes/no
-C1: supplier choice = API supplier / manual fulfilment / still deciding
-D1: hosting choice = Vercel / Render / Railway / VPS / undecided
-E1: brand name final = Zenvora? yes/no
-E2: legal business name = ___ ; GSTIN (or "unregistered") = ___
-```
+## 🟠 B4 — Razorpay decision (prepaid payments)
+- Choose: (a) launch COD-only first (nothing to enter), or (b) enable prepaid.
+- If (b): create keys in Razorpay dashboard; enter in Vercel env:
+  `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `NEXT_PUBLIC_RAZORPAY_KEY_ID`,
+  `RAZORPAY_WEBHOOK_SECRET`; add webhook URL `https://<prod>/api/payments/webhook`
+  (events: payment.captured, payment.failed, refund.*) in Razorpay dashboard.
+- Rule now enforced by code: production accepts ONLY `rzp_live_…` keys; test keys work only
+  outside production. Set `PAYMENTS_TEST_MODE=false` in Vercel once live keys are in.
 
----
+## 🟠 B5 — CJ Dropshipping account + key (required for AUTOMATED reselling)
+- Code is implemented & mock-verified (supplier type `CJ`, API v2 adapter, trigger-only
+  webhooks, admin UI, 18 dedicated tests). LIVE verification needs your account:
+  1. Create free CJ account (cjdropshipping.com).
+  2. CJ dashboard → My CJ → Authorization → API → copy API key.
+  3. Vercel env: add `CJ_API_KEY` (paste THERE, never in chat) → redeploy.
+  4. Admin → Suppliers → add type "CJ Dropshipping", env var name `CJ_API_KEY`,
+     config JSON with `fxRateInrPerUsd` (your INR-per-USD rate).
+  5. Map products (CJ vid/SKU), top up CJ wallet, register webhook URL
+     `https://<prod>/api/suppliers/cj/webhook`.
+  6. Place one real prepaid order to your own address; I verify ACCEPTED→SHIPPED+tracking.
+- Honest limits: no COD on CJ India lines (COD needs admin confirm before forwarding);
+  7–15 day CN→IN shipping; duty/GST is importer responsibility; cancels/returns manual.
+- Without this: store still launches with COD + MANUAL fulfilment queue, honestly labelled.
 
-## Category A — Needed to RUN the project locally (nothing blocking today)
+## 🟠 B6 — Real email provider (console = logs only, not delivery)
+- Choose one supported path: SMTP (Brevo free ~300/day, Resend, Amazon SES, Zoho, self-host).
+- Enter in Vercel env: `EMAIL_PROVIDER=smtp`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`,
+  `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` (verified sender/domain), optional `EMAIL_REPLY_TO`.
 
-| # | Item | Status |
-|---|---|---|
-| A1 | Node 20+, PostgreSQL, `npm install`, `prisma migrate deploy`, `npm run db:seed`, copy `.env.example` → `.env` | ✅ Already working in this workspace; steps in README.md for your phone/PC. **No action needed** unless you move machines. |
+## 🔴/ B7 — Product image storage decision
+- Uploads persist on server disk = ephemeral on Vercel (lost on redeploy). Admin UI now warns.
+- Choose: (a) use external image URLs / re-upload after deploys (zero cost), or
+  (b) object storage (Cloudflare R2 free 10 GB / any S3 / Cloudinary) — I then implement the
+  storage adapter + tests. If you already uploaded images via Admin, this is launch-relevant.
 
-## Category B — Needed for REAL PAYMENTS (test mode until then)
+## 🟡 B8 — External cron service (reliability of retries + housekeeping)
+- Spec: `POST https://<prod>/api/cron/jobs`, header `Authorization: Bearer <CRON_SECRET>`
+  (already in Vercel env), schedule every 5 minutes.
+- Where: cron-job.org (free) or GitHub Actions schedule — create the job yourself; the secret
+  stays in Vercel/your job config, never in chat. (In-process job kicking already covers the
+  happy path; cron covers retries after crashes/scale-to-zero.)
 
-### 🔒 BLOCKER #1 — Razorpay account credentials
-- **What:** `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` (plus test-mode keys first, live keys later).
-- **Why:** Real payment capture cannot exist without a gateway account. Until then the app runs the built-in **TEST provider (dev only, clearly marked)** and production builds answer `PAYMENTS_NOT_CONFIGURED` honestly — verified.
-- **Where to get:** dashboard.razorpay.com → Sign up (free) → Settings → API Keys → Generate; Webhook secret: Webhooks → Add webhook (URL = `https://YOUR-DOMAIN/api/payments/webhook`, events: `payment.captured`, `payment.failed`, `refund.created`). Razorpay KYC is required before accepting LIVE money.
-- **Sensitive?** YES — **do not send keys in chat.** Enter them only in `.env` (locally) / host environment variables (production).
-- **What continues meanwhile:** everything else — catalog, cart, checkout (COD path works end-to-end without a gateway), admin, supplier work, deployment prep, TEST-mode payment rehearsals.
+## 🟡 B9 — Store facts for policies/emails (Admin → Settings)
+- support email, contact address/phone, return-window days, cancellation window hours,
+  shipping flat rate + free-shipping threshold, COD fee, store legal name.
+- Policy pages render from these values; have the four policy pages reviewed for your
+  jurisdiction (I do not give legal guarantees).
 
-## Category C — Needed for REAL SUPPLIER FULFILMENT (the business goal)
+## ⚪ B10 — Custom domain (optional)
+- zenvora-store.vercel.app with free TLS is sufficient to launch. If you own a domain:
+  add it in Vercel → Domains, set DNS records, then update APP_URL + redeploy.
 
-### 🔒 BLOCKER #2 — A real supplier (or a manual-fulfilment decision)
-- **What:** ONE of:
-  1. **API supplier** — base URL + credentials + their API docs (the adapter contract is in `docs/SUPPLIER_API.md`; any supplier matching it, or tell me the supplier and I'll write the adapter); or
-  2. **Manual supplier workflow** — you (or staff) buy/ship orders yourselves: admin marks supplier orders SENT → adds tracking → customer emails fire automatically. No credentials needed, just the decision.
-- **Why:** Automated reselling requires a real fulfilment source. **No supplier has been invented**, and the Demo supplier is disabled in production by design (verified: prod falls back to the manual queue).
-- **Where to get:** e.g. Indian dropshipping/marketplace supplier programs, local wholesalers with an API, or your own sourcing. KYC/agreement happens between you and the supplier.
-- **Sensitive?** Supplier credentials: YES (env only: `SUPPLIER_*` variables named per supplier record). The *decision* (1 or 2) is not sensitive — just tell me which.
-- **What continues meanwhile:** the whole order pipeline is verified with the Demo adapter in dev; manual mode is fully usable from day one of launch.
-
-## Category D — Needed for DEPLOYMENT (nothing is deployed yet)
-
-### 🔒 BLOCKER #3 — Hosting + domain + HTTPS
-- **What:** a hosting choice (Vercel / Render / Railway / VPS), a domain you own, and DNS access.
-- **Why:** "LIVE" requires a real server on a real domain with TLS; webhooks (Razorpay/supplier) need a public HTTPS URL. **No purchases will be made without your authorization.**
-- **Where to get:** Vercel/Railway/Render free tiers can host this app; domains from any registrar (~₹800–1200/yr for `.in`/`.com`). Step-by-step in SETUP_CHECKLIST.md §Hosting.
-- **Sensitive?** Host account passwords: YES (never in chat). Domain name choice: not sensitive.
-- **What continues meanwhile:** the production build is verified (`next start` smoke-tested locally); all deployment artifacts (health check, cron endpoint, env template) are ready.
-
-### 🔒 BLOCKER #5 — Production PostgreSQL
-- **What:** a managed Postgres connection string (Neon / Supabase / Railway / Render / RDS) + `DATABASE_URL` on the host.
-- **Why:** the sandbox DB is local-only and dies with the sandbox. Schema + migrations are verified and apply cleanly (`prisma migrate deploy`).
-- **Sensitive?** YES — connection string contains a password; host env only.
-- **What continues meanwhile:** everything local.
-
-Also in D (non-blocking decisions): cron scheduler for `/api/cron/jobs` every 5 min with `Authorization: Bearer <CRON_SECRET>` (Vercel Cron / cron-job.org — free); production values for `APP_URL`, `SESSION_TTL_DAYS`, `CRON_SECRET`, `SUPPLIER_WEBHOOK_SECRET`.
-
-## Category E — Business / compliance / brand (asked, never invented)
-
-### 🔒 BLOCKER #6 — Legal & brand facts
-- **What (checklist — answer in plain text, nothing secret):**
-  1. **E1 Brand:** confirm the store name is **Zenvora** (already set via `APP_NAME` + settings; internal cookie names stay `resellix_*` unless you want a cosmetic rename — say so).
-  2. **E2 Legal name + GSTIN:** the registered business name for invoices/policies, and GSTIN if registered (if unregistered, say "unregistered" — invoicing then follows unregistered-dealer rules; **get accountant verification, this tool gives no tax guarantees**).
-  3. **E3 Policies:** the four policy pages (terms/privacy/shipping/returns) contain honest generic drafts — they need YOUR real return window, shipping promise, and contact details before launch. Provide: return window days, shipping timelines, support email + phone.
-  4. **E4 Support contact:** a real support email (also used as `EMAIL_FROM` once BLOCKER #4 is resolved).
-- **Why:** compliance content must be factually yours; fabricating legal/tax details is prohibited (and illegal).
-- **Sensitive?** GSTIN is business data — put it in Settings/policies pages, not chat, if you prefer.
-- **What continues meanwhile:** everything; these only block the final launch checklist.
-
-## Category F — Optional (nice-to-have, not blocking)
-
-- **F1 Real email provider (BLOCKER #4 until launch):** SMTP/Resend/Brevo credentials → real order emails. **Sensitive: YES** (`SMTP_*` env). Until then: console/log provider only — the app never claims emails were delivered. *(Listed optional for local dev, REQUIRED before taking real orders — customers must receive order/tracking emails.)*
-- F2 Redis (only if you scale to multiple server instances — in-memory rate limits are per-process).
-- F3 Product analytics (Plausible/Umami), image CDN, real product photography to replace `DEMO-` seed images.
-
----
-
-## Priority order (fastest path to FULLY LIVE AUTOMATED RESELLING)
-
-1. **C1 decision** (supplier API vs manual) — unblocks fulfilment design immediately, no money needed.
-2. **B1 Razorpay** (start with TEST keys — free) — unblocks real payment rehearsal.
-3. **D1 hosting + D2 domain + D5 Postgres** — unblocks deployment (LIVE).
-4. **F1 email + E1–E4 compliance facts** — unblocks taking real orders responsibly.
-5. Run `npm run cleanup:demo -- --execute` on the production DB, flip demoMode off, then launch.
+## ⚪ Hygiene (optional)
+- Flip `PAYMENTS_TEST_MODE=false` and `SUPPLIER_DEMO_MODE=false` in Vercel once B4/B5 are done
+  (production already force-disables both; this is clarity, not safety).
+- Consider uptime monitoring + Neon backup/restore drill before marketing traffic.

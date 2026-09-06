@@ -1,35 +1,60 @@
-# Supplier options for ZENVORA (research summary, September 2026)
+# Supplier options for Zenvora — general-product reselling (decision of 2026-09-05)
 
-You chose "still deciding" — these are the realistic paths for an Indian reselling store, mapped onto this codebase's supplier adapters. **Nothing here is a partnership or endorsement; public information changes fast — do your own due diligence (sample orders, written terms, margin math) before committing.** No supplier has been integrated into the code except the dev-only Demo simulator.
+Owner's model (binding): general-product reselling/dropshipping — source products from
+legitimate suppliers at low cost, list them on Zenvora with own margin, customer pays Zenvora,
+paid orders auto-forward to the supplier, supplier ships direct with tracking, Zenvora records
+cost/price/fees/margin. **POD suppliers (Printrove/Qikink) are excluded by owner decision.**
+Lowest-cost legitimate route required. No workarounds that violate marketplace terms.
 
-## Path 1 — Print-on-demand APIs (best automation fit, apparel/merch niche)
-**Printrove, Qikink** (both India-based, free signup, pay-per-order; documented REST APIs), plus similar (Vendorboat, Owlprints).
-- Fit: their APIs (create order, tracking webhook/poll) map cleanly onto the built-in **HTTP_REST adapter** (`docs/SUPPLIER_API.md` contract). I can write the concrete adapter once you pick one and get API docs/credentials.
-- Pros: real automation, India warehousing/shipping, no inventory, COD support (varies — verify), your brand on labels.
-- Cons: only POD products (apparel, mugs, posters…); per-unit costs leave thinner margins on commodity designs; you must bring design/niche + traffic.
+## Explicit negative findings (verified 2026-09-05)
 
-## Path 2 — Catalogue dropshipping platforms
-**CJ Dropshipping** (global, widely used in India; product import + order auto-forwarding, wallet-funded; API/developer platform exists), **Wiio** and similar agents.
-- Fit: an adapter is buildable against their open API; expect wallet top-up flow, 7–15 day India shipping on many lines, and **limited COD** — which matters, since COD is a large share of Indian e-commerce.
-- Pros: huge catalogue, private-label/branding options.
-- Cons: longer delivery, customs/returns complexity, COD weakness, quality variance → order samples first.
+- **Flipkart: NOT a legitimate route for this model.** Sellers must hold stock and GST; no
+  public API to place fulfilment orders on behalf of third-party storefronts; dropshipping
+  integrations are not supported. We will not build scraping/order-proxy workarounds.
+- **Meesho: NOT a legitimate route for this model.** Reselling exists only inside Meesho's own
+  app/social flow; catalogue is locked to Meesho; no public reseller order API for external
+  storefronts; no branding. Same conclusion for GlowRoad/Roposo (closed reseller ecosystems).
+- **Amazon/Shopsy/IndiaMART/Udaan:** no public automated-fulfilment API for resellers
+  (IndiaMART/Udaan = manual/B2B lead flows). Not suitable for hands-off forwarding.
 
-## Path 3 — Indian B2B wholesalers (IndiaMART / TradeIndia / local markets)
-- Fit: **MANUAL adapter** (already fully working): you buy + ship per order from Admin → Supplier Orders; add tracking numbers there; customers get the same automated emails/tracking pages.
-- Pros: best margin control, fast domestic shipping, negotiable terms, GST invoices from registered dealers, COD-friendly (you control fulfilment).
-- Cons: manual work per order until volume justifies asking the wholesaler for an API/CSV feed (many will do email/WhatsApp order forms — the MANUAL adapter matches that reality).
+## Recommended route: CJ Dropshipping (implemented: supplier type `CJ`)
 
-## Path 4 — Reseller apps (Meesho, Roposo Clout, etc.)
-- These are closed ecosystems for social reselling; **no public API for your own storefront**, and reselling their listings on your own site may violate their ToS. Treat as sourcing inspiration only, or buy wholesale-style via Path 3 contacts instead.
+Why (against the owner's checklist):
+- Broad general catalogue (not POD) + sourcing requests for products not listed.
+- Official public REST API v2 (developers.cjdropshipping.com): auth token exchange/refresh,
+  category/product/variant/stock queries, createOrder(V2/V3), order list/detail, wallet
+  balance + balance payment, freight calculation, logistics trackInfo, webhook registration.
+- Automated order placement: Zenvora forwards paid orders via `createOrderV2` + wallet payment;
+  retries are idempotent (same platform order number; duplicate-create path reuses the
+  existing CJ order instead of duplicating).
+- Customer-direct shipping + tracking: trackInfo + ORDER/LOGISTICS webhooks; Zenvora treats
+  webhooks as TRIGGERS ONLY and re-verifies status through the authenticated API.
+- Inventory/price sync: stock queries per vid/sku; catalogue import via Admin → supplier sync;
+  USD costs convert with an explicit `fxRateInrPerUsd` config (never a hidden rate).
+- Cost: free to join, pay-per-order from CJ wallet — no upfront platform fee.
+- Contractually designed for third-party storefront dropshipping (Shopify/Magento/WooCommerce
+  integrations exist), i.e. permitted reseller use.
 
-## Recommended decision path (cheapest to de-risk)
-1. **Launch-ready now:** MANUAL fulfilment with 1–2 products you can source locally (Path 3) + COD — zero new dependencies, everything already verified end-to-end.
-2. **In parallel:** if your niche is apparel/merch → create free Printrove/Qikink accounts, read their API docs, and send me the docs (credentials go in `.env`, never chat) → I implement the HTTP_REST adapter → you get true automation.
-3. **Only after real orders exist:** evaluate CJ-style platforms for catalogue breadth (verify COD + delivery times with sample orders first).
+Honest gaps (documented, not hidden):
+- **COD: CJ does not support cash-on-delivery on India lines.** Zenvora therefore auto-forwards
+  prepaid orders; COD orders for CJ-mapped products must be confirmed/forwarded by the admin
+  (wallet is debited when forwarded) — the admin UI says exactly this.
+- India delivery 7–15 days from CN warehouses; import duty/GST on cross-border parcels is the
+  importer's responsibility — verify compliance before scaling (not legal advice).
+- Cancellations/returns/refunds are NOT in CJ's public API v2 → adapter reports those
+  capabilities false and routes them to manual CJ-dashboard steps.
+- Wallet must keep balance; unpaid CJ orders surface in Admin → Supplier orders as PENDING with
+  the exact reason (never silently "fulfilled").
 
-## Due-diligence checklist for ANY supplier (before committing)
-- [ ] Sample order placed and received (quality, packaging, delivery time).
-- [ ] Written terms: prices, shipping cost & SLA, COD availability & remittance cycle, returns/RTO policy, restocking.
-- [ ] GST treatment: invoice from supplier to you; your margin math uses **landed cost** (product + shipping + any fees) — the pricing engine already computes this; never price on product cost alone.
-- [ ] If API: authentication method, rate limits, sandbox availability, webhook support (their side must sign or you poll), stock/price sync frequency.
-- [ ] RTO (return-to-origin) cost for COD failures — the #1 profit killer in Indian COD commerce; the admin profit ledger already deducts refunds/returns when you record them.
+## Fallback / secondary routes (kept in code)
+
+- `HTTP_REST` generic adapter: any future Indian wholesaler/3PL that gives you API credentials
+  can be connected by configuration only (docs/SUPPLIER_API.md).
+- `MANUAL`: honest default queue — admin fulfils and records tracking; nothing is faked.
+- `DEMO`: development simulator only, hard-blocked in production.
+
+## Re-evaluation triggers
+
+Re-audit when: CJ changes India lines/COD policy, or an Indian general supplier publishes a
+real public fulfilment API (watch: DropHippo, Baapstore, Deodap — automation claims exist but
+no verifiable public API docs as of 2026-09-05), or ONDC buyer-app reselling becomes practical.

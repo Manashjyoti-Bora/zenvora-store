@@ -55,7 +55,8 @@ export default async function SupplierDetailPage({ params }: Ctx) {
     productSlug: sp.product?.slug ?? null,
   }));
 
-  const supportsSync = supplier.type === 'HTTP_REST' || supplier.type === 'DEMO';
+  const supportsSync =
+    supplier.type === 'HTTP_REST' || supplier.type === 'CJ' || supplier.type === 'DEMO';
 
   return (
     <div className="space-y-5">
@@ -71,7 +72,7 @@ export default async function SupplierDetailPage({ params }: Ctx) {
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500">
             <Badge
               tone={
-                supplier.type === 'HTTP_REST'
+                supplier.type === 'HTTP_REST' || supplier.type === 'CJ'
                   ? 'blue'
                   : supplier.type === 'DEMO'
                     ? 'purple'
@@ -113,6 +114,15 @@ export default async function SupplierDetailPage({ params }: Ctx) {
           Orders containing this supplier&apos;s products create a supplier order for you to fulfil
           yourself: source/ship the item, then record the shipment (carrier + tracking) from the
           order page so the customer gets updates.
+        </Alert>
+      )}
+      {supplier.type === 'CJ' && (
+        <Alert tone="info" title="CJ Dropshipping automation">
+          Paid orders forward automatically through CJ&apos;s official API v2 (CJ wallet balance
+          is debited per order — keep it topped up). Tracking arrives via webhook-triggered,
+          authenticated re-syncs plus scheduled polling; CJ webhooks are never trusted directly.
+          Cancellations/returns are manual steps in the CJ dashboard. Setup: docs/SUPPLIER_API.md
+          (CJ section).
         </Alert>
       )}
       {supplier.type === 'HTTP_REST' && (

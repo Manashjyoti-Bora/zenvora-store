@@ -234,3 +234,46 @@ the env vars that hold them.
 5. Provide catalog + stock endpoints so Admin can sync and map products.
 6. Keep customer PII in responses minimal — Resellix only consumes status and
    tracking fields.
+
+---
+
+## CJ Dropshipping (supplier type `CJ`) — implemented contract
+
+Base URL (fixed): `https://developers.cjdropshipping.com/api2.0/v1`
+Auth: `POST /authentication/getAccessToken` with `{"apiKey": "<CJ API key>"}` →
+`data.accessToken` (+ expiry, refreshToken). Authenticated calls send header
+`CJ-Access-Token: <accessToken>`; refresh via `POST /authentication/refreshAccessToken`.
+The API key lives ONLY in an env var; the supplier record stores just its NAME
+(`apiKeyEnvVar`, default suggestion `CJ_API_KEY`). Key location: CJ dashboard →
+My CJ → Authorization → API.
+
+Supplier record `config` JSON:
+```json
+{
+  "fxRateInrPerUsd": 88.5,          // REQUIRED - CJ costs are USD; conversion is explicit
+  "logisticName": "CJPacket Ordinary", // optional shipping line
+  "fromCountryCode": "CN",          // optional source warehouse country
+  "platformToken": "…"              // optional, sent as platformToken header if CJ requires it
+}
+```
+
+Endpoints used:
+- Catalogue: `GET /product/myProduct/query` (connected products), `GET /product/variant/queryByVid`
+- Stock: `GET /product/stock/queryBySku`, `GET /product/stock/queryByVid`
+- Orders: `POST /shopping/order/createOrderV2` (body per CJ docs: orderNumber, shipping*,
+  logisticName, fromCountryCode, platform="api", orderFlow=1, products[{vid, quantity,
+  storeLineItemId}]), then `POST /shopping/pay/payBalanceV2 {orderNumber}` (wallet debit)
+- Status: `GET /shopping/order/getOrderDetail`, `GET /logistic/trackInfo`
+- Webhook registration: `POST /webhook/set` (order + logistics → our callback)
+
+Product mapping: Zenvora product's supplier SKU must hold the CJ **vid** (GUID/snowflake) or a
+CJ SKU (resolved via stock/queryBySku). Idempotency: `storeLineItemId` = `<job idempotency
+key>:<line>`; duplicate createOrder responses fall back to `shopping/order/list` lookup so a
+retry can never create a second CJ order.
+
+Inbound webhooks: `POST /api/suppliers/cj/webhook` is **trigger-only** — CJ cannot sign
+payloads with our secret, so the endpoint only enqueues `SYNC_SUPPLIER_ORDER`, which re-fetches
+authoritative status with our token. A forged webhook causes at most one authenticated read.
+
+Not supported by CJ API v2 (adapter reports honestly, admin routes to manual):
+cancellation, returns, refunds.

@@ -885,6 +885,12 @@ export function ProductForm({
                 </Button>
               </div>
             </div>
+            <p className="text-xs text-gray-500">
+              Uploaded files are stored on this server&apos;s disk. On serverless hosts (for
+              example Vercel) the disk is ephemeral: uploads can disappear on the next deploy. For
+              permanent production images, prefer an external image URL (CDN/object storage) or
+              re-upload after deploys — see SETUP_CHECKLIST.md.
+            </p>
             {form.images.length === 0 ? (
               <p className="text-sm text-gray-500">
                 No images yet. Upload (JPEG/PNG/WEBP/GIF/AVIF, max 5 MB) or paste a URL below. The

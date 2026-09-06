@@ -16,7 +16,7 @@ export interface SupplierRow {
   id: string;
   name: string;
   slug: string;
-  type: 'MANUAL' | 'HTTP_REST' | 'DEMO';
+  type: 'MANUAL' | 'HTTP_REST' | 'CJ' | 'DEMO';
   contactEmail: string | null;
   contactPhone: string | null;
   baseUrl: string | null;
@@ -75,6 +75,11 @@ const TYPE_INFO: Record<
     label: 'HTTP REST',
     tone: 'blue',
     hint: 'Automated via the supplier’s REST API — configure endpoints in the JSON config (see docs/SUPPLIER_API.md).',
+  },
+  CJ: {
+    label: 'CJ Dropshipping',
+    tone: 'blue',
+    hint: 'General-catalogue dropshipping via CJ’s official API v2: catalogue import, stock, automated order forwarding, wallet payment, tracking. Needs a CJ API key env var + fxRateInrPerUsd config.',
   },
   DEMO: {
     label: 'Demo',
@@ -357,6 +362,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                 >
                   <option value="MANUAL">Manual fulfilment</option>
                   <option value="HTTP_REST">HTTP REST API (automated)</option>
+                  <option value="CJ">CJ Dropshipping (automated, general catalogue)</option>
                   <option value="DEMO">Demo simulator (testing)</option>
                 </Select>
               )}
@@ -394,7 +400,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                 />
               )}
             </Field>
-            {form.type !== 'MANUAL' && (
+            {form.type === 'HTTP_REST' && (
               <Field label="API base URL" hint="e.g. https://api.supplier.example.com/v1">
                 {(p) => (
                   <Input
@@ -468,6 +474,56 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                   />
                 )}
               </Field>
+            </div>
+          )}
+
+          {form.type === 'CJ' && (
+            <div className="space-y-3 rounded-lg border border-gray-200 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                CJ Dropshipping API v2
+              </p>
+              <Alert tone="warning">
+                The CJ API key lives <strong>only in an environment variable</strong>. Enter the
+                variable NAME here (default <code>CJ_API_KEY</code>); put the actual key in
+                Vercel/server env (CJ dashboard → My CJ → Authorization → API). Never paste the
+                key into this form or into chat.
+              </Alert>
+              <Field label="API key env var name" hint="UPPER_SNAKE_CASE">
+                {(p) => (
+                  <Input
+                    {...p}
+                    value={form.apiKeyEnvVar}
+                    onChange={(e) =>
+                      set('apiKeyEnvVar', e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))
+                    }
+                    maxLength={80}
+                    placeholder="CJ_API_KEY"
+                  />
+                )}
+              </Field>
+              <Field
+                label="Config JSON"
+                hint="fxRateInrPerUsd is REQUIRED (CJ costs are USD; conversion is explicit). logisticName / fromCountryCode optional."
+              >
+                {(p) => (
+                  <Textarea
+                    {...p}
+                    rows={5}
+                    value={form.config}
+                    onChange={(e) => set('config', e.target.value)}
+                    className="font-mono text-xs"
+                    placeholder={
+                      '{\n  "fxRateInrPerUsd": 88.5,\n  "logisticName": "CJPacket Ordinary",\n  "fromCountryCode": "CN"\n}'
+                    }
+                  />
+                )}
+              </Field>
+              <p className="text-xs text-gray-500">
+                Map each Zenvora product to a CJ variant: store the CJ <code>vid</code> (or CJ SKU)
+                in the product&apos;s supplier SKU field. Cancellations/returns are manual via the
+                CJ dashboard — CJ&apos;s public API v2 does not expose them, and Zenvora says so
+                instead of pretending otherwise.
+              </p>
             </div>
           )}
 

@@ -282,6 +282,8 @@ enum SupplierType {
   MANUAL
   // Generic REST supplier; endpoints/credentials configured per supplier.
   HTTP_REST
+  // CJ Dropshipping (general-catalogue dropshipping) via official API v2.
+  CJ
   // Clearly-labelled demo adapter for development/testing only.
   DEMO
 }

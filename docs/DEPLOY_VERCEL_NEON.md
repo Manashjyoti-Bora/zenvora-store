@@ -17,7 +17,7 @@ Nothing is "done" until its verification gate passes. Do the steps in order.
    (e.g. `neondb_owner`) and let Neon generate the password (or set a strong one).
 3. On the project dashboard, open **Connect** (or Connection Details). You will
    copy TWO strings — never paste them into any chat:
-   - **Pooled connection string** (host contains `-pooler`) → becomes Vercel's `DATABASE_URL` **with `?pgbouncer=true&connect_timeout=15` appended** (replace/extend the existing query part; keep `schema=public` if present).
+   - **Pooled connection string** (host contains `-pooler`) → becomes Vercel's `DATABASE_URL` with the query part rewritten to exactly `?sslmode=require&pgbouncer=true&connect_timeout=15` (replace/extend the existing query part; keep `schema=public` if present). Neon's pooled string may include `&channel_binding=require` — **delete that parameter**; Prisma does not need it and only `sslmode`, `pgbouncer`, `connect_timeout` are required.
    - **Direct connection string** (same, without `-pooler`) → becomes Vercel's `DIRECT_URL`.
 4. Leave the Neon project otherwise untouched (no tables needed — the build creates them).
 

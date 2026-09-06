@@ -69,9 +69,33 @@ export const isProduction = env.NODE_ENV === 'production';
 export const isTest = env.NODE_ENV === 'test';
 export const isDev = env.NODE_ENV === 'development';
 
+/**
+ * Razorpay is usable only when both key id and secret are present AND the key
+ * prefix matches the environment:
+ *  - TEST keys (rzp_test_…) are refused in production, so a live store can
+ *    never route real customers through the sandbox by misconfiguration.
+ *  - LIVE keys (rzp_live_…) are refused outside production, so real money can
+ *    never move from development/test runs.
+ * Returns null when the configuration is usable, otherwise the reason.
+ */
+export function razorpayConfigIssue(): string | null {
+  const keyId = env.RAZORPAY_KEY_ID;
+  const secret = env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !secret) {
+    return 'Razorpay keys are not configured (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET)';
+  }
+  if (isProduction && keyId.startsWith('rzp_test_')) {
+    return 'RAZORPAY_KEY_ID is a TEST key (rzp_test_…) while NODE_ENV=production — production refuses test credentials';
+  }
+  if (!isProduction && keyId.startsWith('rzp_live_')) {
+    return 'RAZORPAY_KEY_ID is a LIVE key (rzp_live_…) while NODE_ENV is not production — live keys are refused outside production';
+  }
+  return null;
+}
+
 /** Razorpay is usable only when both key id and secret are present. */
 export function isRazorpayConfigured(): boolean {
-  return Boolean(env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET);
+  return razorpayConfigIssue() === null;
 }
 
 /**

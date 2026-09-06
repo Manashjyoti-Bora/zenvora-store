@@ -1,4 +1,4 @@
-import { isRazorpayConfigured, isTestPaymentsAllowed } from '../env';
+import { isRazorpayConfigured, isTestPaymentsAllowed, razorpayConfigIssue } from '../env';
 import { logger } from '../logger';
 import { RazorpayAdapter } from './razorpay';
 import { TestPaymentAdapter } from './test-provider';
@@ -17,7 +17,7 @@ export function getPaymentProvider(): PaymentProviderAdapter | null {
     return new TestPaymentAdapter();
   }
   logger.error(
-    'No payment provider available: configure Razorpay keys or enable PAYMENTS_TEST_MODE (non-production only)'
+    `No payment provider available: ${razorpayConfigIssue() ?? 'configure Razorpay keys'}; or enable PAYMENTS_TEST_MODE (non-production only)`
   );
   return null;
 }

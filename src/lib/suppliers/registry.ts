@@ -4,6 +4,7 @@ import type { Supplier } from '@prisma/client';
 import type { SupplierAdapter } from './types';
 import { ManualAdapter } from './manual';
 import { HttpRestAdapter } from './http-rest';
+import { CJDropshippingAdapter } from './cj';
 import { DemoAdapter } from './demo';
 
 /**
@@ -17,6 +18,16 @@ export function getSupplierAdapter(supplier: Supplier): SupplierAdapter {
         return new HttpRestAdapter(supplier);
       } catch (err) {
         logger.error('HTTP_REST supplier misconfigured - falling back to manual queue', {
+          supplier: supplier.slug,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return new ManualAdapter(supplier);
+      }
+    case 'CJ':
+      try {
+        return new CJDropshippingAdapter(supplier);
+      } catch (err) {
+        logger.error('CJ supplier misconfigured - falling back to manual queue', {
           supplier: supplier.slug,
           error: err instanceof Error ? err.message : String(err),
         });
@@ -36,5 +47,5 @@ export function getSupplierAdapter(supplier: Supplier): SupplierAdapter {
   }
 }
 
-export { ManualAdapter, HttpRestAdapter, DemoAdapter };
+export { ManualAdapter, HttpRestAdapter, CJDropshippingAdapter, DemoAdapter };
 export * from './types';

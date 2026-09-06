@@ -197,3 +197,25 @@ npm run dev                 # http://localhost:3000  (admin: /admin)
 Default local flow: TEST payment provider + Demo supplier simulate the full
 pipeline (payment → supplier order → shipped → delivered → profit finalised),
 with DEMO banners everywhere so simulated state is never mistaken for real.
+
+---
+
+## CJ Dropshipping (automated general-product fulfilment) — owner steps
+
+1. Create a free CJ account at cjdropshipping.com (no upfront fee; orders debit a wallet).
+2. CJ dashboard → My CJ → Authorization → API → copy the API key.
+3. Vercel → Project → Settings → Environment Variables → add `CJ_API_KEY` = (paste here, NEVER
+   in chat). Redeploy.
+4. Admin → Suppliers → Add supplier → type "CJ Dropshipping" → API key env var name
+   `CJ_API_KEY` → Config JSON with your `fxRateInrPerUsd` (e.g. 88.5) and optional
+   `logisticName`/`fromCountryCode`.
+5. Connect/import products in CJ, then map each Zenvora product's supplier SKU to the CJ vid/SKU
+   (Admin → Supplier products).
+6. Top up the CJ wallet (CJ dashboard) — orders are debited per forwarded order; unpaid CJ
+   orders appear as PENDING in Admin → Supplier orders with the exact reason.
+7. Register webhooks (optional but recommended): Admin → supplier → sync, or CJ dashboard
+   webhook setting → `https://<your-prod-domain>/api/suppliers/cj/webhook`.
+8. Place ONE real prepaid test order to your own address and watch Admin → Supplier orders go
+   ACCEPTED → SHIPPED with tracking. Only after that is automated fulfilment "verified live".
+Note: CJ has no COD on India lines — COD orders for CJ products require admin confirmation
+before forwarding (the UI states this).
