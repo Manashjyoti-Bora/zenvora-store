@@ -34,6 +34,8 @@ export const POST = apiRoute(async (req: Request) => {
       startsAt: body.startsAt ? new Date(body.startsAt) : null,
       endsAt: body.endsAt ? new Date(body.endsAt) : null,
       isActive: body.isActive ?? true,
+      bypassMarginProtection: body.bypassMarginProtection ?? false,
+      firstOrderOnly: body.firstOrderOnly ?? false,
     },
   });
   await auditLog({

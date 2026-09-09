@@ -56,6 +56,8 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
               : null
             : existing.endsAt,
         isActive: body.isActive ?? existing.isActive,
+        bypassMarginProtection: body.bypassMarginProtection ?? existing.bypassMarginProtection,
+        firstOrderOnly: body.firstOrderOnly ?? existing.firstOrderOnly,
       },
     });
     await auditLog({

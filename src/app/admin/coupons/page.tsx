@@ -46,6 +46,8 @@ export default async function AdminCouponsPage() {
           startsAt: c.startsAt?.toISOString() ?? null,
           endsAt: c.endsAt?.toISOString() ?? null,
           isActive: c.isActive,
+          bypassMarginProtection: c.bypassMarginProtection,
+          firstOrderOnly: c.firstOrderOnly,
         }))}
       />
     </div>

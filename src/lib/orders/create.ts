@@ -13,6 +13,7 @@ import {
   type CheckoutLine,
 } from '../checkout/calc';
 import { evaluateCoupon } from '../checkout/coupons';
+import { recordMovement } from './inventory';
 import {
   loadCartItems,
   unitPricePaiseOf,
@@ -129,16 +130,25 @@ export async function createOrderFromCart(input: CreateOrderInput): Promise<Crea
   const requestedCoupon = (input.couponCode ?? existingCart.couponCode ?? '').trim().toUpperCase();
   if (requestedCoupon) {
     const couponRecord = await prisma.coupon.findUnique({ where: { code: requestedCoupon } });
+    const categoryLines =
+      couponRecord?.scope === 'CATEGORY'
+        ? lines.filter((l) => l.categoryId === couponRecord.categoryId)
+        : lines;
     const eligiblePaise =
       couponRecord?.scope === 'CATEGORY'
-        ? lines
-            .filter((l) => l.categoryId === couponRecord.categoryId)
-            .reduce((a, l) => a + l.unitPricePaise * l.quantity, 0)
+        ? categoryLines.reduce((a, l) => a + l.unitPricePaise * l.quantity, 0)
         : subtotalPaise;
+    // Authoritative margin protection: the order pipeline supplies the real
+    // landed cost so evaluateCoupon can enforce the minimum-margin floor.
+    const eligibleCostPaise = categoryLines.reduce(
+      (a, l) => a + l.unitLandedCostPaise * l.quantity,
+      0
+    );
     const evaluation = await evaluateCoupon({
       code: requestedCoupon,
       subtotalPaise,
       eligiblePaise,
+      totalCostPaise: eligibleCostPaise,
       userId: input.user?.id ?? null,
       guestEmail: input.guest?.email ?? null,
     });
@@ -210,6 +220,39 @@ export async function createOrderFromCart(input: CreateOrderInput): Promise<Crea
               });
           if (res.count === 0) {
             throw conflict(`"${line.name}" just went out of stock. Please adjust your cart.`);
+          }
+        }
+
+        // 1b) Inventory history for the reservation (audit trail).
+        for (const line of lines) {
+          if (line.stockMode !== 'LOCAL') continue;
+          if (line.variantId) {
+            const v = await tx.productVariant.findUnique({
+              where: { id: line.variantId },
+              select: { stock: true, productId: true },
+            });
+            if (v) {
+              await recordMovement(tx, {
+                productId: v.productId,
+                variantId: line.variantId,
+                delta: -line.quantity,
+                reason: 'ORDER_PLACED',
+                stockAfter: v.stock,
+              });
+            }
+          } else {
+            const p = await tx.product.findUnique({
+              where: { id: line.productId },
+              select: { stock: true },
+            });
+            if (p) {
+              await recordMovement(tx, {
+                productId: line.productId,
+                delta: -line.quantity,
+                reason: 'ORDER_PLACED',
+                stockAfter: p.stock,
+              });
+            }
           }
         }
 

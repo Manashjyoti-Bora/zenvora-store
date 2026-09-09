@@ -4,6 +4,7 @@ import { toPaise, formatINR } from '../money';
 import { getSettings } from '../settings';
 import { auditLog } from '../audit';
 import { transitionOrder, recordOrderEvent, canTransition } from './state';
+import { restockOrderItems } from './inventory';
 import { enqueueJob, kickJobRunner } from '../jobs/queue';
 import { createRefund } from '../payments/refunds';
 import { queueNotification } from '../notifications/notify';
@@ -95,25 +96,14 @@ export async function cancelOrder(
   }
   kickJobRunner();
 
-  // Restore LOCAL-mode stock (only meaningful before shipping).
+  // Restore LOCAL-mode stock (only meaningful before shipping). Transactional
+  // and idempotent per reason; writes InventoryMovement history rows.
   if (!['SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(order.status)) {
-    for (const item of order.items) {
-      const product = item.productId
-        ? await prisma.product.findUnique({ where: { id: item.productId } })
-        : null;
-      if (product?.stockMode !== 'LOCAL') continue;
-      if (item.variantId) {
-        await prisma.productVariant.updateMany({
-          where: { id: item.variantId },
-          data: { stock: { increment: item.quantity } },
-        });
-      } else {
-        await prisma.product.updateMany({
-          where: { id: product.id },
-          data: { stock: { increment: item.quantity } },
-        });
-      }
-    }
+    await restockOrderItems({
+      orderId: order.id,
+      reason: 'ORDER_CANCELLED',
+      actorId: input.actorId ?? null,
+    });
   }
 
   const shouldRefund =

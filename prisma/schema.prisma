@@ -195,6 +195,7 @@ model Product {
   // Merchant-managed stock for LOCAL-mode products WITHOUT variants
   // (variant products track stock per variant).
   stock       Int      @default(0)
+  lowStockThreshold Int @default(5)
 
   // --- Logistics --------------------------------------------------------
   weightGrams Int?
@@ -215,6 +216,7 @@ model Product {
   supplier       Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   supplierProduct SupplierProduct?
   variants       ProductVariant[]
+  movements      InventoryMovement[]
   images         ProductImage[]
   cartItems      CartItem[]
   orderItems     OrderItem[]
@@ -254,6 +256,7 @@ model ProductVariant {
 
   @@index([productId])
   @@map("product_variants")
+  movements      InventoryMovement[]
 }
 
 model ProductImage {
@@ -276,6 +279,35 @@ model ProductImage {
 // ---------------------------------------------------------------------------
 // Suppliers & fulfilment
 // ---------------------------------------------------------------------------
+
+enum InventoryMovementReason {
+  ORDER_PLACED
+  ORDER_CANCELLED
+  RETURN_RESTOCK
+  RTO_RESTOCK
+  ADJUSTMENT
+  SUPPLIER_SYNC
+}
+
+model InventoryMovement {
+  id        String                  @id @default(cuid())
+  productId String
+  variantId String?
+  delta     Int
+  reason    InventoryMovementReason
+  orderId   String?
+  actorId   String?
+  note      String?
+  stockAfter Int
+  createdAt DateTime                @default(now())
+
+  product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  order   Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([productId, createdAt])
+  @@map("inventory_movements")
+}
 
 enum SupplierType {
   // No API: supplier orders are queued for manual fulfilment by the admin.
@@ -532,6 +564,9 @@ enum OrderStatus {
   RETURN_REQUESTED
   RETURNED
   FULFILMENT_FAILED
+  // Return-to-origin (courier could not deliver; parcel coming back).
+  RTO
+  RTO_RECEIVED
 }
 
 enum OrderActorType {
@@ -608,6 +643,7 @@ model Order {
   @@index([createdAt])
   @@index([guestEmail])
   @@map("orders")
+  inventoryMovements InventoryMovement[]
 }
 
 model OrderItem {
@@ -891,8 +927,12 @@ model Coupon {
   usageCount       Int         @default(0)
   perUserLimit     Int         @default(1)
   startsAt         DateTime?
-  endsAt           DateTime?
-  isActive         Boolean     @default(true)
+  endsAt          DateTime?
+  // Admin-explicit override: this coupon MAY push the final price below the
+  // store's minimum-margin floor. Default false = protection always wins.
+  bypassMarginProtection Boolean @default(false)
+  firstOrderOnly  Boolean   @default(false)
+  isActive        Boolean     @default(true)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 

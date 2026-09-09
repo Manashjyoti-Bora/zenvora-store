@@ -3,8 +3,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { auditLog } from '@/lib/audit';
 import { randomCode } from '@/lib/crypto';
 import { assertRateLimit } from '@/lib/rate-limit';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { getStorageProvider } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,10 +39,10 @@ const SIGNATURES: Array<{ ext: string; mime: string; test: (b: Buffer) => boolea
 /**
  * Admin-only image upload for product photos.
  * Hardening: type sniffing via magic bytes, size cap, random filename
- * (original name discarded), images-only directory, nosniff headers on
- * /uploads/* (next.config). NOTE: single-server deployments store files on
- * local disk; serverless deployments should use object storage/Cloudinary
- * (documented in SETUP_CHECKLIST.md).
+ * (original name discarded), nosniff headers on served uploads.
+ * Storage goes through the provider abstraction (STORAGE_PROVIDER):
+ * local disk (ephemeral on serverless - UI warns), S3-compatible object
+ * storage or Cloudinary for persistence across deploys.
  */
 export const POST = apiRoute(async (req: Request) => {
   const admin = await requireAdmin();
@@ -70,20 +69,55 @@ export const POST = apiRoute(async (req: Request) => {
   }
 
   const filename = `p-${Date.now()}-${randomCode(8)}.${detected.ext}`;
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-  await fs.mkdir(uploadDir, { recursive: true });
-  await fs.writeFile(path.join(uploadDir, filename), buffer);
+  const provider = getStorageProvider();
+  const stored = await provider.put({ buffer, filename, mime: detected.mime });
 
   await auditLog({
     actor: { id: admin.id, email: admin.email },
     action: 'upload.image',
     entityType: 'Upload',
-    entityId: filename,
-    data: { bytes: file.size, mime: detected.mime },
+    entityId: stored.key,
+    data: { bytes: file.size, mime: detected.mime, provider: provider.name },
     req,
   });
   return jsonOk(
-    { url: `/uploads/${filename}`, mime: detected.mime, bytes: file.size },
+    {
+      url: stored.url,
+      key: stored.key,
+      provider: provider.name,
+      persistent: provider.persistent,
+      mime: detected.mime,
+      bytes: stored.bytes,
+    },
     { status: 201 }
   );
 });
+
+/** Delete an uploaded image (admin). Accepts the provider key or a local URL. */
+export const DELETE = apiRoute(async (req: Request) => {
+  const admin = await requireAdmin();
+  const raw = (await req.json().catch(() => null)) as { key?: string; url?: string } | null;
+  const target = raw?.key ?? raw?.url;
+  if (!target) throw badRequest('Provide { key } or { url } of the upload to delete');
+
+  const provider = getStorageProvider();
+  const key = target.startsWith('http') || target.startsWith('/') ? extractKey(target) : target;
+  await provider.remove(key);
+
+  await auditLog({
+    actor: { id: admin.id, email: admin.email },
+    action: 'upload.delete',
+    entityType: 'Upload',
+    entityId: key,
+    data: { provider: provider.name },
+    req,
+  });
+  return jsonOk({ deleted: true, key });
+});
+
+function extractKey(url: string): string {
+  const path = url.startsWith('http') ? new URL(url).pathname : url;
+  const idx = path.indexOf('/uploads/');
+  if (idx >= 0) return `uploads/${path.slice(idx + '/uploads/'.length)}`;
+  return path.split('/').pop() ?? path;
+}

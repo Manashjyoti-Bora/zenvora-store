@@ -26,6 +26,12 @@ interface FormState {
   postalCode: string;
   feePercent: string;
   feeFixed: string;
+  minMarginPercent: string;
+  marginProtectionEnabled: boolean;
+  returnReservePercent: string;
+  packaging: string;
+  operational: string;
+  maxDiscountPercent: string;
   flatRate: string;
   freeAbove: string;
   codEnabled: boolean;
@@ -62,6 +68,12 @@ function toForm(s: StoreSettings): FormState {
     postalCode: s.business.postalCode,
     feePercent: String(s.payments.feePercent),
     feeFixed: paiseToRs(s.payments.feeFixedPaise),
+    minMarginPercent: String(s.pricing.minMarginPercent),
+    marginProtectionEnabled: s.pricing.marginProtectionEnabled,
+    returnReservePercent: String(s.pricing.returnReservePercent),
+    packaging: paiseToRs(s.pricing.packagingPaise),
+    operational: paiseToRs(s.pricing.operationalPaise),
+    maxDiscountPercent: String(s.pricing.maxDiscountPercent),
     flatRate: paiseToRs(s.shipping.flatRatePaise),
     freeAbove: paiseToRs(s.shipping.freeAbovePaise),
     codEnabled: s.shipping.codEnabled,
@@ -96,6 +108,14 @@ function toPatch(f: FormState) {
       postalCode: f.postalCode.trim(),
     },
     payments: { feePercent: Number(f.feePercent) || 0, feeFixedPaise: rsToPaise(f.feeFixed) },
+    pricing: {
+      minMarginPercent: Number(f.minMarginPercent) || 0,
+      marginProtectionEnabled: f.marginProtectionEnabled,
+      returnReservePercent: Number(f.returnReservePercent) || 0,
+      packagingPaise: rsToPaise(f.packaging),
+      operationalPaise: rsToPaise(f.operational),
+      maxDiscountPercent: Number(f.maxDiscountPercent) || 0,
+    },
     shipping: {
       flatRatePaise: rsToPaise(f.flatRate),
       freeAbovePaise: rsToPaise(f.freeAbove),
@@ -367,6 +387,80 @@ export function SettingsForm({ initial }: { initial: StoreSettings }) {
               step="0.01"
               value={form.feeFixed}
               onChange={(e) => set('feeFixed', e.target.value)}
+            />
+          )}
+        </Field>
+      </Section>
+
+      <Section
+        title="Pricing & margin protection"
+        description="Global defaults used by the pricing engine and enforced on every coupon/discount. Discounts can never silently push a price below the minimum-margin floor unless a coupon is explicitly flagged to bypass it."
+      >
+        <Field label="Minimum margin %" hint="Minimum profit margin (on selling price) enforced store-wide">
+          {(p) => (
+            <Input
+              {...p}
+              type="number"
+              min="0"
+              max="90"
+              step="0.5"
+              value={form.minMarginPercent}
+              onChange={(e) => set('minMarginPercent', e.target.value)}
+            />
+          )}
+        </Field>
+        <Toggle
+          label="Margin protection enabled"
+          checked={form.marginProtectionEnabled}
+          onChange={(v) => set('marginProtectionEnabled', v)}
+        />
+        <Field label="Return/RTO reserve %" hint="Reserved per order to cover returns and refused deliveries">
+          {(p) => (
+            <Input
+              {...p}
+              type="number"
+              min="0"
+              max="50"
+              step="0.5"
+              value={form.returnReservePercent}
+              onChange={(e) => set('returnReservePercent', e.target.value)}
+            />
+          )}
+        </Field>
+        <Field label="Packaging cost (₹ per order)">
+          {(p) => (
+            <Input
+              {...p}
+              type="number"
+              min="0"
+              step="0.5"
+              value={form.packaging}
+              onChange={(e) => set('packaging', e.target.value)}
+            />
+          )}
+        </Field>
+        <Field label="Operational cost (₹ per order)">
+          {(p) => (
+            <Input
+              {...p}
+              type="number"
+              min="0"
+              step="0.5"
+              value={form.operational}
+              onChange={(e) => set('operational', e.target.value)}
+            />
+          )}
+        </Field>
+        <Field label="Max discount %" hint="Hard global cap on any single discount">
+          {(p) => (
+            <Input
+              {...p}
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              value={form.maxDiscountPercent}
+              onChange={(e) => set('maxDiscountPercent', e.target.value)}
             />
           )}
         </Field>

@@ -19,7 +19,7 @@ export default async function AdminInventoryPage({
     status: { not: 'ARCHIVED' as const },
     ...(sp.q?.trim() ? { name: { contains: sp.q.trim(), mode: 'insensitive' as const } } : {}),
     ...(view === 'out' ? { stock: 0, hasVariants: false } : {}),
-    ...(view === 'low' ? { stock: { gt: 0, lte: 5 }, hasVariants: false } : {}),
+    ...(view === 'low' ? { stock: { gt: 0 }, hasVariants: false } : {}),
     ...(view === 'sync' ? { stockMode: 'SUPPLIER_SYNC' as const } : {}),
   };
 
@@ -35,6 +35,7 @@ export default async function AdminInventoryPage({
       stockMode: true,
       hasVariants: true,
       stock: true,
+      lowStockThreshold: true,
       variants: {
         where: { isActive: true },
         orderBy: { sortOrder: 'asc' },
@@ -43,7 +44,13 @@ export default async function AdminInventoryPage({
     },
   });
 
-  const rows: InventoryRow[] = products.map((p) => ({
+  const rows: InventoryRow[] = products
+    // Per-product low-stock threshold: column-vs-column compare done in app
+    // layer (the where clause already narrowed to stock > 0, no variants).
+    .filter((p) =>
+      view === 'low' ? p.lowStockThreshold > 0 && p.stock <= p.lowStockThreshold : true
+    )
+    .map((p) => ({
     productId: p.id,
     name: p.name,
     slug: p.slug,
@@ -51,12 +58,13 @@ export default async function AdminInventoryPage({
     stockMode: p.stockMode,
     hasVariants: p.hasVariants,
     stock: p.hasVariants ? p.variants.reduce((a, v) => a + v.stock, 0) : p.stock,
+    lowStockThreshold: p.lowStockThreshold,
     variants: p.variants,
   }));
 
   const TABS = [
     { key: 'all', label: 'All products' },
-    { key: 'low', label: 'Low stock (≤5)' },
+    { key: 'low', label: 'Low stock' },
     { key: 'out', label: 'Out of stock' },
     { key: 'sync', label: 'Supplier-synced' },
   ];

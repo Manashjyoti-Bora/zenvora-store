@@ -354,6 +354,8 @@ export const couponBaseSchema = z.object({
   startsAt: z.string().datetime({ offset: true }).optional().nullable(),
   endsAt: z.string().datetime({ offset: true }).optional().nullable(),
   isActive: z.boolean().default(true),
+  bypassMarginProtection: z.boolean().default(false),
+  firstOrderOnly: z.boolean().default(false),
 });
 
 export const couponInputSchema = couponBaseSchema.superRefine((data, ctx) => {
@@ -422,6 +424,7 @@ export const inventoryUpdateSchema = z.object({
   productId: z.string().min(1),
   variantId: z.string().min(1).optional().nullable(),
   stock: z.coerce.number().int().min(0).max(1_000_000).optional().nullable(),
+  lowStockThreshold: z.coerce.number().int().min(0).max(100_000).optional().nullable(),
   status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']).optional().nullable(),
   variantActive: z.boolean().optional().nullable(),
 });

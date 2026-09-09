@@ -27,6 +27,8 @@ export interface CouponRow {
   startsAt: string | null;
   endsAt: string | null;
   isActive: boolean;
+  bypassMarginProtection: boolean;
+  firstOrderOnly: boolean;
 }
 
 interface FormState {
@@ -43,6 +45,8 @@ interface FormState {
   startsAt: string;
   endsAt: string;
   isActive: boolean;
+  bypassMarginProtection: boolean;
+  firstOrderOnly: boolean;
 }
 
 const EMPTY: FormState = {
@@ -59,6 +63,8 @@ const EMPTY: FormState = {
   startsAt: '',
   endsAt: '',
   isActive: true,
+  bypassMarginProtection: false,
+  firstOrderOnly: false,
 };
 
 const dtLocal = (iso: string | null) => (iso ? new Date(iso).toISOString().slice(0, 16) : '');
@@ -103,6 +109,8 @@ export function CouponManager({
       startsAt: dtLocal(c.startsAt),
       endsAt: dtLocal(c.endsAt),
       isActive: c.isActive,
+      bypassMarginProtection: c.bypassMarginProtection,
+      firstOrderOnly: c.firstOrderOnly,
     });
     setError(null);
     setOpen(true);
@@ -128,6 +136,8 @@ export function CouponManager({
       startsAt: dtOrNull(form.startsAt),
       endsAt: dtOrNull(form.endsAt),
       isActive: form.isActive,
+      bypassMarginProtection: form.bypassMarginProtection,
+      firstOrderOnly: form.firstOrderOnly,
     };
     try {
       if (editing) {
@@ -234,9 +244,13 @@ export function CouponManager({
                 </Td>
                 <Td className="tabular-nums">{c.usageCount}</Td>
                 <Td>
-                  <Badge tone={c.isActive ? 'green' : 'gray'}>
-                    {c.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge tone={c.isActive ? 'green' : 'gray'}>
+                      {c.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                    {c.bypassMarginProtection && <Badge tone="red">Margin bypass</Badge>}
+                    {c.firstOrderOnly && <Badge tone="blue">First order</Badge>}
+                  </div>
                 </Td>
                 <Td className="text-right">
                   <div className="flex justify-end gap-3 text-xs">
@@ -423,6 +437,27 @@ export function CouponManager({
             checked={form.isActive}
             onChange={(e) => set('isActive', e.target.checked)}
           />
+          <Checkbox
+            label="Bypass minimum-margin protection"
+            checked={form.bypassMarginProtection}
+            onChange={(e) => set('bypassMarginProtection', e.target.checked)}
+          />
+          <Checkbox
+            label="First order only"
+            checked={form.firstOrderOnly}
+            onChange={(e) => set('firstOrderOnly', e.target.checked)}
+          />
+          {form.firstOrderOnly && (
+            <p className="text-xs text-gray-500">
+              Valid only for signed-in customers with no previous non-cancelled orders.
+            </p>
+          )}
+          {form.bypassMarginProtection && (
+            <p className="text-xs text-red-600">
+              Warning: this coupon can push the selling price below your configured minimum margin.
+              Only use it for deliberate loss-leader campaigns.
+            </p>
+          )}
         </form>
       </Modal>
 

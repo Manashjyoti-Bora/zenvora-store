@@ -233,7 +233,10 @@ export async function dashboardAlerts(): Promise<DashboardAlert[]> {
     }),
     prisma.payment.count({ where: { status: 'FAILED', updatedAt: { gte: dayAgo } } }),
     prisma.supplierOrder.count({ where: { status: 'FAILED' } }),
-    prisma.product.count({ where: { status: 'ACTIVE', stockMode: 'LOCAL', stock: { lte: 5 } } }),
+    prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*)::bigint AS count FROM products
+      WHERE status = 'ACTIVE' AND "stockMode" = 'LOCAL' AND stock <= "lowStockThreshold"
+    `.then((r) => Number(r[0]?.count ?? 0)),
     prisma.returnRequest.count({ where: { status: 'REQUESTED' } }),
     prisma.order.count({ where: { status: 'REFUND_PENDING' } }),
     prisma.contactMessage.count({ where: { status: 'NEW' } }),
@@ -272,7 +275,7 @@ export async function dashboardAlerts(): Promise<DashboardAlert[]> {
     },
     {
       tone: 'warning',
-      label: 'Low stock (≤5 units, local mode)',
+      label: 'Low stock (at/below per-product threshold, local mode)',
       count: lowStock,
       href: '/admin/inventory',
     },

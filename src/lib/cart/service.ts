@@ -163,6 +163,18 @@ export function unitPricePaiseOf(item: CartItemWithProduct): number {
   return toPaise(item.product.sellingPrice);
 }
 
+/**
+ * Landed supplier cost of a line (paise) - used ONLY server-side to enforce
+ * minimum-margin protection on coupon previews. Variant costs override the
+ * product defaults when present. Never exposed to the customer.
+ */
+export function landedCostPaiseOf(item: CartItemWithProduct): number {
+  const supplierCost = item.variant?.supplierCost ?? item.product.supplierCost;
+  const supplierShipping =
+    item.variant?.supplierShippingCost ?? item.product.supplierShippingCost;
+  return toPaise(supplierCost) + toPaise(supplierShipping) + toPaise(item.product.otherCost);
+}
+
 export function lineAvailable(item: CartItemWithProduct): {
   available: boolean;
   maxQuantity: number;
@@ -275,10 +287,12 @@ export async function applyCouponToCart(params: {
   // Validate now for fast feedback; checkout re-validates authoritatively.
   const items = await loadCartItems(cart.id);
   const subtotal = items.reduce((a, i) => a + unitPricePaiseOf(i) * i.quantity, 0);
+  const totalCost = items.reduce((a, i) => a + landedCostPaiseOf(i) * i.quantity, 0);
   const result = await evaluateCoupon({
     code: params.code,
     subtotalPaise: subtotal,
     eligiblePaise: subtotal, // scope filtering re-checked at order creation
+    totalCostPaise: totalCost,
     userId: params.userId ?? null,
     guestEmail: params.guestEmail ?? null,
   });
@@ -388,6 +402,7 @@ async function renderCartView(
       code: cart.couponCode,
       subtotalPaise,
       eligiblePaise: subtotalPaise,
+      totalCostPaise: items.reduce((a, i) => a + landedCostPaiseOf(i) * i.quantity, 0),
       userId: userId ?? null,
       guestEmail: opts?.guestEmail ?? null,
     });

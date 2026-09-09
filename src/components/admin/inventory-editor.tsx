@@ -17,11 +17,12 @@ export interface InventoryRow {
   hasVariants: boolean;
   variants: Array<{ id: string; name: string; stock: number; isActive: boolean }>;
   stock: number;
+  lowStockThreshold: number;
 }
 
-function stockTone(stock: number) {
+function stockTone(stock: number, threshold = 5) {
   if (stock === 0) return 'text-red-600 font-bold';
-  if (stock <= 5) return 'text-amber-600 font-semibold';
+  if (threshold > 0 && stock <= threshold) return 'text-amber-600 font-semibold';
   return 'text-gray-800';
 }
 
@@ -29,6 +30,22 @@ export function InventoryEditor({ initial }: { initial: InventoryRow[] }) {
   const router = useRouter();
   const [rows, setRows] = useState(initial);
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  async function saveThreshold(productId: string, lowStockThreshold: number) {
+    setSavingId(`thr-${productId}`);
+    try {
+      await apiFetch('/api/admin/inventory', {
+        method: 'PATCH',
+        body: { productId, lowStockThreshold },
+      });
+      toast('Low-stock threshold updated', 'success');
+      router.refresh();
+    } catch (err) {
+      toast(err instanceof ApiClientError ? err.message : 'Could not update threshold', 'error');
+    } finally {
+      setSavingId(null);
+    }
+  }
 
   async function saveStock(productId: string, variantId: string | null, stock: number) {
     const key = variantId ?? productId;
@@ -137,7 +154,7 @@ export function InventoryEditor({ initial }: { initial: InventoryRow[] }) {
                   <div className="min-w-0">
                     <p className="truncate text-xs font-medium text-gray-800">{v.name}</p>
                     <p
-                      className={`text-sm tabular-nums ${v.isActive ? stockTone(v.stock) : 'text-gray-300 line-through'}`}
+                      className={`text-sm tabular-nums ${v.isActive ? stockTone(v.stock, row.lowStockThreshold) : 'text-gray-300 line-through'}`}
                     >
                       {v.stock} in stock
                     </p>
@@ -152,24 +169,51 @@ export function InventoryEditor({ initial }: { initial: InventoryRow[] }) {
             </ul>
           ) : (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-2">
-              <p className={`text-sm tabular-nums ${stockTone(row.stock)}`}>
+              <p className={`text-sm tabular-nums ${stockTone(row.stock, row.lowStockThreshold)}`}>
                 {row.stock} in stock
                 {row.stock === 0 && (
                   <span className="ml-2 text-xs font-normal text-red-500">
                     sold out on storefront
                   </span>
                 )}
-                {row.stock > 0 && row.stock <= 5 && (
+                {row.stock > 0 && row.lowStockThreshold > 0 && row.stock <= row.lowStockThreshold && (
                   <span className="ml-2 text-xs font-normal text-amber-600">
                     low stock badge shown
                   </span>
                 )}
               </p>
-              <StockInput
-                value={row.stock}
-                saving={savingId === row.productId}
-                onSave={(n) => saveStock(row.productId, null, n)}
-              />
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1 text-xs text-gray-500">
+                  low&nbsp;≤
+                  <input
+                    type="number"
+                    min={0}
+                    max={100000}
+                    className="w-16 rounded-md border border-gray-200 px-2 py-1 text-xs tabular-nums"
+                    value={row.lowStockThreshold}
+                    disabled={savingId === `thr-${row.productId}`}
+                    onChange={(e) =>
+                      setRows((prev) =>
+                        prev.map((r) =>
+                          r.productId === row.productId
+                            ? { ...r, lowStockThreshold: Number(e.target.value) || 0 }
+                            : r
+                        )
+                      )
+                    }
+                    onBlur={(e) => {
+                      const n = Number(e.target.value) || 0;
+                      if (n !== row.lowStockThreshold) return;
+                      void saveThreshold(row.productId, n);
+                    }}
+                  />
+                </label>
+                <StockInput
+                  value={row.stock}
+                  saving={savingId === row.productId}
+                  onSave={(n) => saveStock(row.productId, null, n)}
+                />
+              </div>
             </div>
           )}
         </li>

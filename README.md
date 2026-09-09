@@ -116,8 +116,9 @@ demoMode off.
 - Razorpay KYC, business GST registration, legal review of policy pages —
   these are between you, your CA/lawyer and the providers. **Nothing in this
   repo is legal or tax advice.**
-- End-to-end browser tests (Playwright) are scaffolded (`vitest.e2e.config.ts`,
-  `tests/e2e/`) but not yet written — listed as remaining work, not hidden.
+- Anything requiring your third-party accounts: Razorpay KYC/keys, CJ wallet
+  funding, SMTP credentials, S3/Cloudinary credentials — exact list in
+  `USER_INPUT_REQUIRED.md` and `docs/ENVIRONMENT.md`.
 
 ---
 
@@ -178,9 +179,17 @@ src/lib/           all business logic (framework-agnostic, unit-testable)
   admin/reports.ts analytics aggregations
 src/app/           Next.js routes: storefront pages, /admin panel, /api endpoints
 src/components/    UI (storefront, admin, shared primitives)
-tests/unit|integration   vitest suites (134 tests)
+tests/unit|integration   vitest suites (191 tests)
 tests/e2e/               62 HTTP-level E2E specs (real dev server + real DB)
 scripts/production-cleanup.ts  pre-launch demo-data cleanup (dry-run default)
+docs/PRICING_ENGINE.md   pricing engine + margin protection (start here for money logic)
+docs/AUTOMATION.md       what is automated vs needs configuration (5-label map)
+docs/ENVIRONMENT.md      every env var: required?, secret?, where to get it
+docs/SECURITY.md         security posture + verified controls
+docs/SUPPLIER_SETUP.md   CJ / manual / HTTP-REST supplier onboarding
+docs/PAYMENT_SETUP.md    Razorpay + COD + refunds
+docs/DEPLOYMENT.md       Vercel + Neon deploy + post-deploy checks
+docs/TROUBLESHOOTING.md  symptom → cause → fix
 docs/SUPPLIER_API.md     supplier integration contract
 SETUP_CHECKLIST.md       everything you must provide before launch
 PROJECT_STATUS.md        audit: what was run and verified (feature-by-feature)

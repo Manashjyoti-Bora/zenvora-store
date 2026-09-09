@@ -27,6 +27,7 @@ export function ProductBuyBox({
   baseStock,
   variants,
   maxPerOrder = 10,
+  lowStockThreshold = 5,
 }: {
   productId: string;
   basePricePaise: number;
@@ -34,6 +35,7 @@ export function ProductBuyBox({
   baseStock: number;
   variants: BuyBoxVariant[];
   maxPerOrder?: number;
+  lowStockThreshold?: number;
 }) {
   const activeVariants = variants.filter((v) => v.isActive);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
@@ -68,7 +70,7 @@ export function ProductBuyBox({
       <div aria-live="polite" className="text-sm">
         {soldOut ? (
           <Badge tone="red">Currently sold out</Badge>
-        ) : stock <= 5 ? (
+        ) : lowStockThreshold > 0 && stock <= lowStockThreshold ? (
           <Badge tone="amber">Low stock — only {stock} left</Badge>
         ) : (
           <Badge tone="green">In stock</Badge>

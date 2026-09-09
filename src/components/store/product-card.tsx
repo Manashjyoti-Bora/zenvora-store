@@ -7,7 +7,8 @@ import type { ProductCardData } from '@/lib/catalog/storefront';
 
 export function ProductCard({ product }: { product: ProductCardData }) {
   const soldOut = product.stock === 0;
-  const lowStock = !soldOut && product.stock > 0 && product.stock <= 5;
+  const lowStock =
+    !soldOut && product.stock > 0 && product.lowStockThreshold > 0 && product.stock <= product.lowStockThreshold;
   const discount = formatDiscountPercent(product.pricePaise, product.compareAtPricePaise);
 
   return (

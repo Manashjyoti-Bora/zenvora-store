@@ -63,6 +63,8 @@ const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   RETURN_REQUESTED: 'Return requested',
   RETURNED: 'Returned',
   FULFILMENT_FAILED: 'Fulfilment failed',
+  RTO: 'RTO (returning)',
+  RTO_RECEIVED: 'RTO received',
 };
 
 const ORDER_STATUS_TONES: Record<OrderStatus, Tone> = {
@@ -82,6 +84,8 @@ const ORDER_STATUS_TONES: Record<OrderStatus, Tone> = {
   RETURN_REQUESTED: 'amber',
   RETURNED: 'gray',
   FULFILMENT_FAILED: 'red',
+  RTO: 'amber',
+  RTO_RECEIVED: 'amber',
 };
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {

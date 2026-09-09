@@ -48,6 +48,30 @@ export const settingsSchema = z.object({
     })
     .default({ feePercent: 2, feeFixedPaise: 0 }),
 
+  pricing: z
+    .object({
+      // Minimum EFFECTIVE margin (margin on selling price, percent) that the
+      // store must never silently go below. Discount/coupon engine caps
+      // discounts at this floor unless a coupon explicitly bypasses it.
+      minMarginPercent: z.number().min(0).max(90).default(10),
+      marginProtectionEnabled: z.boolean().default(true),
+      // Expected return / RTO reserve, packaging and operational overheads
+      // added to landed cost before margin is applied (paise / percent).
+      returnReservePercent: z.number().min(0).max(50).default(0),
+      packagingPaise: z.number().int().min(0).max(100000).default(0),
+      operationalPaise: z.number().int().min(0).max(100000).default(0),
+      // Global cap on any single discount (percent of eligible subtotal).
+      maxDiscountPercent: z.number().min(0).max(90).default(90),
+    })
+    .default({
+      minMarginPercent: 10,
+      marginProtectionEnabled: true,
+      returnReservePercent: 0,
+      packagingPaise: 0,
+      operationalPaise: 0,
+      maxDiscountPercent: 90,
+    }),
+
   shipping: z
     .object({
       flatRatePaise: z.number().int().min(0).max(1000000).default(4900),

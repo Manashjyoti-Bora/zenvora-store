@@ -19,6 +19,7 @@ export interface ProductCardData {
   pricePaise: number;
   compareAtPricePaise: number | null;
   stock: number;
+  lowStockThreshold: number;
   hasVariants: boolean;
   categoryName: string | null;
 }
@@ -55,6 +56,7 @@ export function toCardData(p: CardProduct): ProductCardData {
     pricePaise,
     compareAtPricePaise: p.compareAtPrice != null ? toPaise(p.compareAtPrice) : null,
     stock,
+    lowStockThreshold: p.lowStockThreshold,
     hasVariants: p.hasVariants,
     categoryName: p.category?.name ?? null,
   };

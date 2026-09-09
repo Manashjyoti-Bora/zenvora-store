@@ -144,6 +144,7 @@ export default async function ProductPage({ params }: Ctx) {
             }
             baseStock={baseStock}
             variants={buyBoxVariants}
+            lowStockThreshold={product.lowStockThreshold}
           />
 
           <dl className="grid grid-cols-1 gap-2 rounded-xl border border-gray-200 bg-white p-4 text-sm sm:grid-cols-2">

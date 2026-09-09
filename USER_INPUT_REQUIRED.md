@@ -74,6 +74,17 @@ into chat; secrets go directly into Vercel → Project → Settings → Environm
 - zenvora-store.vercel.app with free TLS is sufficient to launch. If you own a domain:
   add it in Vercel → Domains, set DNS records, then update APP_URL + redeploy.
 
+## 🟠 B7. Persistent image storage (new in v6) — REQUIRES CONFIGURATION
+Product uploads currently default to `STORAGE_PROVIDER=local`, which is EPHEMERAL on Vercel
+(images can disappear on redeploy; the admin UI warns while on local). To make uploads durable:
+- Option A — Cloudinary (easiest): free account at cloudinary.com → set `STORAGE_PROVIDER=cloudinary`,
+  `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (secret) in Vercel.
+- Option B — S3-compatible (AWS S3 / Cloudflare R2 / MinIO): set `STORAGE_PROVIDER=s3`,
+  `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (secrets); optional
+  `S3_ENDPOINT` (R2/MinIO) and `S3_PUBLIC_BASE_URL` (CDN).
+Where to enter: Vercel → zenvorastore → Settings → Environment Variables. Nothing breaks without
+this — uploads keep working locally-ephemeral with a visible warning. Details: docs/ENVIRONMENT.md.
+
 ## ⚪ Hygiene (optional)
 - Flip `PAYMENTS_TEST_MODE=false` and `SUPPLIER_DEMO_MODE=false` in Vercel once B4/B5 are done
   (production already force-disables both; this is clarity, not safety).

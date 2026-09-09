@@ -4,6 +4,7 @@ import { toPaise } from '../money';
 import { getSettings } from '../settings';
 import { auditLog } from '../audit';
 import { transitionOrder, recordOrderEvent, canTransition } from './state';
+import { restockOrderItems } from './inventory';
 import { createRefund } from '../payments/refunds';
 import { queueNotification } from '../notifications/notify';
 import { renderOrderEmailVars } from '../notifications/order-vars';
@@ -204,6 +205,12 @@ export async function decideReturn(params: {
           message: 'Returned item(s) received',
         });
       }
+      // Returned LOCAL-mode items go back into sellable stock (idempotent).
+      await restockOrderItems({
+        orderId: order.id,
+        reason: 'RETURN_RESTOCK',
+        actorId: params.adminId ?? null,
+      });
       await notifyReturnUpdate(order.id, 'RECEIVED', 'We have received the returned item(s).');
       break;
     }
