@@ -7,6 +7,7 @@ MANUAL · NOT SUPPORTED**.
 | --- | --- | --- |
 | Price computation from costs + rules | AUTOMATED | `src/lib/pricing/*`; breakdown on every price |
 | Pricing rule hierarchy PRODUCT>CATEGORY>SUPPLIER>GLOBAL | AUTOMATED | `resolve.ts`, admin UI with live previews |
+| Auto-pricing on product create/update, bulk reprice, and supplier-product mapping | AUTOMATED | `applyEnginePricingToProduct`; fixed-price overrides preserved; full explanation shown + audited |
 | Minimum-margin protection on coupons/discounts | AUTOMATED | cart preview + authoritative gate in order creation |
 | Inventory reservation at order time (oversell-proof) | AUTOMATED | conditional `updateMany` inside transaction |
 | Inventory history (`InventoryMovement`) | AUTOMATED | ORDER_PLACED / ORDER_CANCELLED / RETURN_RESTOCK / RTO_RESTOCK / ADJUSTMENT / SUPPLIER_SYNC |

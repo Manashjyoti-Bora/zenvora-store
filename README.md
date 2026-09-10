@@ -179,7 +179,7 @@ src/lib/           all business logic (framework-agnostic, unit-testable)
   admin/reports.ts analytics aggregations
 src/app/           Next.js routes: storefront pages, /admin panel, /api endpoints
 src/components/    UI (storefront, admin, shared primitives)
-tests/unit|integration   vitest suites (191 tests)
+tests/unit|integration   vitest suites (194 tests)
 tests/e2e/               62 HTTP-level E2E specs (real dev server + real DB)
 scripts/production-cleanup.ts  pre-launch demo-data cleanup (dry-run default)
 docs/PRICING_ENGINE.md   pricing engine + margin protection (start here for money logic)

@@ -109,3 +109,22 @@ Also this audit: store branding switched to **Zenvora** (`APP_NAME` in `.env`/`.
 - No fake orders, payments, reviews, statistics, or testimonials anywhere in seed data (seed creates catalog only; the seed script explicitly refuses to fabricate orders/customers).
 - No hardcoded secrets; `.env` never committed; zip exports exclude `.env*` (only `.env.example` ships).
 - No "live" claims: nothing is deployed; see FINAL_STATUS.md for exact status labels.
+
+---
+
+## Addendum 2026-09-08 (v6 — supersedes stale statements above)
+
+- Production IS deployed: https://zenvorastore.vercel.app (health 200, database true,
+  paymentsConfigured false until Razorpay keys are set). The "nothing is deployed" line above
+  referred to the pre-deployment audit and is outdated.
+- v6 additions (all tested): pricing facade with named spec functions, minimum-margin protection
+  on coupons (cart preview + authoritative at order creation, explicit bypass flag only),
+  InventoryMovement history + idempotent restock (cancel/return/RTO), RTO lifecycle
+  (RTO/RTO_RECEIVED + admin endpoint), storage abstraction (local/S3-SigV4/Cloudinary),
+  first-order coupons, per-product low-stock thresholds, admin pricing settings section,
+  auto-pricing on supplier-product mapping with full explanation panel
+  (`applyEnginePricingToProduct`), 8 new docs (PRICING_ENGINE, AUTOMATION, ENVIRONMENT, SECURITY,
+  SUPPLIER_SETUP, PAYMENT_SETUP, DEPLOYMENT, TROUBLESHOOTING) + FINAL_AUDIT_REPORT.md.
+- Evidence: typecheck 0 errors · eslint 0 problems · 194/194 unit+integration · 62/62 E2E
+  (per-file method) · production build ✅ · additive-only migrations on fresh PG17 ✅.
+- Status labels live in docs/AUTOMATION.md; owner actions in USER_INPUT_REQUIRED.md (B1–B7).

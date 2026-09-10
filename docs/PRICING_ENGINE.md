@@ -37,6 +37,21 @@ from costs and admin-configured rules, and shows its working.
 - `minSafePricePaise`, `validateMinimumMargin` — the floor: `ceil(totalCost / (1 − minMargin%/100))`
 - `resolvePricingRule`, `explainPricing` — deterministic rule hierarchy + full audit breakdown
 
+## Automatic pricing on import / mapping (deterministic, explainable)
+
+- **Product create/update** (`upsertProduct`) always runs the engine: selling price is computed
+  from costs + the resolved rule, and the breakdown + rule id are written to the audit log.
+- **Bulk repricing** (`POST /api/admin/products/reprice`, `apply` flag) previews or applies the
+  engine across ALL / CATEGORY / SUPPLIER scopes.
+- **Supplier-product mapping** (`POST /api/admin/supplier-products/:id/map`) syncs the supplier
+  cost onto the catalog product and then re-runs the engine via
+  `applyEnginePricingToProduct()` — the selling price follows the new cost automatically.
+  Admin `FIXED_PRICE` overrides are preserved by construction (the engine returns them unchanged),
+  so nothing is ever silently altered. The response (and the mapping UI panel) shows the full
+  explanation: previous/new price, gross margin % (labelled — never "net profit"), minimum safe
+  price, maximum safe discount, rule name/scope and engine warnings.
+- No prediction of "what will sell" exists anywhere in this system, by design.
+
 ## Minimum-margin protection (never silently reduced)
 
 1. Admin sets `minMarginPercent` (default 10) in **Admin → Settings → Pricing & margin protection**.

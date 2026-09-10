@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { prisma } from '@/lib/db';
 import { auditLog } from '@/lib/audit';
 import { readJson } from '@/lib/http';
+import { applyEnginePricingToProduct } from '@/lib/catalog/products';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,10 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       },
     });
 
-    // Sync cost + supplier fields onto the mapped product.
+    // Sync cost + supplier fields onto the mapped product, then re-run the
+    // pricing engine so the selling price follows the new cost deterministically
+    // (fixed-price overrides are preserved by the engine; margins never drift).
+    let pricing = null;
     if (mapping.productId) {
       await prisma.product.update({
         where: { id: mapping.productId },
@@ -57,6 +61,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
             : {}),
         },
       });
+      pricing = await applyEnginePricingToProduct(mapping.productId);
     }
 
     await auditLog({
@@ -64,9 +69,9 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       action: body.productId ? 'supplier_product.mapped' : 'supplier_product.unmapped',
       entityType: 'SupplierProduct',
       entityId: id,
-      data: { productId: body.productId },
+      data: { productId: body.productId, pricing },
       req,
     });
-    return jsonOk({ mapping });
+    return jsonOk({ mapping, pricing });
   })(req, ctx);
 }

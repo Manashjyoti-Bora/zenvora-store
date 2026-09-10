@@ -219,3 +219,17 @@ with DEMO banners everywhere so simulated state is never mistaken for real.
    ACCEPTED → SHIPPED with tracking. Only after that is automated fulfilment "verified live".
 Note: CJ has no COD on India lines — COD orders for CJ products require admin confirmation
 before forwarding (the UI states this).
+
+---
+
+## Addendum 2026-09-08 (v6)
+
+- New optional configuration: STORAGE_PROVIDER (local|s3|cloudinary) for durable product images —
+  see USER_INPUT_REQUIRED.md item B7 and docs/ENVIRONMENT.md. Without it uploads work but are
+  ephemeral on Vercel (the admin UI warns).
+- New admin capabilities requiring no setup: pricing settings (Admin → Settings → Pricing &
+  margin protection), first-order coupons, per-product low-stock thresholds (Admin → Inventory),
+  RTO marking (Admin → Orders), auto-pricing on supplier-product mapping (Admin → Supplier
+  products — explanation panel appears after mapping).
+- Deploying v6: push to GitHub (Vercel auto-deploys; the build applies the additive migrations
+  safely) or upload the v6 zip as a deployment. Post-deploy checks: docs/DEPLOYMENT.md.

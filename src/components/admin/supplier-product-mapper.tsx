@@ -12,6 +12,20 @@ import { Alert } from '@/components/ui/feedback';
 import { TableWrap, Th, Td } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
+/** Pricing explanation returned by the map endpoint (see applyEnginePricingToProduct). */
+interface PricingSummary {
+  oldPricePaise: number;
+  newPricePaise: number;
+  applied: boolean;
+  minSafePricePaise: number;
+  maxSafeDiscountPaise: number;
+  marginPercent: number;
+  estimatedNetProfitPaise: number;
+  ruleName: string | null;
+  ruleScope: string | null;
+  warnings: string[];
+}
+
 export interface SupplierProductRow {
   id: string;
   supplierId: string;
@@ -54,6 +68,7 @@ export function SupplierProductMapper({
   const [costOverride, setCostOverride] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastPricing, setLastPricing] = useState<PricingSummary | null>(null);
 
   const visible = useMemo(() => {
     let list = rows;
@@ -85,16 +100,27 @@ export function SupplierProductMapper({
     setBusy(true);
     setError(null);
     try {
-      await apiFetch(`/api/admin/supplier-products/${mapping.id}/map`, {
-        body: {
-          productId: unmap ? null : targetProduct || null,
-          ...(costOverride.trim() !== '' && !unmap ? { supplierCost: Number(costOverride) } : {}),
-        },
-      });
-      toast(
-        unmap ? 'Mapping removed' : 'Mapped — supplier cost synced onto the product',
-        'success'
+      const data = await apiFetch<{ pricing: PricingSummary | null }>(
+        `/api/admin/supplier-products/${mapping.id}/map`,
+        {
+          body: {
+            productId: unmap ? null : targetProduct || null,
+            ...(costOverride.trim() !== '' && !unmap ? { supplierCost: Number(costOverride) } : {}),
+          },
+        }
       );
+      if (!unmap && data?.pricing) {
+        setLastPricing(data.pricing);
+        toast(
+          data.pricing.applied
+            ? `Mapped — selling price updated to ₹${(data.pricing.newPricePaise / 100).toFixed(2)} by the pricing engine`
+            : 'Mapped — selling price re-verified by the pricing engine (unchanged)',
+          'success'
+        );
+      } else {
+        setLastPricing(null);
+        toast(unmap ? 'Mapping removed' : 'Mapped — supplier cost synced onto the product', 'success');
+      }
       setMapping(null);
       router.refresh();
     } catch (err) {
@@ -108,6 +134,68 @@ export function SupplierProductMapper({
 
   return (
     <div className="space-y-4">
+      {lastPricing && (
+        <div
+          className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 text-sm"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-semibold text-emerald-900">Pricing engine result after mapping</p>
+            <button
+              type="button"
+              className="text-xs text-gray-500 hover:text-gray-700"
+              onClick={() => setLastPricing(null)}
+            >
+              dismiss
+            </button>
+          </div>
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-gray-500">Previous price</dt>
+              <dd className="tabular-nums">₹{(lastPricing.oldPricePaise / 100).toFixed(2)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-gray-500">New price</dt>
+              <dd className="font-semibold tabular-nums">
+                ₹{(lastPricing.newPricePaise / 100).toFixed(2)}
+                {lastPricing.applied ? '' : ' (unchanged)'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-gray-500">Gross margin</dt>
+              <dd className="tabular-nums">{lastPricing.marginPercent.toFixed(2)}%</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-gray-500">Min safe price</dt>
+              <dd className="tabular-nums">₹{(lastPricing.minSafePricePaise / 100).toFixed(2)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-gray-500">Max safe discount</dt>
+              <dd className="tabular-nums">₹{(lastPricing.maxSafeDiscountPaise / 100).toFixed(2)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-gray-500">Rule applied</dt>
+              <dd>
+                {lastPricing.ruleName ?? 'product defaults'}
+                {lastPricing.ruleScope ? ` (${lastPricing.ruleScope})` : ''}
+              </dd>
+            </div>
+          </dl>
+          {lastPricing.warnings.length > 0 && (
+            <ul className="mt-2 list-disc pl-5 text-xs text-amber-700">
+              {lastPricing.warnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-gray-500">
+            Gross margin — not net profit (payment fees and other costs are estimated inside the
+            engine breakdown). Deterministic result; the minimum-margin floor is never reduced
+            silently.
+          </p>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <input
           type="search"

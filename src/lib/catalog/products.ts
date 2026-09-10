@@ -5,6 +5,8 @@ import { auditLog } from '../audit';
 import { slugify } from '../utils';
 import { productInputSchema } from '../validation/schemas';
 import { resolvePricing } from '../pricing/resolve';
+import { minSafePricePaise } from '../pricing/calculations';
+import { getSettings } from '../settings';
 import type { Actor } from './types';
 
 /**
@@ -178,6 +180,53 @@ export async function saveProduct(
   });
 
   return { id: product.id, slug: product.slug, sellingPricePaise: breakdown.sellingPricePaise };
+}
+
+/**
+ * Re-runs the pricing engine for ONE product and applies the result. Used
+ * after supplier-product mapping syncs a new cost onto the product, so the
+ * selling price can never silently drift away from the configured margin
+ * strategy. Admin fixed-price overrides are preserved BY CONSTRUCTION (the
+ * engine returns the fixed price unchanged); the configured minimum margin is
+ * never reduced. Returns a full explanation for UI display + audit.
+ */
+export async function applyEnginePricingToProduct(productId: string): Promise<{
+  oldPricePaise: number;
+  newPricePaise: number;
+  applied: boolean;
+  minSafePricePaise: number;
+  maxSafeDiscountPaise: number;
+  marginPercent: number;
+  estimatedNetProfitPaise: number;
+  ruleName: string | null;
+  ruleScope: string | null;
+  warnings: string[];
+}> {
+  const product = await prisma.product.findUnique({ where: { id: productId } });
+  if (!product) throw notFound('Product not found');
+  const oldPricePaise = Math.round(Number(product.sellingPrice) * 100);
+  const { breakdown, rule } = await resolvePricing(product);
+  const applied = breakdown.sellingPricePaise !== oldPricePaise;
+  if (applied) {
+    await prisma.product.update({
+      where: { id: productId },
+      data: { sellingPrice: (breakdown.sellingPricePaise / 100).toFixed(2) },
+    });
+  }
+  const settings = await getSettings();
+  const floorPaise = minSafePricePaise(breakdown.totalCostPaise, settings);
+  return {
+    oldPricePaise,
+    newPricePaise: breakdown.sellingPricePaise,
+    applied,
+    minSafePricePaise: floorPaise,
+    maxSafeDiscountPaise: Math.max(0, breakdown.sellingPricePaise - floorPaise),
+    marginPercent: breakdown.effectiveMarginPercent,
+    estimatedNetProfitPaise: breakdown.estimatedNetProfitPaise,
+    ruleName: rule?.name ?? null,
+    ruleScope: rule?.scope ?? null,
+    warnings: breakdown.warnings,
+  };
 }
 
 export async function archiveProduct(productId: string, actor: Actor): Promise<void> {
