@@ -27,7 +27,7 @@ export function MobileMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg p-2 text-gray-700 hover:bg-gray-100"
+        className="btn-press rounded-lg p-2 text-ink-700 transition-colors hover:bg-ink-900/5 hover:text-ink-900"
         aria-expanded={open}
         aria-controls="mobile-nav"
         aria-label={open ? 'Close menu' : 'Open menu'}
@@ -55,22 +55,22 @@ export function MobileMenu({
         <nav
           id="mobile-nav"
           aria-label="Mobile navigation"
-          className="absolute inset-x-0 top-full z-40 max-h-[70vh] animate-fade-in overflow-y-auto border-b border-gray-200 bg-white px-4 py-3 shadow-lg"
+          className="absolute inset-x-0 top-full z-40 max-h-[70vh] animate-fade-in overflow-y-auto border-b border-ink-900/10 bg-cream-50 px-4 py-3 shadow-lift"
         >
           <ul className="space-y-1">
             {!user && (
-              <li className="mb-2 flex gap-2 border-b border-gray-100 pb-3">
+              <li className="mb-2 flex gap-2 border-b border-ink-900/10 pb-3">
                 <Link
                   href="/auth/login"
                   onClick={() => setOpen(false)}
-                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-center text-sm font-medium text-gray-700"
+                  className="btn-press flex-1 rounded-lg border border-ink-900/15 bg-white px-3 py-2 text-center text-sm font-semibold text-ink-800 transition-colors hover:border-ink-900/30"
                 >
                   Log in
                 </Link>
                 <Link
                   href="/auth/register"
                   onClick={() => setOpen(false)}
-                  className="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-center text-sm font-medium text-white"
+                  className="btn-press flex-1 rounded-lg bg-brand-600 px-3 py-2 text-center text-sm font-semibold text-white shadow-soft transition-colors hover:bg-brand-700"
                 >
                   Sign up
                 </Link>
@@ -81,7 +81,7 @@ export function MobileMenu({
                 <Link
                   href={l.href}
                   onClick={() => setOpen(false)}
-                  className="block rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-medium text-ink-800 transition-colors hover:bg-ink-900/5 active:bg-ink-900/10"
                 >
                   {l.label}
                 </Link>

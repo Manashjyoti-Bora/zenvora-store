@@ -21,38 +21,44 @@ export async function Header() {
   ]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-ink-900/10 bg-cream-50/95 shadow-hair backdrop-blur">
       <div className="container-store">
         <div className="flex h-14 items-center gap-3">
           <MobileMenu categories={categories} user={user} />
 
           <Link
             href="/"
-            className="flex shrink-0 items-center gap-2"
+            className="group flex shrink-0 items-center gap-2"
             aria-label={`${settings.storeName} home`}
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-black text-white">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-black text-white transition-transform duration-200 group-hover:-rotate-6">
               {settings.storeName.slice(0, 1).toUpperCase()}
             </span>
-            <span className="hidden text-lg font-bold tracking-tight text-gray-900 sm:block">
+            <span className="hidden text-base font-extrabold uppercase tracking-[0.18em] text-ink-900 sm:block">
               {settings.storeName}
             </span>
           </Link>
 
           <nav aria-label="Main navigation" className="hidden flex-1 items-center gap-5 lg:flex">
-            <Link href="/shop" className="text-sm font-medium text-gray-700 hover:text-brand-700">
+            <Link
+              href="/shop"
+              className="text-sm font-semibold text-ink-800 transition-colors hover:text-brand-700"
+            >
               Shop
             </Link>
             {categories.slice(0, 5).map((c) => (
               <Link
                 key={c.slug}
                 href={`/categories/${c.slug}`}
-                className="text-sm text-gray-600 hover:text-brand-700"
+                className="text-sm text-ink-700 transition-colors hover:text-brand-700"
               >
                 {c.name}
               </Link>
             ))}
-            <Link href="/track" className="text-sm text-gray-600 hover:text-brand-700">
+            <Link
+              href="/track"
+              className="text-sm text-ink-700 transition-colors hover:text-brand-700"
+            >
               Track order
             </Link>
           </nav>
@@ -66,7 +72,7 @@ export async function Header() {
 
             <Link
               href="/cart"
-              className="relative rounded-lg p-2 text-gray-700 hover:bg-gray-100"
+              className="btn-press relative rounded-lg p-2 text-ink-700 transition-colors hover:bg-ink-900/5 hover:text-ink-900"
               aria-label={`Cart, ${cartCount} item${cartCount === 1 ? '' : 's'}`}
             >
               <svg
@@ -84,7 +90,7 @@ export async function Header() {
                 />
               </svg>
               {cartCount > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-500 px-1 text-[11px] font-bold text-white">
+                <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-500 px-1 text-[11px] font-bold text-white shadow-soft">
                   {cartCount > 99 ? '99+' : cartCount}
                 </span>
               )}

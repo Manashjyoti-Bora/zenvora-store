@@ -57,9 +57,11 @@ export function Field({ label, hint, error, required, children, className }: Fie
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   invalid?: boolean;
+  /** From Field render-prop; mapped to aria-describedby (never passed to DOM as-is). */
+  describedBy?: string;
 }
 
-export function Input({ className, invalid, ...props }: InputProps) {
+export function Input({ className, invalid, describedBy, ...props }: InputProps) {
   return (
     <input
       className={cn(
@@ -68,6 +70,7 @@ export function Input({ className, invalid, ...props }: InputProps) {
         className
       )}
       aria-invalid={invalid || undefined}
+      aria-describedby={describedBy}
       {...props}
     />
   );
@@ -75,13 +78,16 @@ export function Input({ className, invalid, ...props }: InputProps) {
 
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   invalid?: boolean;
+  /** From Field render-prop; mapped to aria-describedby (never passed to DOM as-is). */
+  describedBy?: string;
 }
 
-export function Textarea({ className, invalid, ...props }: TextareaProps) {
+export function Textarea({ className, invalid, describedBy, ...props }: TextareaProps) {
   return (
     <textarea
       className={cn('input-base min-h-[90px]', invalid && 'border-red-500', className)}
       aria-invalid={invalid || undefined}
+      aria-describedby={describedBy}
       {...props}
     />
   );
@@ -89,13 +95,16 @@ export function Textarea({ className, invalid, ...props }: TextareaProps) {
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   invalid?: boolean;
+  /** From Field render-prop; mapped to aria-describedby (never passed to DOM as-is). */
+  describedBy?: string;
 }
 
-export function Select({ className, invalid, children, ...props }: SelectProps) {
+export function Select({ className, invalid, describedBy, children, ...props }: SelectProps) {
   return (
     <select
       className={cn('input-base pr-8', invalid && 'border-red-500', className)}
       aria-invalid={invalid || undefined}
+      aria-describedby={describedBy}
       {...props}
     >
       {children}

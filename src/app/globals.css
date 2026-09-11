@@ -8,20 +8,23 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply bg-cream-50 text-ink-900 antialiased;
+  }
+  ::selection {
+    @apply bg-brand-600 text-white;
   }
   /* Visible, consistent focus states (WCAG 2.4.7) */
   :focus-visible {
-    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white;
+    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-cream-50;
   }
   h1 {
-    @apply text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl;
+    @apply text-2xl font-bold tracking-display text-ink-900 sm:text-3xl;
   }
   h2 {
-    @apply text-xl font-semibold tracking-tight text-gray-900;
+    @apply text-xl font-semibold tracking-display text-ink-900;
   }
   h3 {
-    @apply text-lg font-semibold text-gray-900;
+    @apply text-lg font-semibold text-ink-900;
   }
 }
 
@@ -30,7 +33,21 @@
     @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
   }
   .card {
-    @apply rounded-xl border border-gray-200 bg-white shadow-sm;
+    @apply rounded-xl border border-ink-900/10 bg-white shadow-soft;
+  }
+  /* Card interaction: subtle lift + deeper layer on hover (pointer devices only,
+     so mobile doesn't get sticky hover states). */
+  .card-hover {
+    @apply transition-[transform,box-shadow] duration-200 ease-out;
+  }
+  @media (hover: hover) {
+    .card-hover:hover {
+      @apply -translate-y-0.5 shadow-lift;
+    }
+  }
+  /* Button press feedback (physicality without gimmicks). */
+  .btn-press {
+    @apply transition-[transform,box-shadow,background-color,border-color,color] duration-150 ease-out active:translate-y-px active:scale-[0.985];
   }
   .label-text {
     @apply block text-sm font-medium text-gray-700;
@@ -50,12 +67,70 @@
   .table-td {
     @apply px-3 py-2.5 align-middle text-gray-700;
   }
+  /* Typography identity */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-eyebrow text-brand-700;
+  }
+  .display {
+    @apply font-extrabold tracking-display;
+  }
+  /* Skeleton shimmer for client-side waiting states (no root loading.tsx —
+     that would reintroduce the known soft-404 regression). */
+  .skeleton {
+    @apply relative overflow-hidden rounded-md bg-cream-200;
+  }
+  .skeleton::after {
+    @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/70 to-transparent;
+    content: '';
+  }
+  /* Scroll reveal (paired with the <Reveal> client component).
+     Default state is hidden ONLY when JS drives it; reduced-motion users and
+     no-JS contexts are handled below / by the component. */
+  .reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @layer utilities {
   /* Prevent horizontal page overflow on small screens */
   .no-page-overflow {
     overflow-x: clip;
+  }
+  /* iOS home-indicator clearance for sticky mobile bars */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* Horizontal snap rail (mobile category/deal strips) */
+  .snap-rail {
+    @apply flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-width:none];
+  }
+  .snap-rail::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* One global kill-switch: reduced motion wins over every animation/transition. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 

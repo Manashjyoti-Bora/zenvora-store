@@ -264,6 +264,31 @@ export async function getFeaturedProducts(limit = 8): Promise<ProductCardData[]>
   return rows.map(toCardData);
 }
 
+/**
+ * Products with a REAL discount (compareAtPrice strictly above sellingPrice).
+ * Column-vs-column comparison isn't expressible in Prisma where-clauses, so we
+ * fetch active candidates with a compare-at price and filter deterministically
+ * in the app layer, sorted by discount depth. Never fabricates a deal: no
+ * compareAtPrice ⇒ not eligible.
+ */
+export async function getSaleProducts(limit = 8): Promise<ProductCardData[]> {
+  const candidates = await prisma.product.findMany({
+    where: { status: 'ACTIVE', compareAtPrice: { not: null } },
+    include: cardInclude,
+    orderBy: { updatedAt: 'desc' },
+    take: 60,
+  });
+  return candidates
+    .filter((p) => p.compareAtPrice !== null && p.compareAtPrice.gt(p.sellingPrice))
+    .sort((a, b) => {
+      const da = Number(a.compareAtPrice) - Number(a.sellingPrice);
+      const db = Number(b.compareAtPrice) - Number(b.sellingPrice);
+      return db - da;
+    })
+    .slice(0, limit)
+    .map(toCardData);
+}
+
 export async function getNewArrivals(limit = 8): Promise<ProductCardData[]> {
   const rows = await prisma.product.findMany({
     where: { status: 'ACTIVE' },

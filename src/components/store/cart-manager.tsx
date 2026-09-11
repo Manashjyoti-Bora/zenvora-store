@@ -125,7 +125,7 @@ export function CartManager({
         <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
           {cart.lines.map((line) => (
             <li key={line.itemId} className="flex gap-3 p-4">
-              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-cream-100">
                 {line.image ? (
                   <Image
                     src={line.image}

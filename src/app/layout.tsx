@@ -47,6 +47,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body className="no-page-overflow flex min-h-screen flex-col">
+        {/* No-JS fallback: scroll-reveal elements must never stay hidden without script. */}
+        <noscript>
+          <style>{`.reveal{opacity:1 !important;transform:none !important;}`}</style>
+        </noscript>
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[80] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-brand-700 focus:shadow-lg"
@@ -64,7 +68,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <>
             <DemoBanner demoMode={settings.demoMode} />
             {settings.announcement?.enabled && settings.announcement.text && (
-              <div className="bg-brand-950 px-4 py-1.5 text-center text-xs font-medium text-brand-100">
+              <div className="bg-ink-950 px-4 py-2 text-center text-xs font-medium tracking-wide text-cream-100">
+                <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-brass-300 align-middle" aria-hidden="true" />
                 {settings.announcement.text}
               </div>
             )}

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { env } from '@/lib/env';
 import { getSettings } from '@/lib/settings';
 import { getStorefrontProduct, getRelatedProducts } from '@/lib/catalog/storefront';
@@ -10,6 +11,7 @@ import { ProductBuyBox, type BuyBoxVariant } from '@/components/store/product-bu
 import { ProductGrid } from '@/components/store/product-grid';
 import { Breadcrumbs } from '@/components/store/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
+import { AddToCartButton } from '@/components/store/add-to-cart-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,7 +103,7 @@ export default async function ProductPage({ params }: Ctx) {
   };
 
   return (
-    <div className="container-store py-6 sm:py-8">
+    <div className="container-store pb-28 pt-6 sm:py-8 lg:pb-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -136,26 +138,42 @@ export default async function ProductPage({ params }: Ctx) {
             )}
           </div>
 
-          <ProductBuyBox
-            productId={product.id}
-            basePricePaise={basePricePaise}
-            baseCompareAtPaise={
-              product.compareAtPrice != null ? toPaise(product.compareAtPrice) : null
-            }
-            baseStock={baseStock}
-            variants={buyBoxVariants}
-            lowStockThreshold={product.lowStockThreshold}
-          />
+          <div id="buybox" className="scroll-mt-28">
+            <ProductBuyBox
+              productId={product.id}
+              basePricePaise={basePricePaise}
+              baseCompareAtPaise={
+                product.compareAtPrice != null ? toPaise(product.compareAtPrice) : null
+              }
+              baseStock={baseStock}
+              variants={buyBoxVariants}
+              lowStockThreshold={product.lowStockThreshold}
+            />
+          </div>
 
           <dl className="grid grid-cols-1 gap-2 rounded-xl border border-gray-200 bg-white p-4 text-sm sm:grid-cols-2">
             <div className="flex items-center gap-2">
-              <dt className="text-gray-500">🚚 Delivery estimate</dt>
+              <dt className="flex items-center gap-2 text-gray-500">
+                <svg className="h-4 w-4 flex-none text-brand-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M1.5 6.5h13v9h-13z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.5 9.5h4l3 3v3h-7z" />
+                  <circle cx="6" cy="17.5" r="1.6" />
+                  <circle cx="17.5" cy="17.5" r="1.6" />
+                </svg>
+                Delivery estimate
+              </dt>
               <dd className="font-medium text-gray-900">
                 {settings.shipping.estimatedDaysMin}–{settings.shipping.estimatedDaysMax} days
               </dd>
             </div>
             <div className="flex items-center gap-2">
-              <dt className="text-gray-500">↩️ Returns</dt>
+              <dt className="flex items-center gap-2 text-gray-500">
+                <svg className="h-4 w-4 flex-none text-brand-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 1 1 2.6 5.9" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 19v-5h5" />
+                </svg>
+                Returns
+              </dt>
               <dd className="font-medium text-gray-900">
                 {settings.policies.returnWindowDays > 0
                   ? `${settings.policies.returnWindowDays} days`
@@ -243,19 +261,50 @@ export default async function ProductPage({ params }: Ctx) {
         </section>
       )}
 
-      <p className="mt-10 text-center text-xs text-gray-400">
+      <p className="mt-10 text-center text-xs text-gray-500">
         Questions about this product?{' '}
         <Link
           href={`/contact?subject=${encodeURIComponent(`Question about ${product.name}`)}`}
           className="link-primary"
         >
           Contact our support team
-        </Link>{' '}
-        — we usually reply within 1 business day.
+        </Link>
+        .
       </p>
       <p className="mt-1 text-center text-xs tabular-nums text-gray-400">
         Current price: {formatINR(basePricePaise)}
       </p>
+
+      {/* Mobile sticky buy bar — real price, real stock state, no fabricated urgency */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-900/10 bg-white/95 px-3 pt-2 shadow-lift backdrop-blur-md safe-bottom lg:hidden">
+        <div className="mx-auto flex max-w-lg items-center gap-3">
+          {images[0]?.url ? (
+            <span className="relative h-11 w-11 flex-none overflow-hidden rounded-lg bg-cream-100">
+              <Image src={images[0].url} alt="" width={44} height={44} className="h-full w-full object-cover" />
+            </span>
+          ) : null}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-xs font-medium text-gray-600">{product.name}</span>
+            <span className="block text-sm font-bold tabular-nums text-ink-900">
+              {formatINR(basePricePaise)}
+              {product.compareAtPrice != null && toPaise(product.compareAtPrice) > basePricePaise && (
+                <span className="ml-1.5 text-xs font-medium text-gray-400 line-through">
+                  {formatINR(toPaise(product.compareAtPrice))}
+                </span>
+              )}
+            </span>
+          </span>
+          {product.hasVariants ? (
+            <a href="#buybox" className="btn btn-primary btn-press flex-none px-4 text-sm">
+              Select options
+            </a>
+          ) : (
+            <span className="flex-none">
+              <AddToCartButton productId={product.id} disabled={baseStock <= 0} compact />
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
