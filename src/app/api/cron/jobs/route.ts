@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
  *
  * Recommended schedule: every 5 minutes.
  */
-export async function POST(req: Request): Promise<Response> {
+async function handleCron(req: Request): Promise<Response> {
   if (!env.CRON_SECRET) {
     logger.error('Cron called but CRON_SECRET is not configured');
     return NextResponse.json({ ok: false, error: 'Cron is not configured' }, { status: 503 });
@@ -40,4 +40,16 @@ export async function POST(req: Request): Promise<Response> {
     jobs: stats,
     housekeeping: { sessionsPurged, cartsPurged: cartsPurged.count },
   });
+}
+
+export async function POST(req: Request): Promise<Response> {
+  return handleCron(req);
+}
+
+/**
+ * Vercel Cron invokes scheduled jobs with GET and sends
+ * `Authorization: Bearer $CRON_SECRET` automatically. Same guard as POST.
+ */
+export async function GET(req: Request): Promise<Response> {
+  return handleCron(req);
 }

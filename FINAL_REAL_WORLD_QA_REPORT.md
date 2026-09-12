@@ -159,7 +159,12 @@ Proof: tsc 0 · lint 0 · unit 194/194 · build ✓ · E2E 62/62 (fresh server p
 4. SMTP provider for real transactional email (currently console provider).
 5. Image storage/CDN + **real product photography and copy** (never invent product info; placeholders are data debt).
 6. Legal/tax pages review by a professional (GST, returns policy) — flagged for verification, no guarantees given here.
-7. Confirm `APP_URL=https://zenvorastore.vercel.app` (canonical/metadataBase source) — already set.
+7. Confirm `APP_URL=https://zenvorastore.vercel.app` (canonical/metadataBase source).
+   **CORRECTION (post-deployment launch-ops audit, 2026-09-12): this was NOT correctly
+   set.** Production `APP_URL` contains the hyphenated dead host `https://zenvora-store.vercel.app`
+   (HTTP 402), so live canonical, og:url, sitemap.xml and robots.txt all point at a
+   non-serving domain. Owner action: Vercel → Settings → Environment Variables → edit
+   `APP_URL` to `https://zenvorastore.vercel.app` → redeploy → re-verify canonical host.
 
 ## R. REMAINING RISKS
 

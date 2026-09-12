@@ -19,8 +19,13 @@ into chat; secrets go directly into Vercel → Project → Settings → Environm
 - Verify: GitHub Actions "CI" green; then Vercel redeploy green.
 
 ## 🔴 B3 — APP_URL must equal the real production URL
-- What/where: Vercel env `APP_URL=https://zenvora-store.vercel.app` (or your custom domain),
-  then redeploy. Used for emails, sitemap, robots, OG URLs.
+- What/where: Vercel env `APP_URL=https://zenvorastore.vercel.app` (or your custom domain),
+  then redeploy. Used for emails, sitemap, robots, OG URLs, canonical tags.
+- ⚠️ CORRECTION (launch-ops audit, 2026-09-12): earlier revisions of this file said
+  `zenvora-store.vercel.app` (hyphenated). That host is NOT the served project — it returns
+  402 DEPLOYMENT_DISABLED (see B1). The real production host is `zenvorastore.vercel.app`
+  (no hyphen). If your Vercel env still contains the hyphenated value, fix it and redeploy:
+  canonical/OG/sitemap/robots currently point at the dead host.
 
 ## 🟠 B4 — Razorpay decision (prepaid payments)
 - Choose: (a) launch COD-only first (nothing to enter), or (b) enable prepaid.
@@ -71,7 +76,7 @@ into chat; secrets go directly into Vercel → Project → Settings → Environm
   jurisdiction (I do not give legal guarantees).
 
 ## ⚪ B10 — Custom domain (optional)
-- zenvora-store.vercel.app with free TLS is sufficient to launch. If you own a domain:
+- zenvorastore.vercel.app with free TLS is sufficient to launch. If you own a domain:
   add it in Vercel → Domains, set DNS records, then update APP_URL + redeploy.
 
 ## 🟠 B7. Persistent image storage (new in v6) — REQUIRES CONFIGURATION
