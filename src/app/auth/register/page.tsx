@@ -18,7 +18,7 @@ export default async function RegisterPage() {
     <div className="container-store max-w-md py-10 sm:py-16">
       <header className="mb-6 text-center">
         <h1>Create your account</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Faster checkout, saved addresses and order tracking in one place.
         </p>
       </header>

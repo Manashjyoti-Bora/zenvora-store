@@ -29,6 +29,11 @@ export async function generateMetadata(): Promise<Metadata> {
       locale: 'en_IN',
       url: env.APP_URL,
     },
+    twitter: {
+      card: 'summary_large_image',
+      title: settings.storeName,
+      description: settings.storeTagline || undefined,
+    },
     robots: { index: true, follow: true },
   };
 }
@@ -49,7 +54,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="no-page-overflow flex min-h-screen flex-col">
         {/* No-JS fallback: scroll-reveal elements must never stay hidden without script. */}
         <noscript>
-          <style>{`.reveal{opacity:1 !important;transform:none !important;}`}</style>
+          <style>{`.reveal{opacity:1 !important;transform:none !important;}.reveal .stagger>*{opacity:1 !important;transform:none !important;animation:none !important;}`}</style>
         </noscript>
         <a
           href="#main-content"
@@ -66,6 +71,33 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </>
         ) : (
           <>
+            {/* Site-wide structured data: real store name + canonical URL only.
+                SearchAction targets the genuine /search?q= endpoint. No logo,
+                address or contact claims the business hasn't configured. */}
+            <script
+              type="application/ld+json"
+              dangerouslySetInnerHTML={{
+                __html: JSON.stringify([
+                  {
+                    '@context': 'https://schema.org',
+                    '@type': 'Organization',
+                    name: settings.storeName,
+                    url: env.APP_URL,
+                  },
+                  {
+                    '@context': 'https://schema.org',
+                    '@type': 'WebSite',
+                    name: settings.storeName,
+                    url: env.APP_URL,
+                    potentialAction: {
+                      '@type': 'SearchAction',
+                      target: `${env.APP_URL}/search?q={search_term_string}`,
+                      'query-input': 'required name=search_term_string',
+                    },
+                  },
+                ]),
+              }}
+            />
             <DemoBanner demoMode={settings.demoMode} />
             {settings.announcement?.enabled && settings.announcement.text && (
               <div className="bg-ink-950 px-4 py-2 text-center text-xs font-medium tracking-wide text-cream-100">

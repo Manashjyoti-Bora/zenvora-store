@@ -6,9 +6,11 @@ import { apiFetch, ApiClientError } from '@/lib/client/api';
 import { toast } from '@/components/ui/toaster';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Checkbox } from '@/components/ui/form';
+import { PhoneIcon } from '@/components/ui/icons';
 import { Modal } from '@/components/ui/modal';
 import { Alert, EmptyState } from '@/components/ui/feedback';
 import { Badge } from '@/components/ui/badge';
+import { PinIcon } from '@/components/ui/icons';
 
 export interface AddressData {
   id: string;
@@ -176,7 +178,7 @@ export function AddressManager({ initial }: { initial: AddressData[] }) {
 
       {addresses.length === 0 ? (
         <EmptyState
-          icon="📍"
+          icon={<PinIcon className="h-6 w-6" />}
           title="No saved addresses"
           description="Add an address to speed up future checkouts."
           action={<Button onClick={openNew}>Add your first address</Button>}
@@ -187,26 +189,28 @@ export function AddressManager({ initial }: { initial: AddressData[] }) {
             <li key={a.id} className="card p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">
+                  <p className="text-sm font-semibold text-ink-900">
                     {a.fullName}
                     {a.label && (
-                      <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-500">
+                      <span className="ml-2 rounded bg-cream-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-ink-400">
                         {a.label}
                       </span>
                     )}
                   </p>
-                  <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                  <p className="mt-1 text-xs leading-relaxed text-ink-400">
                     {a.line1}
                     {a.line2 && <>, {a.line2}</>}
                     <br />
                     {a.city}, {a.state} — {a.postalCode}
                     <br />
-                    {a.country} · 📞 {a.phone}
+                    {a.country} ·{' '}
+                    <PhoneIcon className="inline h-3.5 w-3.5 align-[-0.125em] text-ink-400" />{' '}
+                    {a.phone}
                   </p>
                 </div>
                 {a.isDefaultShipping && <Badge tone="green">Default</Badge>}
               </div>
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 text-xs">
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-ink-900/5 pt-3 text-xs">
                 <button
                   type="button"
                   onClick={() => openEdit(a)}
@@ -218,7 +222,7 @@ export function AddressManager({ initial }: { initial: AddressData[] }) {
                   <button
                     type="button"
                     onClick={() => makeDefault(a)}
-                    className="font-medium text-gray-600 hover:underline"
+                    className="font-medium text-ink-500 hover:underline"
                   >
                     Make default
                   </button>

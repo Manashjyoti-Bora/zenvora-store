@@ -19,7 +19,7 @@ export default async function TrackPage({
     <div className="container-store py-8 sm:py-12">
       <header className="mx-auto mb-8 max-w-2xl text-center">
         <h1>Track your order</h1>
-        <p className="mt-2 text-sm text-gray-500">
+        <p className="mt-2 text-sm text-ink-400">
           Enter your order number and the email address used at checkout to see live status and
           shipping updates.
         </p>

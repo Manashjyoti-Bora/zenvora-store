@@ -20,7 +20,7 @@ export default async function AddressesPage() {
     <div className="space-y-6">
       <header>
         <h1>My addresses</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Saved addresses speed up checkout. The default address is pre-selected.
         </p>
       </header>

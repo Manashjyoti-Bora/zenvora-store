@@ -24,7 +24,7 @@ export function PolicyView({
     <div className="container-store max-w-3xl py-8 sm:py-12">
       <header className="mb-6">
         <h1>{title}</h1>
-        <p className="mt-2 text-xs text-gray-400">
+        <p className="mt-2 text-xs text-ink-400">
           Last updated: {lastUpdated} · Applies to orders placed on {settings.storeName}
         </p>
       </header>
@@ -36,7 +36,7 @@ export function PolicyView({
         orders. Nothing here is legal advice.
       </Alert>
 
-      <div className="space-y-7 text-sm leading-relaxed text-gray-700 sm:text-[15px]">
+      <div className="space-y-7 text-sm leading-relaxed text-ink-700 sm:text-[15px]">
         {sections.map((s, i) => (
           <section key={s.heading} aria-labelledby={`policy-${i}`}>
             <h2 id={`policy-${i}`}>
@@ -59,7 +59,7 @@ export function PolicyView({
       </div>
 
       <nav
-        className="mt-10 flex flex-wrap gap-3 border-t border-gray-200 pt-5 text-sm"
+        className="mt-10 flex flex-wrap gap-3 border-t border-ink-900/10 pt-5 text-sm"
         aria-label="Other policies"
       >
         <Link href="/policies/privacy" className="link-primary">

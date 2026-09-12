@@ -22,7 +22,7 @@ export function ListingControls() {
 
   return (
     <div className="flex flex-wrap items-center gap-4">
-      <label className="flex items-center gap-2 text-sm text-gray-600">
+      <label className="flex items-center gap-2 text-sm text-ink-500">
         <span className="whitespace-nowrap font-medium">Sort by</span>
         <Select
           value={params.get('sort') ?? 'featured'}

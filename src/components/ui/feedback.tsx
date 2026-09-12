@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { ReactNode } from 'react';
+import { InfoIcon, CheckIcon, WarnIcon, XIcon, BoxIcon } from './icons';
 
 type AlertTone = 'info' | 'success' | 'warning' | 'error';
 
@@ -10,11 +11,11 @@ const alertTones: Record<AlertTone, string> = {
   error: 'bg-red-50 text-red-800 border-red-200',
 };
 
-const alertIcons: Record<AlertTone, string> = {
-  info: 'ℹ️',
-  success: '✓',
-  warning: '⚠',
-  error: '✕',
+const alertIcons: Record<AlertTone, ReactNode> = {
+  info: <InfoIcon className="h-4 w-4" />,
+  success: <CheckIcon className="h-4 w-4" />,
+  warning: <WarnIcon className="h-4 w-4" />,
+  error: <XIcon className="h-4 w-4" />,
 };
 
 export function Alert({
@@ -39,8 +40,7 @@ export function Alert({
     >
       <span aria-hidden="true" className="mt-0.5 font-bold">
         {alertIcons[tone]}
-      </span>
-      <div className="min-w-0 flex-1">
+      </span>      <div className="min-w-0 flex-1">
         {title && <p className="font-semibold">{title}</p>}
         {children && <div className={cn(title && 'mt-0.5', 'break-words')}>{children}</div>}
       </div>
@@ -67,8 +67,8 @@ export function Card({
       aria-label={typeof title === 'string' ? title : undefined}
     >
       {(title || action) && (
-        <header className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 sm:px-5">
-          {title && <h2 className="text-base font-semibold text-gray-900">{title}</h2>}
+        <header className="flex items-center justify-between gap-3 border-b border-ink-900/10 px-4 py-3 sm:px-5">
+          {title && <h2 className="text-base font-semibold text-ink-900">{title}</h2>}
           {action}
         </header>
       )}
@@ -78,24 +78,37 @@ export function Card({
 }
 
 export function EmptyState({
-  icon = '📦',
+  icon,
   title,
   description,
   action,
 }: {
-  icon?: string;
+  /** Any node: an <Icon/> from ui/icons on storefront surfaces; legacy emoji
+   *  strings keep rendering (ReactNode) so existing call sites never break. */
+  icon?: ReactNode;
   title: string;
   description?: string;
   action?: ReactNode;
 }) {
+  const content = icon ?? <BoxIcon className="h-6 w-6" />;
+  const isGlyph = typeof content === 'string';
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center">
-      <span aria-hidden="true" className="text-3xl">
-        {icon}
-      </span>
-      <h3 className="mt-3 text-sm font-semibold text-gray-900">{title}</h3>
-      {description && <p className="mt-1 max-w-sm text-sm text-gray-500">{description}</p>}
-      {action && <div className="mt-4">{action}</div>}
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-ink-900/15 bg-cream-50 px-6 py-12 text-center">
+      {isGlyph ? (
+        <span aria-hidden="true" className="text-3xl">
+          {content}
+        </span>
+      ) : (
+        <span
+          aria-hidden="true"
+          className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-ink-500 shadow-hair ring-1 ring-ink-900/10"
+        >
+          {content}
+        </span>
+      )}
+      <h3 className="mt-4 text-sm font-semibold text-ink-900">{title}</h3>
+      {description && <p className="mt-1 max-w-sm text-sm leading-relaxed text-ink-400">{description}</p>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }
@@ -112,18 +125,18 @@ export function StatCard({
   tone?: 'neutral' | 'positive' | 'negative' | 'info';
 }) {
   const toneClass = {
-    neutral: 'text-gray-900',
+    neutral: 'text-ink-900',
     positive: 'text-emerald-700',
     negative: 'text-red-700',
     info: 'text-blue-700',
   }[tone];
   return (
     <div className="card p-4">
-      <dt className="truncate text-xs font-medium uppercase tracking-wide text-gray-500">
+      <dt className="truncate text-xs font-medium uppercase tracking-wide text-ink-400">
         {label}
       </dt>
       <dd className={cn('mt-1 text-xl font-bold tabular-nums sm:text-2xl', toneClass)}>{value}</dd>
-      {sub && <dd className="mt-1 text-xs text-gray-500">{sub}</dd>}
+      {sub && <dd className="mt-1 text-xs text-ink-400">{sub}</dd>}
     </div>
   );
 }

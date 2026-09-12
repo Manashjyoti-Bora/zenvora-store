@@ -212,7 +212,7 @@ export function PaymentFlow({
       {phase === 'idle' && (
         <>
           {error && <Alert tone="warning">{error}</Alert>}
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-500">
             You will be taken to a secure payment window to pay{' '}
             <strong className="tabular-nums">{formatINR(amountPaise)}</strong> for order{' '}
             <strong>{orderNumber}</strong>. We never see or store your card or UPI credentials.
@@ -226,17 +226,17 @@ export function PaymentFlow({
       {(phase === 'starting' || phase === 'verifying') && (
         <div className="flex flex-col items-center gap-3 py-6" role="status" aria-live="polite">
           <Spinner className="h-7 w-7 text-brand-600" />
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-500">
             {phase === 'starting'
               ? 'Opening secure payment window…'
               : 'Verifying your payment with the gateway…'}
           </p>
-          <p className="text-xs text-gray-400">Please do not close or refresh this page.</p>
+          <p className="text-xs text-ink-400">Please do not close or refresh this page.</p>
         </div>
       )}
 
       {phase === 'gateway-open' && (
-        <div className="py-4 text-center text-sm text-gray-500" role="status">
+        <div className="py-4 text-center text-sm text-ink-400" role="status">
           Payment window open. If it did not appear,{' '}
           <button type="button" onClick={start} className="link-primary">
             open it again
@@ -280,7 +280,7 @@ export function PaymentFlow({
           <Alert tone="error" title="Payment not completed">
             {error ?? 'The payment could not be completed.'}
           </Alert>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-500">
             Your order <strong>{orderNumber}</strong> is saved and its items are reserved. Nothing
             has been charged unless your bank shows a debit — in that case do not retry and contact
             support immediately.
@@ -291,7 +291,7 @@ export function PaymentFlow({
             </Button>
             <Link
               href="/contact"
-              className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="flex-1 rounded-lg border border-ink-900/20 bg-white px-4 py-2.5 text-center text-sm font-medium text-ink-700 hover:bg-cream-50"
             >
               Contact support
             </Link>

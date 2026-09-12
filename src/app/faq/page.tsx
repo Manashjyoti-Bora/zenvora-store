@@ -251,7 +251,7 @@ export default async function FaqPage() {
       />
       <header className="mb-8">
         <h1>Frequently asked questions</h1>
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 text-sm text-ink-500">
           Everything about ordering, payments, delivery and returns. Can&apos;t find your answer?{' '}
           <Link href="/contact" className="link-primary">
             Contact us
@@ -264,19 +264,19 @@ export default async function FaqPage() {
         {s.demoMode && <DemoExplainer />}
       </div>
 
-      <div className="divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white">
+      <div className="divide-y divide-ink-900/10 rounded-xl border border-ink-900/10 bg-white">
         {faqs.map((f, i) => (
           <details key={i} className="group p-4 sm:p-5">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-gray-900 sm:text-base">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-ink-900 sm:text-base">
               {f.q}
               <span
-                className="shrink-0 text-gray-400 transition-transform group-open:rotate-45"
+                className="shrink-0 text-ink-400 transition-transform group-open:rotate-45"
                 aria-hidden="true"
               >
                 ＋
               </span>
             </summary>
-            <div className="mt-3 text-sm leading-relaxed text-gray-600">{f.a}</div>
+            <div className="mt-3 text-sm leading-relaxed text-ink-500">{f.a}</div>
           </details>
         ))}
       </div>

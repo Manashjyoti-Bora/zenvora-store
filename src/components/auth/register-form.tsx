@@ -134,12 +134,12 @@ function RegisterFormInner() {
           />
         )}
       </Field>
-      <label className="flex items-start gap-2.5 text-sm text-gray-600">
+      <label className="flex items-start gap-2.5 text-sm text-ink-500">
         <input
           type="checkbox"
           checked={consent}
           onChange={(e) => setConsent(e.target.checked)}
-          className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-ink-900/20 text-brand-600 focus:ring-brand-500"
           aria-describedby="consent-text"
         />
         <span id="consent-text">
@@ -157,7 +157,7 @@ function RegisterFormInner() {
       <Button type="submit" size="lg" className="w-full" loading={busy}>
         Create account
       </Button>
-      <p className="text-center text-sm text-gray-500">
+      <p className="text-center text-sm text-ink-400">
         Already have an account?{' '}
         <Link href={`/auth/login?next=${encodeURIComponent(next)}`} className="link-primary">
           Log in
@@ -169,7 +169,7 @@ function RegisterFormInner() {
 
 export function RegisterForm() {
   return (
-    <Suspense fallback={<div className="card p-6 text-sm text-gray-400">Loading…</div>}>
+    <Suspense fallback={<div className="card p-6 text-sm text-ink-400">Loading…</div>}>
       <RegisterFormInner />
     </Suspense>
   );

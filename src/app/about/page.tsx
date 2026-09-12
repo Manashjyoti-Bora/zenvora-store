@@ -24,7 +24,7 @@ export default async function AboutPage() {
     <div className="container-store max-w-3xl py-8 sm:py-12">
       <h1>About {settings.storeName}</h1>
 
-      <div className="mt-6 space-y-6 text-sm leading-relaxed text-gray-700 sm:text-base">
+      <div className="mt-6 space-y-6 text-sm leading-relaxed text-ink-700 sm:text-base">
         <section aria-labelledby="who-we-are">
           <h2 id="who-we-are">Who we are</h2>
           <p className="mt-2">
@@ -97,7 +97,7 @@ export default async function AboutPage() {
           <section aria-labelledby="registered-business">
             <h2 id="registered-business">Registered business</h2>
             <address className="mt-2 not-italic">
-              {b.legalName && <p className="font-medium text-gray-900">{b.legalName}</p>}
+              {b.legalName && <p className="font-medium text-ink-900">{b.legalName}</p>}
               {(b.addressLine || b.city) && (
                 <p className="mt-1">
                   {[b.addressLine, b.city, b.state, b.postalCode].filter(Boolean).join(', ')}

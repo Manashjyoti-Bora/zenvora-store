@@ -42,7 +42,7 @@ export function Field({ label, hint, error, required, children, className }: Fie
       </label>
       {children({ id, describedBy, invalid: Boolean(error) })}
       {hint && !error && (
-        <p id={hintId} className="text-xs text-gray-500">
+        <p id={hintId} className="text-xs text-ink-400">
           {hint}
         </p>
       )}
@@ -119,11 +119,11 @@ export function Checkbox({
 }: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   const id = useId();
   return (
-    <label htmlFor={id} className={cn('flex items-center gap-2 text-sm text-gray-700', className)}>
+    <label htmlFor={id} className={cn('flex items-center gap-2 text-sm text-ink-700', className)}>
       <input
         id={id}
         type="checkbox"
-        className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+        className="h-4 w-4 rounded border-ink-900/20 text-brand-600 focus:ring-brand-500"
         {...props}
       />
       {label}

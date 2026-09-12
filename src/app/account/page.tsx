@@ -7,6 +7,7 @@ import { StatCard } from '@/components/ui/feedback';
 import { OrderStatusBadge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/feedback';
 import { LinkButton } from '@/components/ui/button';
+import { BoxIcon } from '@/components/ui/icons';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,8 +50,8 @@ export default async function AccountDashboard() {
   return (
     <div className="space-y-6">
       <header>
-        <h1>Hello, {user.name.split(' ')[0]} 👋</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1>Hello, {user.name.split(' ')[0]}</h1>
+        <p className="mt-1 text-sm text-ink-400">
           Manage your orders, addresses and account details.
         </p>
       </header>
@@ -84,23 +85,23 @@ export default async function AccountDashboard() {
         </div>
         {recentOrders.length === 0 ? (
           <EmptyState
-            icon="📦"
+            icon={<BoxIcon className="h-6 w-6" />}
             title="No orders yet"
             description="When you place your first order it will show up here with live tracking."
             action={<LinkButton href="/shop">Start shopping</LinkButton>}
           />
         ) : (
-          <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+          <ul className="divide-y divide-ink-900/5 rounded-xl border border-ink-900/10 bg-white">
             {recentOrders.map((o) => (
               <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <Link
                     href={`/account/orders/${o.orderNumber}`}
-                    className="text-sm font-semibold text-gray-900 hover:text-brand-700"
+                    className="text-sm font-semibold text-ink-900 hover:text-brand-700"
                   >
                     {o.orderNumber}
                   </Link>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-ink-400">
                     {new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(o.createdAt)}{' '}
                     · {o._count.items} item{o._count.items === 1 ? '' : 's'} ·{' '}
                     {formatINR(toPaise(o.grandTotal))}

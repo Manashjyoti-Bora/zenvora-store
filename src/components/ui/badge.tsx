@@ -4,8 +4,8 @@ import type { ReactNode } from 'react';
 type Tone = 'neutral' | 'green' | 'amber' | 'red' | 'blue' | 'purple' | 'gray';
 
 const tones: Record<Tone, string> = {
-  neutral: 'bg-gray-100 text-gray-700 ring-gray-200',
-  gray: 'bg-gray-100 text-gray-600 ring-gray-200',
+  neutral: 'bg-cream-100 text-ink-700 ring-ink-900/10',
+  gray: 'bg-cream-100 text-ink-500 ring-ink-900/10',
   green: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   amber: 'bg-amber-50 text-amber-700 ring-amber-200',
   red: 'bg-red-50 text-red-700 ring-red-200',

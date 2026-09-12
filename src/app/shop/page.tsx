@@ -56,9 +56,10 @@ export default async function ShopPage({
 
   return (
     <div className="container-store py-6 sm:py-8">
-      <header className="mb-5">
-        <h1>Shop all products</h1>
-        <p className="mt-1 text-sm tabular-nums text-gray-500">
+      <header className="mb-6">
+        <p className="eyebrow">Catalogue</p>
+        <h1 className="display mt-1.5">Shop all products</h1>
+        <p className="mt-1 text-sm tabular-nums text-ink-400">
           {result.total} product{result.total === 1 ? '' : 's'}
           {params.category ? ` in ${params.category}` : ''}
         </p>

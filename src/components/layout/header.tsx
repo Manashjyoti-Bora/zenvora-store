@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth/guards';
 import { getCartItemCount } from '@/lib/cart/service';
@@ -9,6 +10,17 @@ import { SearchForm } from './search-form';
 
 export async function Header() {
   const user = await getCurrentUser();
+  // Server-side active-section state via the middleware's x-pathname header:
+  // brass underline + aria-current, zero client JS (design language §10).
+  const pathname = (await headers()).get('x-pathname') ?? '';
+  const under = (active: boolean) =>
+    active
+      ? 'relative font-semibold text-ink-900 after:absolute after:-bottom-1.5 after:left-0 after:h-[2px] after:w-full after:rounded-full after:bg-brass-300'
+      : '';
+  const isShop = pathname === '/shop' || pathname.startsWith('/shop/');
+  const isTrack = pathname === '/track' || pathname.startsWith('/track/');
+  const catActive = (slug: string) =>
+    pathname === `/categories/${slug}` || pathname.startsWith(`/categories/${slug}/`);
   const [cartCount, settings, categories] = await Promise.all([
     getCartItemCount(user?.id ?? null),
     getSettings(),
@@ -31,7 +43,10 @@ export async function Header() {
             className="group flex shrink-0 items-center gap-2"
             aria-label={`${settings.storeName} home`}
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-black text-white transition-transform duration-200 group-hover:-rotate-6">
+            <span
+              aria-hidden="true"
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-black text-white transition-transform duration-200 ease-zenvora [@media(hover:hover)]:group-hover:-rotate-6"
+            >
               {settings.storeName.slice(0, 1).toUpperCase()}
             </span>
             <span className="hidden text-base font-extrabold uppercase tracking-[0.18em] text-ink-900 sm:block">
@@ -42,7 +57,8 @@ export async function Header() {
           <nav aria-label="Main navigation" className="hidden flex-1 items-center gap-5 lg:flex">
             <Link
               href="/shop"
-              className="text-sm font-semibold text-ink-800 transition-colors hover:text-brand-700"
+              aria-current={isShop ? 'page' : undefined}
+              className={`text-sm font-semibold text-ink-800 transition-colors hover:text-brand-700 ${under(isShop)}`}
             >
               Shop
             </Link>
@@ -50,14 +66,16 @@ export async function Header() {
               <Link
                 key={c.slug}
                 href={`/categories/${c.slug}`}
-                className="text-sm text-ink-700 transition-colors hover:text-brand-700"
+                aria-current={catActive(c.slug) ? 'page' : undefined}
+                className={`text-sm text-ink-700 transition-colors hover:text-brand-700 ${under(catActive(c.slug))}`}
               >
                 {c.name}
               </Link>
             ))}
             <Link
               href="/track"
-              className="text-sm text-ink-700 transition-colors hover:text-brand-700"
+              aria-current={isTrack ? 'page' : undefined}
+              className={`text-sm text-ink-700 transition-colors hover:text-brand-700 ${under(isTrack)}`}
             >
               Track order
             </Link>

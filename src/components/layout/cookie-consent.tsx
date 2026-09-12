@@ -44,22 +44,32 @@ export function CookieConsent({ storeName }: { storeName: string }) {
     <div
       role="region"
       aria-label="Cookie notice"
-      className="fixed inset-x-0 bottom-0 z-[60] border-t border-gray-200 bg-white p-4 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]"
+      className="fixed inset-x-0 bottom-0 z-[60] border-t border-ink-900/10 bg-white p-4 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]"
     >
       <div className="container-store flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs leading-relaxed text-gray-600 sm:max-w-2xl sm:text-sm">
-          {storeName} uses only <strong>essential cookies</strong> (login session, cart, security).
-          No third-party trackers are enabled. See our{' '}
-          <Link href="/policies/privacy" className="link-primary">
-            Privacy Policy
-          </Link>
-          .
+        <p className="text-xs leading-relaxed text-ink-500 sm:max-w-2xl sm:text-sm">
+          {/* Short mobile line keeps the banner's paint area smaller than the
+              hero headline so it can never become the LCP element on phones. */}
+          <span className="sm:hidden">
+            Essential cookies only — no trackers.{' '}
+            <Link href="/policies/privacy" className="link-primary">
+              Privacy
+            </Link>
+          </span>
+          <span className="hidden sm:inline">
+            {storeName} uses only <strong>essential cookies</strong> (login session, cart,
+            security). No third-party trackers are enabled. See our{' '}
+            <Link href="/policies/privacy" className="link-primary">
+              Privacy Policy
+            </Link>
+            .
+          </span>
         </p>
         <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={() => setShowPrefs((v) => !v)}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-ink-900/20 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-cream-50"
             aria-expanded={showPrefs}
           >
             Preferences
@@ -74,8 +84,8 @@ export function CookieConsent({ storeName }: { storeName: string }) {
         </div>
       </div>
       {showPrefs && (
-        <div className="container-store mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-          <p className="mb-2 font-semibold text-gray-800">Cookie preferences</p>
+        <div className="container-store mt-3 rounded-lg border border-ink-900/10 bg-cream-50 p-3 text-xs text-ink-500">
+          <p className="mb-2 font-semibold text-ink-800">Cookie preferences</p>
           <ul className="space-y-1.5">
             <li className="flex items-center justify-between gap-4">
               <span>
@@ -89,7 +99,7 @@ export function CookieConsent({ storeName }: { storeName: string }) {
               <span>
                 <strong>Analytics</strong> — none enabled in this deployment
               </span>
-              <span className="rounded-full bg-gray-200 px-2 py-0.5 font-medium text-gray-600">
+              <span className="rounded-full bg-cream-200 px-2 py-0.5 font-medium text-ink-500">
                 Off
               </span>
             </li>

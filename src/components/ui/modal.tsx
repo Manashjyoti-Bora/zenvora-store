@@ -64,7 +64,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-gray-900/50 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink-900/50 p-0 sm:items-center sm:p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -79,13 +79,13 @@ export function Modal({
           wide ? 'sm:max-w-2xl' : 'sm:max-w-md'
         )}
       >
-        <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+        <header className="flex items-center justify-between border-b border-ink-900/10 px-4 py-3">
+          <h2 className="text-base font-semibold text-ink-900">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-md p-1.5 text-ink-400 hover:bg-cream-100 hover:text-ink-500"
           >
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
@@ -93,7 +93,7 @@ export function Modal({
           </button>
         </header>
         <div className="px-4 py-4">{children}</div>
-        {footer && <footer className="border-t border-gray-200 px-4 py-3">{footer}</footer>}
+        {footer && <footer className="border-t border-ink-900/10 px-4 py-3">{footer}</footer>}
       </div>
     </div>
   );

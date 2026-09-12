@@ -72,7 +72,7 @@ function ContactFormInner({
           <strong>{form.email.trim()}</strong>. For order-specific issues, include your order number
           (e.g. RX-260905-XXXXXX) to speed things up.
         </Alert>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-ink-400">
           <Link href="/faq" className="link-primary">
             Check the FAQ
           </Link>{' '}
@@ -149,7 +149,7 @@ export function ContactForm({
   defaultEmail?: string;
 }) {
   return (
-    <Suspense fallback={<div className="card p-6 text-sm text-gray-400">Loading form…</div>}>
+    <Suspense fallback={<div className="card p-6 text-sm text-ink-400">Loading form…</div>}>
       <ContactFormInner defaultName={defaultName} defaultEmail={defaultEmail} />
     </Suspense>
   );

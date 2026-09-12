@@ -141,7 +141,7 @@ export function CheckoutForm(props: CheckoutProps) {
         fullName: form.fullName.trim(),
         phone: form.phone.trim(),
         line1: form.line1.trim(),
-        line2: form.line2.trim() || null,
+        line2: form.line2.trim() || undefined,
         city: form.city.trim(),
         state: form.state.trim(),
         postalCode: form.postalCode.trim(),
@@ -221,10 +221,10 @@ export function CheckoutForm(props: CheckoutProps) {
 
         {!isLoggedIn && (
           <section className="card p-4 sm:p-5" aria-labelledby="guest-details">
-            <h2 id="guest-details" className="text-base font-semibold text-gray-900">
+            <h2 id="guest-details" className="text-base font-semibold text-ink-900">
               Your details
             </h2>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-ink-400">
               Used for order updates and tracking. Already have an account?{' '}
               <Link href="/auth/login?next=/checkout" className="link-primary">
                 Log in
@@ -280,7 +280,7 @@ export function CheckoutForm(props: CheckoutProps) {
         )}
 
         <section className="card p-4 sm:p-5" aria-labelledby="shipping-address">
-          <h2 id="shipping-address" className="text-base font-semibold text-gray-900">
+          <h2 id="shipping-address" className="text-base font-semibold text-ink-900">
             Shipping address
           </h2>
           {addresses.length > 0 && (
@@ -305,23 +305,23 @@ export function CheckoutForm(props: CheckoutProps) {
                   className={`block w-full rounded-lg border p-3 text-left text-sm transition-colors ${
                     i === 0 && a.line1 === form.line1
                       ? 'border-brand-500 bg-brand-50'
-                      : 'border-gray-200 hover:border-brand-300'
+                      : 'border-ink-900/10 hover:border-brand-300'
                   }`}
                 >
-                  <span className="font-medium text-gray-900">{a.fullName}</span>
+                  <span className="font-medium text-ink-900">{a.fullName}</span>
                   {a.label && (
-                    <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">
+                    <span className="ml-2 rounded bg-cream-100 px-1.5 py-0.5 text-[10px] uppercase text-ink-400">
                       {a.label}
                     </span>
                   )}
-                  <span className="mt-0.5 block text-xs text-gray-500">
+                  <span className="mt-0.5 block text-xs text-ink-400">
                     {a.line1}
                     {a.line2 ? `, ${a.line2}` : ''}, {a.city}, {a.state} — {a.postalCode} ·{' '}
                     {a.phone}
                   </span>
                 </button>
               ))}
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-ink-400">
                 Tap a saved address to fill the form, or edit the fields below.
               </p>
             </div>
@@ -428,7 +428,7 @@ export function CheckoutForm(props: CheckoutProps) {
         </section>
 
         <section className="card p-4 sm:p-5" aria-labelledby="payment-method">
-          <h2 id="payment-method" className="text-base font-semibold text-gray-900">
+          <h2 id="payment-method" className="text-base font-semibold text-ink-900">
             Payment method
           </h2>
           <div className="mt-3 space-y-2" role="radiogroup" aria-labelledby="payment-method">
@@ -436,7 +436,7 @@ export function CheckoutForm(props: CheckoutProps) {
               className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3.5 transition-colors ${
                 form.paymentMethod === 'PREPAID_GATEWAY'
                   ? 'border-brand-500 bg-brand-50'
-                  : 'border-gray-200 hover:border-brand-300'
+                  : 'border-ink-900/10 hover:border-brand-300'
               } ${!canPayOnline ? 'cursor-not-allowed opacity-50' : ''}`}
             >
               <input
@@ -446,13 +446,13 @@ export function CheckoutForm(props: CheckoutProps) {
                 checked={form.paymentMethod === 'PREPAID_GATEWAY'}
                 onChange={() => set('paymentMethod', 'PREPAID_GATEWAY')}
                 disabled={!canPayOnline}
-                className="mt-0.5 h-4 w-4 border-gray-300 text-brand-600 focus:ring-brand-500"
+                className="mt-0.5 h-4 w-4 border-ink-900/20 text-brand-600 focus:ring-brand-500"
               />
               <span className="text-sm">
-                <span className="block font-semibold text-gray-900">
+                <span className="block font-semibold text-ink-900">
                   Pay online (UPI / cards / netbanking)
                 </span>
-                <span className="mt-0.5 block text-xs text-gray-500">
+                <span className="mt-0.5 block text-xs text-ink-400">
                   {canPayOnline
                     ? payments.gatewayIsTest
                       ? 'TEST mode — the payment simulator will run; no real money moves. Clearly marked in your order history.'
@@ -466,7 +466,7 @@ export function CheckoutForm(props: CheckoutProps) {
               className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3.5 transition-colors ${
                 form.paymentMethod === 'COD'
                   ? 'border-brand-500 bg-brand-50'
-                  : 'border-gray-200 hover:border-brand-300'
+                  : 'border-ink-900/10 hover:border-brand-300'
               } ${!settings.codEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
             >
               <input
@@ -476,15 +476,15 @@ export function CheckoutForm(props: CheckoutProps) {
                 checked={form.paymentMethod === 'COD'}
                 onChange={() => set('paymentMethod', 'COD')}
                 disabled={!settings.codEnabled}
-                className="mt-0.5 h-4 w-4 border-gray-300 text-brand-600 focus:ring-brand-500"
+                className="mt-0.5 h-4 w-4 border-ink-900/20 text-brand-600 focus:ring-brand-500"
               />
               <span className="text-sm">
-                <span className="block font-semibold text-gray-900">
+                <span className="block font-semibold text-ink-900">
                   Cash on Delivery{' '}
                   {settings.codFeePaise > 0 &&
                     `(＋${formatINR(settings.codFeePaise)} handling fee)`}
                 </span>
-                <span className="mt-0.5 block text-xs text-gray-500">
+                <span className="mt-0.5 block text-xs text-ink-400">
                   {settings.codEnabled
                     ? 'Pay in cash/UPI when your order arrives. Keep exact change handy.'
                     : 'Cash on Delivery is not available on this store right now.'}
@@ -500,9 +500,9 @@ export function CheckoutForm(props: CheckoutProps) {
         </section>
 
         <section className="card p-4 sm:p-5" aria-labelledby="order-note">
-          <h2 id="order-note" className="text-base font-semibold text-gray-900">
+          <h2 id="order-note" className="text-base font-semibold text-ink-900">
             Delivery instructions{' '}
-            <span className="text-xs font-normal text-gray-400">(optional)</span>
+            <span className="text-xs font-normal text-ink-400">(optional)</span>
           </h2>
           <div className="mt-3">
             <Textarea
@@ -519,14 +519,14 @@ export function CheckoutForm(props: CheckoutProps) {
       {/* Summary */}
       <aside className="h-fit lg:sticky lg:top-20" aria-label="Order summary">
         <div className="card p-4 sm:p-5">
-          <h2 className="text-base font-semibold text-gray-900">Your order</h2>
-          <ul className="mt-3 divide-y divide-gray-100 text-sm">
+          <h2 className="text-base font-semibold text-ink-900">Your order</h2>
+          <ul className="mt-3 divide-y divide-ink-900/5 text-sm">
             {cart.lines.map((l) => (
               <li key={l.itemId} className="flex justify-between gap-3 py-2">
-                <span className="min-w-0 text-gray-600">
-                  {l.quantity} × <span className="font-medium text-gray-900">{l.name}</span>
+                <span className="min-w-0 text-ink-500">
+                  {l.quantity} × <span className="font-medium text-ink-900">{l.name}</span>
                   {l.variantName && (
-                    <span className="block text-xs text-gray-400">{l.variantName}</span>
+                    <span className="block text-xs text-ink-400">{l.variantName}</span>
                   )}
                 </span>
                 <span className="shrink-0 font-medium tabular-nums">
@@ -535,9 +535,9 @@ export function CheckoutForm(props: CheckoutProps) {
               </li>
             ))}
           </ul>
-          <dl className="mt-3 space-y-2 border-t border-gray-200 pt-3 text-sm">
+          <dl className="mt-3 space-y-2 border-t border-ink-900/10 pt-3 text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-gray-500">Subtotal</dt>
+              <dt className="text-ink-400">Subtotal</dt>
               <dd className="tabular-nums">{formatINR(cart.subtotalPaise)}</dd>
             </div>
             {discountPaise > 0 && (
@@ -547,7 +547,7 @@ export function CheckoutForm(props: CheckoutProps) {
               </div>
             )}
             <div className="flex justify-between gap-4">
-              <dt className="text-gray-500">Shipping</dt>
+              <dt className="text-ink-400">Shipping</dt>
               <dd className="tabular-nums">
                 {form.paymentMethod === 'COD' ? (
                   baseShipping === 0 ? (
@@ -564,12 +564,12 @@ export function CheckoutForm(props: CheckoutProps) {
             </div>
             {codFee > 0 && (
               <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">COD handling fee</dt>
+                <dt className="text-ink-400">COD handling fee</dt>
                 <dd className="tabular-nums">{formatINR(codFee)}</dd>
               </div>
             )}
-            <div className="flex justify-between gap-4 border-t border-gray-200 pt-3 text-base">
-              <dt className="font-semibold text-gray-900">Total payable</dt>
+            <div className="flex justify-between gap-4 border-t border-ink-900/10 pt-3 text-base">
+              <dt className="font-semibold text-ink-900">Total payable</dt>
               <dd className="font-bold tabular-nums">{formatINR(totalPaise)}</dd>
             </div>
           </dl>
@@ -588,7 +588,7 @@ export function CheckoutForm(props: CheckoutProps) {
                 : 'Place order & pay'}
           </Button>
 
-          <p className="mt-3 text-center text-[11px] leading-relaxed text-gray-400">
+          <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-400">
             By placing this order you agree to our{' '}
             <Link href="/policies/terms" className="link-primary">
               Terms
@@ -605,7 +605,7 @@ export function CheckoutForm(props: CheckoutProps) {
             dispatch.
           </p>
         </div>
-        <p className="mt-3 text-center text-xs text-gray-400">
+        <p className="mt-3 text-center text-xs text-ink-400">
           <Link href="/cart" className="link-primary">
             ← Back to cart
           </Link>

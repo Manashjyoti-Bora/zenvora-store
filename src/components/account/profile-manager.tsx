@@ -92,7 +92,7 @@ export function ProfileManager({
         aria-labelledby="personal-details"
       >
         <div className="flex items-center justify-between gap-3">
-          <h2 id="personal-details" className="text-base font-semibold text-gray-900">
+          <h2 id="personal-details" className="text-base font-semibold text-ink-900">
             Personal details
           </h2>
           <Badge tone={role === 'CUSTOMER' ? 'neutral' : 'purple'}>{role}</Badge>
@@ -132,7 +132,7 @@ export function ProfileManager({
           )}
         </Field>
         {memberSince && (
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-ink-400">
             Member since{' '}
             {new Intl.DateTimeFormat('en-IN', { dateStyle: 'long' }).format(new Date(memberSince))}
           </p>
@@ -148,7 +148,7 @@ export function ProfileManager({
         noValidate
         aria-labelledby="change-password"
       >
-        <h2 id="change-password" className="text-base font-semibold text-gray-900">
+        <h2 id="change-password" className="text-base font-semibold text-ink-900">
           Change password
         </h2>
         {pwError && <Alert tone="error">{pwError}</Alert>}

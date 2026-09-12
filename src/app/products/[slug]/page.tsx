@@ -11,6 +11,7 @@ import { ProductBuyBox, type BuyBoxVariant } from '@/components/store/product-bu
 import { ProductGrid } from '@/components/store/product-grid';
 import { Breadcrumbs } from '@/components/store/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
+import { CreditCardIcon, ReceiptIcon } from '@/components/ui/icons';
 import { AddToCartButton } from '@/components/store/add-to-cart-button';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,14 @@ export async function generateMetadata({ params }: Ctx): Promise<Metadata> {
         url: i.url.startsWith('http') ? i.url : `${env.APP_URL}${i.url}`,
         alt: i.alt || product.name,
       })),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: product.images.slice(0, 1).map((i) =>
+        i.url.startsWith('http') ? i.url : `${env.APP_URL}${i.url}`
+      ),
     },
   };
 }
@@ -102,22 +111,38 @@ export default async function ProductPage({ params }: Ctx) {
           },
   };
 
+  // Visible breadcrumbs and BreadcrumbList JSON-LD share one source of truth.
+  const crumbs: Array<{ label: string; href?: string }> = [
+    { label: 'Home', href: '/' },
+    { label: 'Shop', href: '/shop' },
+    ...(product.category
+      ? [{ label: product.category.name, href: `/categories/${product.category.slug}` }]
+      : []),
+    { label: product.name },
+  ];
+  const breadcrumbLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: crumbs.map((c, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: c.label,
+      // The final (current-page) item omits `item` per schema.org guidance.
+      ...(c.href ? { item: `${env.APP_URL}${c.href}` } : {}),
+    })),
+  };
+
   return (
     <div className="container-store pb-28 pt-6 sm:py-8 lg:pb-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <Breadcrumbs
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Shop', href: '/shop' },
-          ...(product.category
-            ? [{ label: product.category.name, href: `/categories/${product.category.slug}` }]
-            : []),
-          { label: product.name },
-        ]}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
+      <Breadcrumbs items={crumbs} />
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <ProductGallery images={images} name={product.name} />
@@ -130,9 +155,9 @@ export default async function ProductPage({ params }: Ctx) {
               </Link>
             )}
             <h1 className="mt-2 text-2xl sm:text-3xl">{product.name}</h1>
-            {product.brand && <p className="mt-1 text-sm text-gray-500">Brand: {product.brand}</p>}
+            {product.brand && <p className="mt-1 text-sm text-ink-400">Brand: {product.brand}</p>}
             {product.shortDescription && (
-              <p className="mt-2 text-sm leading-relaxed text-gray-600">
+              <p className="mt-2 text-sm leading-relaxed text-ink-500">
                 {product.shortDescription}
               </p>
             )}
@@ -151,9 +176,9 @@ export default async function ProductPage({ params }: Ctx) {
             />
           </div>
 
-          <dl className="grid grid-cols-1 gap-2 rounded-xl border border-gray-200 bg-white p-4 text-sm sm:grid-cols-2">
+          <dl className="grid grid-cols-1 gap-2 rounded-xl border border-ink-900/10 bg-white p-4 text-sm sm:grid-cols-2">
             <div className="flex items-center gap-2">
-              <dt className="flex items-center gap-2 text-gray-500">
+              <dt className="flex items-center gap-2 text-ink-400">
                 <svg className="h-4 w-4 flex-none text-brand-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M1.5 6.5h13v9h-13z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14.5 9.5h4l3 3v3h-7z" />
@@ -162,19 +187,19 @@ export default async function ProductPage({ params }: Ctx) {
                 </svg>
                 Delivery estimate
               </dt>
-              <dd className="font-medium text-gray-900">
+              <dd className="font-medium text-ink-900">
                 {settings.shipping.estimatedDaysMin}–{settings.shipping.estimatedDaysMax} days
               </dd>
             </div>
             <div className="flex items-center gap-2">
-              <dt className="flex items-center gap-2 text-gray-500">
+              <dt className="flex items-center gap-2 text-ink-400">
                 <svg className="h-4 w-4 flex-none text-brand-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 1 1 2.6 5.9" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 19v-5h5" />
                 </svg>
                 Returns
               </dt>
-              <dd className="font-medium text-gray-900">
+              <dd className="font-medium text-ink-900">
                 {settings.policies.returnWindowDays > 0
                   ? `${settings.policies.returnWindowDays} days`
                   : 'See policy'}{' '}
@@ -184,20 +209,20 @@ export default async function ProductPage({ params }: Ctx) {
               </dd>
             </div>
             <div className="flex items-center gap-2">
-              <dt className="text-gray-500">💳 Payment</dt>
-              <dd className="font-medium text-gray-900">
+              <dt className="flex items-center gap-1.5 text-ink-400"><CreditCardIcon className="h-4 w-4" />Payment</dt>
+              <dd className="font-medium text-ink-900">
                 Online{settings.shipping.codEnabled ? ' + COD' : ''}
               </dd>
             </div>
             <div className="flex items-center gap-2">
-              <dt className="text-gray-500">🧾 Prices</dt>
-              <dd className="font-medium text-gray-900">
+              <dt className="flex items-center gap-1.5 text-ink-400"><ReceiptIcon className="h-4 w-4" />Prices</dt>
+              <dd className="font-medium text-ink-900">
                 {settings.tax.pricesIncludeTax ? 'Inclusive of taxes' : 'Taxes added at checkout'}
               </dd>
             </div>
           </dl>
 
-          {product.sku && <p className="text-xs text-gray-400">SKU: {product.sku}</p>}
+          {product.sku && <p className="text-xs text-ink-400">SKU: {product.sku}</p>}
         </div>
       </div>
 
@@ -208,13 +233,13 @@ export default async function ProductPage({ params }: Ctx) {
       >
         <div className="lg:col-span-2">
           <h2 id="product-details">Product details</h2>
-          <div className="mt-3 whitespace-pre-line text-sm leading-relaxed text-gray-700">
+          <div className="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-700">
             {product.description}
           </div>
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Specifications</h2>
-          <dl className="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white text-sm">
+          <h2 className="text-lg font-semibold text-ink-900">Specifications</h2>
+          <dl className="mt-3 divide-y divide-ink-900/5 rounded-xl border border-ink-900/10 bg-white text-sm">
             {[
               ['Brand', product.brand],
               ['SKU', product.sku],
@@ -239,12 +264,12 @@ export default async function ProductPage({ params }: Ctx) {
               .filter((row): row is [string, string] => Boolean(row[1]))
               .map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-4 px-4 py-2.5">
-                  <dt className="text-gray-500">{k}</dt>
-                  <dd className="text-right font-medium text-gray-900">{v}</dd>
+                  <dt className="text-ink-400">{k}</dt>
+                  <dd className="text-right font-medium text-ink-900">{v}</dd>
                 </div>
               ))}
             {![product.brand, product.sku, product.weightGrams].some(Boolean) && (
-              <p className="px-4 py-3 text-xs text-gray-400">
+              <p className="px-4 py-3 text-xs text-ink-400">
                 Specifications will be listed here once provided by the seller.
               </p>
             )}
@@ -261,7 +286,7 @@ export default async function ProductPage({ params }: Ctx) {
         </section>
       )}
 
-      <p className="mt-10 text-center text-xs text-gray-500">
+      <p className="mt-10 text-center text-xs text-ink-400">
         Questions about this product?{' '}
         <Link
           href={`/contact?subject=${encodeURIComponent(`Question about ${product.name}`)}`}
@@ -271,7 +296,7 @@ export default async function ProductPage({ params }: Ctx) {
         </Link>
         .
       </p>
-      <p className="mt-1 text-center text-xs tabular-nums text-gray-400">
+      <p className="mt-1 text-center text-xs tabular-nums text-ink-400">
         Current price: {formatINR(basePricePaise)}
       </p>
 
@@ -284,18 +309,21 @@ export default async function ProductPage({ params }: Ctx) {
             </span>
           ) : null}
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-xs font-medium text-gray-600">{product.name}</span>
+            <span className="block truncate text-xs font-medium text-ink-500">{product.name}</span>
             <span className="block text-sm font-bold tabular-nums text-ink-900">
               {formatINR(basePricePaise)}
               {product.compareAtPrice != null && toPaise(product.compareAtPrice) > basePricePaise && (
-                <span className="ml-1.5 text-xs font-medium text-gray-400 line-through">
+                <span className="ml-1.5 text-xs font-medium text-ink-400 line-through">
                   {formatINR(toPaise(product.compareAtPrice))}
                 </span>
               )}
             </span>
           </span>
           {product.hasVariants ? (
-            <a href="#buybox" className="btn btn-primary btn-press flex-none px-4 text-sm">
+            <a
+              href="#buybox"
+              className="btn-press inline-flex flex-none items-center justify-center rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 hover:bg-brand-700 active:bg-brand-800"
+            >
               Select options
             </a>
           ) : (

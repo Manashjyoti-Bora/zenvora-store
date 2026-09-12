@@ -13,7 +13,7 @@ export default function ForgotPasswordPage() {
     <div className="container-store max-w-md py-10 sm:py-16">
       <header className="mb-6 text-center">
         <h1>Reset your password</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Enter the email you registered with and we&apos;ll send a reset link.
         </p>
       </header>

@@ -46,7 +46,7 @@ export function FilterSidebar({
   return (
     <aside className="space-y-6 lg:sticky lg:top-20" aria-label="Product filters">
       <nav aria-label="Categories">
-        <h2 className="mb-2 text-sm font-semibold text-gray-900">Categories</h2>
+        <h2 className="mb-2 text-sm font-semibold text-ink-900">Categories</h2>
         <ul className="space-y-1">
           <li>
             <Link
@@ -55,7 +55,7 @@ export function FilterSidebar({
                 'block rounded-lg px-3 py-1.5 text-sm',
                 !activeCategory
                   ? 'bg-brand-50 font-semibold text-brand-800'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  : 'text-ink-500 hover:bg-cream-50'
               )}
             >
               All products
@@ -69,11 +69,11 @@ export function FilterSidebar({
                   'flex items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-sm',
                   activeCategory === c.slug
                     ? 'bg-brand-50 font-semibold text-brand-800'
-                    : 'text-gray-600 hover:bg-gray-50'
+                    : 'text-ink-500 hover:bg-cream-50'
                 )}
               >
                 <span className="truncate">{c.name}</span>
-                <span className="shrink-0 text-xs tabular-nums text-gray-400">
+                <span className="shrink-0 text-xs tabular-nums text-ink-400">
                   {c.productCount}
                 </span>
               </Link>
@@ -83,7 +83,7 @@ export function FilterSidebar({
       </nav>
 
       <nav aria-label="Price filters">
-        <h2 className="mb-2 text-sm font-semibold text-gray-900">Price</h2>
+        <h2 className="mb-2 text-sm font-semibold text-ink-900">Price</h2>
         <ul className="space-y-1">
           {PRICE_BANDS.map((b, i) => (
             <li key={b.label}>
@@ -96,7 +96,7 @@ export function FilterSidebar({
                   'block rounded-lg px-3 py-1.5 text-sm',
                   activeBand === i
                     ? 'bg-brand-50 font-semibold text-brand-800'
-                    : 'text-gray-600 hover:bg-gray-50'
+                    : 'text-ink-500 hover:bg-cream-50'
                 )}
               >
                 {b.label}

@@ -111,7 +111,7 @@ export function TrackOrderForm({ initialOrderNumber }: { initialOrderNumber?: st
         <Button type="submit" size="lg" loading={busy} className="w-full sm:w-auto">
           Track order
         </Button>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-ink-400">
           For your privacy, guest tracking requires both the order number and the email used at
           checkout. Ordered with an account?{' '}
           <Link href="/auth/login?next=/account/orders" className="link-primary">
@@ -123,7 +123,7 @@ export function TrackOrderForm({ initialOrderNumber }: { initialOrderNumber?: st
 
       {busy && (
         <div
-          className="flex items-center justify-center gap-2 py-6 text-sm text-gray-500"
+          className="flex items-center justify-center gap-2 py-6 text-sm text-ink-400"
           role="status"
         >
           <Spinner className="h-5 w-5 text-brand-600" /> Looking up your order…
@@ -141,10 +141,10 @@ export function TrackOrderForm({ initialOrderNumber }: { initialOrderNumber?: st
           <section className="card p-5" aria-labelledby="track-status">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 id="track-status" className="text-base font-semibold text-gray-900">
+                <h2 id="track-status" className="text-base font-semibold text-ink-900">
                   Order {result.orderNumber}
                 </h2>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-ink-400">
                   Placed {fmtDateTime(result.placedAt)} · Total {result.total}
                 </p>
               </div>
@@ -155,16 +155,16 @@ export function TrackOrderForm({ initialOrderNumber }: { initialOrderNumber?: st
             </div>
 
             {result.shipments.length === 0 && (
-              <p className="mt-4 rounded-lg bg-gray-50 px-3 py-2.5 text-sm text-gray-600">
+              <p className="mt-4 rounded-lg bg-cream-50 px-3 py-2.5 text-sm text-ink-500">
                 Your order is being prepared. Tracking details will appear here (and in your email)
                 as soon as it ships.
               </p>
             )}
 
             {result.shipments.map((s, i) => (
-              <div key={i} className="mt-4 rounded-lg border border-gray-200 p-4">
+              <div key={i} className="mt-4 rounded-lg border border-ink-900/10 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-gray-900">
+                  <p className="text-sm font-semibold text-ink-900">
                     Shipment {result.shipments.length > 1 ? i + 1 : ''}
                     {s.carrier ? ` · ${s.carrier}` : ''}
                   </p>
@@ -177,9 +177,9 @@ export function TrackOrderForm({ initialOrderNumber }: { initialOrderNumber?: st
                   </Badge>
                 </div>
                 {s.trackingNumber && (
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-ink-400">
                     Tracking number:{' '}
-                    <span className="font-mono font-medium text-gray-800">{s.trackingNumber}</span>
+                    <span className="font-mono font-medium text-ink-800">{s.trackingNumber}</span>
                     {s.trackingUrl && (
                       <>
                         {' · '}
@@ -196,7 +196,7 @@ export function TrackOrderForm({ initialOrderNumber }: { initialOrderNumber?: st
                   </p>
                 )}
                 {s.events.length > 0 && (
-                  <ol className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                  <ol className="mt-3 space-y-2 border-t border-ink-900/5 pt-3">
                     {s.events.map((ev, j) => (
                       <li key={j} className="flex gap-3 text-xs">
                         <span
@@ -204,11 +204,11 @@ export function TrackOrderForm({ initialOrderNumber }: { initialOrderNumber?: st
                           aria-hidden="true"
                         />
                         <div>
-                          <p className="font-medium text-gray-800">
+                          <p className="font-medium text-ink-800">
                             {ev.status.replace(/_/g, ' ')}
                             {ev.message ? ` — ${ev.message}` : ''}
                           </p>
-                          <p className="text-gray-400">
+                          <p className="text-ink-400">
                             {fmtDateTime(ev.eventAt)}
                             {ev.location ? ` · ${ev.location}` : ''}
                           </p>
@@ -227,15 +227,15 @@ export function TrackOrderForm({ initialOrderNumber }: { initialOrderNumber?: st
           </section>
 
           <section className="card p-5" aria-labelledby="track-items">
-            <h2 id="track-items" className="text-sm font-semibold text-gray-900">
+            <h2 id="track-items" className="text-sm font-semibold text-ink-900">
               Items in this order
             </h2>
-            <ul className="mt-3 divide-y divide-gray-100 text-sm">
+            <ul className="mt-3 divide-y divide-ink-900/5 text-sm">
               {result.items.map((it, i) => (
                 <li key={i} className="flex justify-between gap-3 py-2">
-                  <span className="text-gray-700">
+                  <span className="text-ink-700">
                     {it.quantity} × <span className="font-medium">{it.name}</span>
-                    {it.variant && <span className="text-xs text-gray-400"> ({it.variant})</span>}
+                    {it.variant && <span className="text-xs text-ink-400"> ({it.variant})</span>}
                   </span>
                   <span className="shrink-0 tabular-nums">{it.lineTotal}</span>
                 </li>

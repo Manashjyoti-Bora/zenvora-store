@@ -8,7 +8,8 @@ export async function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="mt-auto bg-ink-950 text-cream-300">
+    <footer className="relative mt-auto overflow-hidden bg-ink-950 text-cream-300">
+      <div className="grain" aria-hidden="true" />
       <div className="container-store py-12 sm:py-14">
         <div className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4 lg:grid-cols-5">
           <div className="col-span-2 lg:col-span-2">

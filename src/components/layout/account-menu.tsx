@@ -36,7 +36,7 @@ export function AccountMenu({ user }: { user: SessionUser | null }) {
     return (
       <Link
         href="/auth/login"
-        className="hidden rounded-lg p-2 text-gray-700 hover:bg-gray-100 sm:block"
+        className="hidden rounded-lg p-2 text-ink-700 hover:bg-cream-100 sm:block"
         aria-label="Log in to your account"
       >
         <svg
@@ -64,7 +64,7 @@ export function AccountMenu({ user }: { user: SessionUser | null }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-lg p-1.5 text-gray-700 hover:bg-gray-100"
+        className="flex items-center gap-1.5 rounded-lg p-1.5 text-ink-700 hover:bg-cream-100"
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={`Account menu for ${user.name}`}
@@ -89,11 +89,11 @@ export function AccountMenu({ user }: { user: SessionUser | null }) {
         <div
           role="menu"
           aria-label="Account"
-          className="absolute right-0 z-50 mt-2 w-56 animate-fade-in overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+          className="absolute right-0 z-50 mt-2 w-56 animate-fade-in overflow-hidden rounded-xl border border-ink-900/10 bg-white shadow-lg"
         >
-          <div className="border-b border-gray-100 px-4 py-3">
-            <p className="truncate text-sm font-semibold text-gray-900">{user.name}</p>
-            <p className="truncate text-xs text-gray-500">{user.email}</p>
+          <div className="border-b border-ink-900/5 px-4 py-3">
+            <p className="truncate text-sm font-semibold text-ink-900">{user.name}</p>
+            <p className="truncate text-xs text-ink-400">{user.email}</p>
           </div>
           <div className="py-1">
             <MenuItem href="/account" label="Dashboard" />
@@ -102,7 +102,7 @@ export function AccountMenu({ user }: { user: SessionUser | null }) {
             <MenuItem href="/account/profile" label="Profile & password" />
             {isAdmin && <MenuItem href="/admin" label="Admin panel" strong />}
           </div>
-          <div className="border-t border-gray-100 p-2">
+          <div className="border-t border-ink-900/5 p-2">
             <button
               type="button"
               role="menuitem"
@@ -124,7 +124,7 @@ function MenuItem({ href, label, strong }: { href: string; label: string; strong
     <Link
       href={href}
       role="menuitem"
-      className={`block px-4 py-2 text-sm hover:bg-gray-50 ${strong ? 'font-semibold text-brand-700' : 'text-gray-700'}`}
+      className={`block px-4 py-2 text-sm hover:bg-cream-50 ${strong ? 'font-semibold text-brand-700' : 'text-ink-700'}`}
     >
       {label}
     </Link>

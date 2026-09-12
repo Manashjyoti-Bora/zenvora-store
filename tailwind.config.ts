@@ -34,7 +34,10 @@ const config: Config = {
         },
         // Zenvora identity surfaces: warm ink + paper cream + restrained brass.
         ink: {
+          300: '#8A978F',
+          400: '#5F7268',
           500: '#3D5148',
+          600: '#31443B',
           700: '#24352D',
           800: '#182620',
           900: '#101B16',
@@ -77,6 +80,11 @@ const config: Config = {
         soft: '0 1px 2px rgba(16, 27, 22, 0.05), 0 4px 12px -6px rgba(16, 27, 22, 0.10)',
         lift: '0 2px 4px rgba(16, 27, 22, 0.06), 0 16px 28px -12px rgba(16, 27, 22, 0.18)',
         glow: '0 0 0 1px rgba(216, 194, 135, 0.35), 0 12px 32px -12px rgba(16, 27, 22, 0.35)',
+      },
+      transitionTimingFunction: {
+        /* The Zenvora ease: fast start, long gentle settle. One signature curve
+           for reveals, hovers, zoom and fades (see ZENVORA_DESIGN_LANGUAGE.md §9). */
+        zenvora: 'cubic-bezier(0.22, 1, 0.36, 1)',
       },
       keyframes: {
         'fade-in': {

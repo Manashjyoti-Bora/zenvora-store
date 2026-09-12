@@ -53,17 +53,17 @@ export function ProductBuyBox({
   return (
     <div className="space-y-4">
       <div className="flex items-baseline gap-3">
-        <p className="text-3xl font-bold tabular-nums text-gray-900">{formatINR(pricePaise)}</p>
+        <p className="text-3xl font-bold tabular-nums text-ink-900">{formatINR(pricePaise)}</p>
         {compareAtPaise && compareAtPaise > pricePaise && (
           <>
-            <p className="text-lg tabular-nums text-gray-400 line-through">
+            <p className="text-lg tabular-nums text-ink-400 line-through">
               {formatINR(compareAtPaise)}
             </p>
             {discount != null && <Badge tone="red">{discount}% off</Badge>}
           </>
         )}
       </div>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-ink-400">
         Inclusive of all applicable taxes. Shipping calculated at checkout.
       </p>
 
@@ -82,7 +82,7 @@ export function ProductBuyBox({
           <legend className="label-text mb-1.5">
             Option{activeVariants.length > 0 && selected ? `: ${selected.label}` : ''}
             {selectedVariantId === null && activeVariants.length > 1 && (
-              <span className="ml-1 text-xs font-normal text-amber-600">(choose one)</span>
+              <span className="ml-1 text-xs font-normal text-amber-700">(choose one)</span>
             )}
           </legend>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Product options">
@@ -94,14 +94,14 @@ export function ProductBuyBox({
                 aria-checked={selectedVariantId === v.id}
                 onClick={() => setSelectedVariantId(v.id)}
                 disabled={v.stock === 0}
-                className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                className={`btn-press rounded-lg border px-3.5 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
                   selectedVariantId === v.id
-                    ? 'border-brand-600 bg-brand-50 text-brand-800'
-                    : 'border-gray-300 bg-white text-gray-700 hover:border-brand-400'
+                    ? 'border-brand-600 bg-brand-50 text-brand-800 shadow-hair'
+                    : 'border-ink-900/20 bg-white text-ink-700 hover:border-brand-400'
                 }`}
               >
                 {v.label}
-                {v.stock === 0 && <span className="ml-1 text-xs text-gray-400">(sold out)</span>}
+                {v.stock === 0 && <span className="ml-1 text-xs text-ink-400">(sold out)</span>}
               </button>
             ))}
           </div>
@@ -121,14 +121,19 @@ export function ProductBuyBox({
           qty={qty}
           disabled={soldOut || (activeVariants.length > 1 && selectedVariantId === null)}
         />
-        <AddToCartButton
-          productId={productId}
-          variantId={selectedVariantId ?? undefined}
-          qty={qty}
-          disabled={soldOut || (activeVariants.length > 1 && selectedVariantId === null)}
-          goToList
-          label="Buy now"
-        />
+        {/* Buy-now hidden when sold out: a second dead CTA labelled
+            'Sold out' next to the first one reads as a rendering bug. */}
+        {!soldOut && (
+          <AddToCartButton
+            productId={productId}
+            variantId={selectedVariantId ?? undefined}
+            qty={qty}
+            disabled={activeVariants.length > 1 && selectedVariantId === null}
+            disabledLabel="Buy now"
+            goToList
+            label="Buy now"
+          />
+        )}
       </div>
     </div>
   );

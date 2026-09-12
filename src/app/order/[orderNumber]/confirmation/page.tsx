@@ -9,6 +9,7 @@ import { prisma } from '@/lib/db';
 import { OrderDetailView } from '@/components/orders/order-detail';
 import { OrderActions } from '@/components/orders/order-actions';
 import { Alert } from '@/components/ui/feedback';
+import { BoxIcon, CheckIcon } from '@/components/ui/icons';
 import { LinkButton } from '@/components/ui/button';
 
 export const dynamic = 'force-dynamic';
@@ -77,7 +78,7 @@ export default async function ConfirmationPage({
               ⏳
             </span>
             <h1 className="mt-3">Your order is saved — payment pending</h1>
-            <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
+            <p className="mx-auto mt-2 max-w-md text-sm text-ink-400">
               Order <strong>{order.orderNumber}</strong> was created but payment is not complete
               yet. Finish the payment to confirm it; items stay reserved until then.
             </p>
@@ -104,17 +105,21 @@ export default async function ConfirmationPage({
         ) : (
           <div className="mb-6 text-center">
             <span
-              className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl"
+              className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"
               aria-hidden="true"
             >
-              {order.paymentMethod === 'COD' ? '📦' : '✅'}
+              {order.paymentMethod === 'COD' ? (
+                <BoxIcon className="h-7 w-7" />
+              ) : (
+                <CheckIcon className="h-7 w-7" />
+              )}
             </span>
             <h1 className="mt-3">
               {order.paymentMethod === 'COD'
                 ? 'Order placed successfully!'
                 : 'Thank you — payment received!'}
             </h1>
-            <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
+            <p className="mx-auto mt-2 max-w-md text-sm text-ink-400">
               Order <strong>{order.orderNumber}</strong> is confirmed and being prepared. A
               confirmation email is on its way to{' '}
               <strong>{order.user?.email ?? order.guestEmail}</strong>.
@@ -153,7 +158,7 @@ export default async function ConfirmationPage({
           />
         </div>
 
-        <p className="mt-8 text-center text-xs text-gray-400">
+        <p className="mt-8 text-center text-xs text-ink-400">
           Something wrong with this order?{' '}
           <Link
             href={`/contact?subject=${encodeURIComponent(`Order ${order.orderNumber}`)}`}

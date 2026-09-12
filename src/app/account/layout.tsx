@@ -15,9 +15,9 @@ export default async function AccountLayout({ children }: { children: React.Reac
     <div className="container-store py-6 sm:py-8">
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[220px_1fr]">
         <aside className="h-fit lg:sticky lg:top-20">
-          <div className="mb-4 hidden rounded-xl border border-gray-200 bg-white p-4 lg:block">
-            <p className="truncate text-sm font-semibold text-gray-900">{user.name}</p>
-            <p className="truncate text-xs text-gray-500">{user.email}</p>
+          <div className="mb-4 hidden rounded-xl border border-ink-900/10 bg-white p-4 lg:block">
+            <p className="truncate text-sm font-semibold text-ink-900">{user.name}</p>
+            <p className="truncate text-xs text-ink-400">{user.email}</p>
           </div>
           <AccountNav isAdmin={isAdmin} />
         </aside>

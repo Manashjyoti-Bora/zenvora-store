@@ -154,10 +154,23 @@ export async function transitionOrder(params: TransitionParams): Promise<Order |
       return null;
     }
 
-    const updated = await tx.order.update({
-      where: { id: orderId },
+    // Compare-and-swap: only update if the status is still what we read.
+    // Under concurrent transitions (e.g. customer cancel racing a payment
+    // webhook) exactly ONE writer wins; the loser returns null instead of
+    // overwriting the winner's state.
+    const { count } = await tx.order.updateMany({
+      where: { id: orderId, status: order.status },
       data: { status: to, ...(set ?? {}) },
     });
+    if (count === 0) {
+      logger.info('Order transition lost concurrent race (CAS)', {
+        orderId,
+        readStatus: order.status,
+        to,
+      });
+      return null;
+    }
+    const updated = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
 
     await tx.orderEvent.create({
       data: {

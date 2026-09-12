@@ -14,6 +14,7 @@ export function AddToCartButton({
   compact = false,
   goToList = false,
   label,
+  disabledLabel,
 }: {
   productId: string;
   variantId?: string;
@@ -22,6 +23,9 @@ export function AddToCartButton({
   compact?: boolean;
   goToList?: boolean;
   label?: string;
+  /** Copy shown while disabled. Defaults to 'Sold out'; pass 'Buy now' etc.
+      when the disabled reason is NOT stock (e.g. variant not chosen). */
+  disabledLabel?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const router = useRouter();
@@ -56,9 +60,9 @@ export function AddToCartButton({
         onClick={add}
         loading={busy}
         disabled={disabled}
-        aria-label={disabled ? 'Sold out' : 'Add to cart'}
+        aria-label={disabled ? disabledLabel ?? 'Sold out' : 'Add to cart'}
       >
-        {disabled ? 'Sold out' : busy ? '' : '+ Add'}
+        {disabled ? disabledLabel ?? 'Sold out' : busy ? '' : '+ Add'}
       </Button>
     );
   }
@@ -74,7 +78,7 @@ export function AddToCartButton({
       disabled={disabled}
       className="w-full sm:w-auto"
     >
-      {busy ? (goToList ? 'Redirecting…' : 'Adding…') : disabled ? 'Sold out' : baseLabel}
+      {busy ? (goToList ? 'Redirecting…' : 'Adding…') : disabled ? disabledLabel ?? 'Sold out' : baseLabel}
     </Button>
   );
 }

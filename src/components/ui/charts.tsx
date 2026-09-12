@@ -23,7 +23,7 @@ export function LineChart({
 }) {
   const fmt = formatValue ?? ((v: number) => String(v));
   if (data.length === 0) {
-    return <p className="py-8 text-center text-sm text-gray-400">No data for this period</p>;
+    return <p className="py-8 text-center text-sm text-ink-400">No data for this period</p>;
   }
   const w = 600;
   const h = height;
@@ -105,7 +105,7 @@ export function BarChart({
 }) {
   const fmt = formatValue ?? ((v: number) => String(v));
   if (data.length === 0) {
-    return <p className="py-8 text-center text-sm text-gray-400">No data for this period</p>;
+    return <p className="py-8 text-center text-sm text-ink-400">No data for this period</p>;
   }
   const max = Math.max(...data.map((d) => d.value), 1);
   return (
@@ -121,7 +121,7 @@ export function BarChart({
             key={d.label}
             className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1"
           >
-            <span className="text-[10px] font-medium tabular-nums text-gray-600">
+            <span className="text-[10px] font-medium tabular-nums text-ink-500">
               {fmt(d.value)}
             </span>
             <div
@@ -129,7 +129,7 @@ export function BarChart({
               style={{ height: `${Math.max((d.value / max) * 100, 2)}%` }}
               title={`${d.label}: ${fmt(d.value)}`}
             />
-            <span className="w-full truncate text-center text-[10px] text-gray-400">{d.label}</span>
+            <span className="w-full truncate text-center text-[10px] text-ink-400">{d.label}</span>
           </div>
         ))}
       </div>

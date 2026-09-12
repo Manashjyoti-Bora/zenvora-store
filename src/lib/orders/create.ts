@@ -380,6 +380,15 @@ export async function createOrderFromCart(input: CreateOrderInput): Promise<Crea
       };
     } catch (err) {
       if (isUniqueViolation(err, 'orderNumber') && attempt < 3) continue;
+      // Concurrent double-submit with the SAME idempotencyKey: the DB unique
+      // constraint rejected the duplicate - return the winner's order instead
+      // of surfacing an error to the second (identical) request.
+      if (input.idempotencyKey && isUniqueViolation(err, 'idempotencyKey')) {
+        const winner = await prisma.order.findUnique({
+          where: { idempotencyKey: input.idempotencyKey },
+        });
+        if (winner) return existingToResult(winner, true);
+      }
       throw err;
     }
   }

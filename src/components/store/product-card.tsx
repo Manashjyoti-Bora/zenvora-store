@@ -38,9 +38,23 @@ export function ProductCard({ product }: { product: ProductCardData }) {
               alt={product.imageAlt || product.name}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.05]"
+              className="object-cover transition-transform duration-500 ease-zenvora group-focus-within:scale-[1.05] [@media(hover:hover)]:group-hover:scale-[1.05]"
               loading="lazy"
             />
+            {/* Signature crossfade: the product's real second image (when the
+                catalog has one) breathes in on hover/keyboard-focus. Gated to
+                (hover:hover) so touch never sticks; no second image = no layer,
+                no cost. Decorative duplicate ⇒ empty alt. */}
+            {product.imageUrls[1] && (
+              <Image
+                src={product.imageUrls[1]}
+                alt=""
+                fill
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                className="object-cover opacity-0 transition-[opacity,transform] duration-500 ease-zenvora group-focus-within:scale-[1.05] group-focus-within:opacity-100 [@media(hover:hover)]:group-hover:scale-[1.05] [@media(hover:hover)]:group-hover:opacity-100"
+                loading="lazy"
+              />
+            )}
           </Link>
         ) : (
           <Link
@@ -77,7 +91,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
 
       <div className="flex flex-1 flex-col gap-1.5 p-4">
         {product.categoryName && (
-          <p className="eyebrow text-gray-500">{product.categoryName}</p>
+          <p className="eyebrow text-ink-400">{product.categoryName}</p>
         )}
         <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-ink-900">
           <Link
@@ -93,7 +107,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
               {formatINR(product.pricePaise)}
             </p>
             {onSale && (
-              <p className="mt-0.5 text-xs tabular-nums text-gray-500 line-through">
+              <p className="mt-0.5 text-xs tabular-nums text-ink-400 line-through">
                 {formatINR(product.compareAtPricePaise!)}
               </p>
             )}

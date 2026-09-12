@@ -1,6 +1,14 @@
 import Link from 'next/link';
 import Image from 'next/image';
+import type { Metadata } from 'next';
 import { getSettings } from '@/lib/settings';
+
+/* Title/description/OG inherit the root layout defaults; the homepage only
+   needs its self-referencing canonical (every other indexable route already
+   declares one; utility/PII routes are noindex). */
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+};
 import {
   getFeaturedProducts,
   getNewArrivals,
@@ -14,6 +22,7 @@ import { LinkButton } from '@/components/ui/button';
 import { formatINR } from '@/lib/money';
 import { DemoExplainer } from '@/components/store/demo-explainer';
 import { Reveal } from '@/components/store/reveal';
+import { HeroPanel } from '@/components/store/hero-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +89,7 @@ function SectionHeader({
           className="btn-press group inline-flex shrink-0 items-center gap-1.5 rounded-full border border-ink-900/10 bg-white px-4 py-2 text-sm font-semibold text-brand-700 shadow-hair hover:border-brand-300 hover:text-brand-800"
         >
           {linkLabel}
+          <span className="sr-only"> {title}</span>
           <ArrowIcon className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
         </Link>
       )}
@@ -120,6 +130,8 @@ export default async function HomePage() {
               'radial-gradient(52rem 28rem at 88% -10%, rgba(53, 136, 93, 0.28), transparent 62%), radial-gradient(36rem 22rem at -8% 108%, rgba(198, 167, 92, 0.14), transparent 60%)',
           }}
         />
+        {/* Film grain: kills the "flat CSS gradient" look. Static, zero-cost. */}
+        <div className="grain" aria-hidden="true" />
         <div className="container-store relative py-14 sm:py-20 lg:py-24">
           <div className="grid items-center gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-14">
             <div className="animate-fade-up">
@@ -170,12 +182,14 @@ export default async function HomePage() {
             </div>
 
             {/* Right composition: the real top-featured product, or an honest
-                brand panel when no product imagery exists yet. */}
+                brand panel when no product imagery exists yet. HeroPanel adds
+                the signature scroll drift on capable desktop pointers only. */}
             <div className="animate-fade-up lg:justify-self-end" style={{ animationDelay: '120ms' }}>
+              <HeroPanel>
               {heroProduct ? (
                 <Link
                   href={`/products/${heroProduct.slug}`}
-                  className="group relative block w-full max-w-sm rounded-2xl bg-white p-3 shadow-glow transition-transform duration-300 hover:-translate-y-1"
+                  className="group relative block w-full max-w-sm rounded-2xl bg-white p-3 shadow-glow transition-transform duration-300 ease-zenvora [@media(hover:hover)]:hover:-translate-y-1"
                 >
                   <div className="relative aspect-[4/5] overflow-hidden rounded-xl bg-cream-100">
                     <Image
@@ -183,7 +197,7 @@ export default async function HomePage() {
                       alt={heroProduct.imageAlt || heroProduct.name}
                       fill
                       sizes="(max-width: 1024px) 80vw, 380px"
-                      className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                      className="object-cover transition-transform duration-500 ease-zenvora [@media(hover:hover)]:group-hover:scale-[1.04]"
                       priority
                     />
                     {heroProduct.compareAtPricePaise != null &&
@@ -196,7 +210,7 @@ export default async function HomePage() {
                   <div className="flex items-end justify-between gap-3 px-1.5 pb-1 pt-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-ink-900">{heroProduct.name}</p>
-                      <p className="mt-0.5 text-xs text-gray-500">
+                      <p className="mt-0.5 text-xs text-ink-400">
                         {heroProduct.categoryName ?? 'Featured'}
                       </p>
                     </div>
@@ -219,6 +233,7 @@ export default async function HomePage() {
                   </p>
                 </div>
               )}
+              </HeroPanel>
             </div>
           </div>
         </div>
@@ -254,7 +269,7 @@ export default async function HomePage() {
                     <span className="block truncate text-sm font-semibold text-ink-900 group-hover:text-brand-700">
                       {c.name}
                     </span>
-                    <span className="mt-0.5 block text-xs tabular-nums text-gray-500">
+                    <span className="mt-0.5 block text-xs tabular-nums text-ink-400">
                       {c.productCount} product{c.productCount === 1 ? '' : 's'}
                     </span>
                   </span>
@@ -301,7 +316,7 @@ export default async function HomePage() {
       {activeCount === 0 && (
         <section className="container-store py-16 text-center">
           <h2 className="text-lg font-semibold text-ink-900">The catalog is being set up</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
+          <p className="mx-auto mt-2 max-w-md text-sm text-ink-500">
             Products will appear here as soon as the store owner publishes them. If you are the
             owner, log in to the admin panel to add products or import a CSV.
           </p>
@@ -351,7 +366,7 @@ export default async function HomePage() {
                   {s.n}
                 </span>
                 <h3 className="mt-3.5 text-sm font-semibold text-ink-900">{s.t}</h3>
-                <p className="mx-auto mt-1.5 max-w-56 text-xs leading-relaxed text-gray-600">{s.d}</p>
+                <p className="mx-auto mt-1.5 max-w-56 text-xs leading-relaxed text-ink-500">{s.d}</p>
               </li>
             ))}
           </ol>

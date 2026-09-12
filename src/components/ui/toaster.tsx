@@ -42,7 +42,7 @@ export function Toaster() {
     <div
       aria-live="polite"
       aria-atomic="false"
-      className="pointer-events-none fixed inset-x-0 bottom-4 z-[70] flex flex-col items-center gap-2 px-4"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-[70] flex flex-col items-center gap-2 px-4 lg:bottom-6"
     >
       {items.map((t) => (
         <div
@@ -51,7 +51,7 @@ export function Toaster() {
             'pointer-events-auto w-full max-w-sm animate-fade-in rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg',
             t.tone === 'success' && 'bg-emerald-600',
             t.tone === 'error' && 'bg-red-600',
-            t.tone === 'info' && 'bg-gray-900'
+            t.tone === 'info' && 'bg-ink-900'
           )}
           role="status"
         >

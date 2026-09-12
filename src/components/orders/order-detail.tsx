@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { formatINR, toPaise } from '@/lib/money';
 import { OrderStatusBadge, PaymentStatusBadge, FulfilmentStatusBadge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/feedback';
+import { BoxIcon, CartIcon, PhoneIcon, XIcon } from '@/components/ui/icons';
 import type { Order, OrderItem, Shipment, Refund, ReturnRequest } from '@prisma/client';
 
 export interface OrderDetailPayload {
@@ -51,12 +52,12 @@ function Timeline({ order, shipments }: { order: Order; shipments: Shipment[] })
   if (cancelled) {
     return (
       <ol className="space-y-2 text-sm" aria-label="Order timeline">
-        <li className="flex items-center gap-2 text-gray-500">
-          <span aria-hidden="true">📦</span> Order placed{' '}
+        <li className="flex items-center gap-2 text-ink-400">
+          <BoxIcon className="h-4 w-4 shrink-0" /> Order placed{' '}
           {fmtDate(order.placedAt ?? order.createdAt)}
         </li>
         <li className="flex items-center gap-2 font-medium text-red-700">
-          <span aria-hidden="true">✕</span>{' '}
+          <XIcon className="h-4 w-4 shrink-0" />{' '}
           {order.status === 'REFUNDED'
             ? 'Cancelled & refunded'
             : order.status === 'REFUND_PENDING'
@@ -64,7 +65,7 @@ function Timeline({ order, shipments }: { order: Order; shipments: Shipment[] })
               : 'Cancelled'}{' '}
           {fmtDate(order.cancelledAt)}
           {order.cancelReason && (
-            <span className="font-normal text-gray-500">({order.cancelReason})</span>
+            <span className="font-normal text-ink-400">({order.cancelReason})</span>
           )}
         </li>
       </ol>
@@ -78,7 +79,7 @@ function Timeline({ order, shipments }: { order: Order; shipments: Shipment[] })
           <div className="flex flex-col items-center">
             <span
               className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
-                s.done ? 'border-brand-600 bg-brand-600' : 'border-gray-300 bg-white'
+                s.done ? 'border-brand-600 bg-brand-600' : 'border-ink-900/20 bg-white'
               }`}
               aria-hidden="true"
             >
@@ -96,16 +97,16 @@ function Timeline({ order, shipments }: { order: Order; shipments: Shipment[] })
             </span>
             {i < steps.length - 1 && (
               <span
-                className={`w-0.5 flex-1 ${s.done ? 'bg-brand-200' : 'bg-gray-200'}`}
+                className={`w-0.5 flex-1 ${s.done ? 'bg-brand-200' : 'bg-cream-200'}`}
                 aria-hidden="true"
               />
             )}
           </div>
           <div className="pb-5">
-            <p className={`text-sm ${s.done ? 'font-semibold text-gray-900' : 'text-gray-400'}`}>
+            <p className={`text-sm ${s.done ? 'font-semibold text-ink-900' : 'text-ink-400'}`}>
               {s.label}
             </p>
-            <p className="text-xs text-gray-400">{s.done ? fmtDate(s.at) : 'Pending'}</p>
+            <p className="text-xs text-ink-400">{s.done ? fmtDate(s.at) : 'Pending'}</p>
           </div>
         </li>
       ))}
@@ -133,9 +134,9 @@ export function OrderDetailView({
       <div className="card p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-gray-400">Order</p>
-            <p className="text-lg font-bold text-gray-900">{order.orderNumber}</p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs uppercase tracking-wide text-ink-400">Order</p>
+            <p className="text-lg font-bold text-ink-900">{order.orderNumber}</p>
+            <p className="text-xs text-ink-400">
               Placed {fmtDate(order.placedAt ?? order.createdAt)}
             </p>
           </div>
@@ -145,7 +146,7 @@ export function OrderDetailView({
             <FulfilmentStatusBadge status={order.fulfilmentStatus} />
           </div>
         </div>
-        <div className="mt-4 border-t border-gray-100 pt-4">
+        <div className="mt-4 border-t border-ink-900/5 pt-4">
           <Timeline order={order} shipments={shipments} />
         </div>
       </div>
@@ -193,7 +194,7 @@ export function OrderDetailView({
             {returnRequests.map((r) => (
               <li key={r.id}>
                 <span className="font-medium">{r.status.replace(/_/g, ' ')}</span> — {r.reason}
-                <span className="text-xs text-gray-400"> (requested {fmtDate(r.createdAt)})</span>
+                <span className="text-xs text-ink-400"> (requested {fmtDate(r.createdAt)})</span>
               </li>
             ))}
           </ul>
@@ -202,17 +203,17 @@ export function OrderDetailView({
 
       {/* Items */}
       <section className="card" aria-labelledby="order-items">
-        <header className="border-b border-gray-200 px-4 py-3 sm:px-5">
-          <h2 id="order-items" className="text-base font-semibold text-gray-900">
+        <header className="border-b border-ink-900/10 px-4 py-3 sm:px-5">
+          <h2 id="order-items" className="text-base font-semibold text-ink-900">
             Items ({items.length})
           </h2>
         </header>
-        <ul className="divide-y divide-gray-100">
+        <ul className="divide-y divide-ink-900/5">
           {items.map((item) => {
             const s = snap(item);
             return (
               <li key={item.id} className="flex gap-3 p-4">
-                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-cream-100">
                   {s.image ? (
                     <Image
                       src={s.image}
@@ -224,10 +225,10 @@ export function OrderDetailView({
                     />
                   ) : (
                     <span
-                      className="flex h-full items-center justify-center text-xl text-gray-300"
+                      className="flex h-full items-center justify-center text-xl text-ink-300"
                       aria-hidden="true"
                     >
-                      🛍️
+                      <CartIcon className="h-6 w-6" />
                     </span>
                   )}
                 </div>
@@ -235,21 +236,21 @@ export function OrderDetailView({
                   {s.slug ? (
                     <Link
                       href={`/products/${s.slug}`}
-                      className="line-clamp-2 text-sm font-semibold text-gray-900 hover:text-brand-700"
+                      className="line-clamp-2 text-sm font-semibold text-ink-900 hover:text-brand-700"
                     >
                       {s.name ?? 'Product'}
                     </Link>
                   ) : (
-                    <p className="line-clamp-2 text-sm font-semibold text-gray-900">
+                    <p className="line-clamp-2 text-sm font-semibold text-ink-900">
                       {s.name ?? 'Product'}
                     </p>
                   )}
-                  {s.variantName && <p className="text-xs text-gray-500">{s.variantName}</p>}
-                  <p className="mt-0.5 text-xs tabular-nums text-gray-400">
+                  {s.variantName && <p className="text-xs text-ink-400">{s.variantName}</p>}
+                  <p className="mt-0.5 text-xs tabular-nums text-ink-400">
                     {item.quantity} × {formatINR(toPaise(item.unitPrice))}
                   </p>
                 </div>
-                <p className="shrink-0 text-sm font-bold tabular-nums text-gray-900">
+                <p className="shrink-0 text-sm font-bold tabular-nums text-ink-900">
                   {formatINR(toPaise(item.lineTotal))}
                 </p>
               </li>
@@ -261,12 +262,12 @@ export function OrderDetailView({
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Totals */}
         <section className="card p-4 sm:p-5" aria-labelledby="order-totals">
-          <h2 id="order-totals" className="text-base font-semibold text-gray-900">
+          <h2 id="order-totals" className="text-base font-semibold text-ink-900">
             Payment summary
           </h2>
           <dl className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-gray-500">Subtotal</dt>
+              <dt className="text-ink-400">Subtotal</dt>
               <dd className="tabular-nums">{formatINR(toPaise(order.subtotal))}</dd>
             </div>
             {toPaise(order.discountTotal) > 0 && (
@@ -276,7 +277,7 @@ export function OrderDetailView({
               </div>
             )}
             <div className="flex justify-between gap-4">
-              <dt className="text-gray-500">Shipping</dt>
+              <dt className="text-ink-400">Shipping</dt>
               <dd className="tabular-nums">
                 {toPaise(order.shippingTotal) - toPaise(order.codFeeTotal) === 0
                   ? 'FREE'
@@ -285,24 +286,24 @@ export function OrderDetailView({
             </div>
             {toPaise(order.codFeeTotal) > 0 && (
               <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">COD handling fee</dt>
+                <dt className="text-ink-400">COD handling fee</dt>
                 <dd className="tabular-nums">{formatINR(toPaise(order.codFeeTotal))}</dd>
               </div>
             )}
             {refundedPaise > 0 && (
-              <div className="flex justify-between gap-4 text-gray-500">
+              <div className="flex justify-between gap-4 text-ink-400">
                 <dt>Refunded</dt>
                 <dd className="tabular-nums">−{formatINR(refundedPaise)}</dd>
               </div>
             )}
-            <div className="flex justify-between gap-4 border-t border-gray-200 pt-3 text-base">
-              <dt className="font-semibold text-gray-900">
+            <div className="flex justify-between gap-4 border-t border-ink-900/10 pt-3 text-base">
+              <dt className="font-semibold text-ink-900">
                 {refundedPaise > 0 ? 'Order total' : 'Total paid'}
               </dt>
               <dd className="font-bold tabular-nums">{formatINR(toPaise(order.grandTotal))}</dd>
             </div>
           </dl>
-          <p className="mt-3 text-xs text-gray-400">
+          <p className="mt-3 text-xs text-ink-400">
             Payment method:{' '}
             {order.paymentMethod === 'COD' ? 'Cash on Delivery' : 'Online (gateway)'}
             {order.paidAt ? ` · Paid ${fmtDate(order.paidAt)}` : ''}
@@ -311,11 +312,11 @@ export function OrderDetailView({
 
         {/* Address */}
         <section className="card p-4 sm:p-5" aria-labelledby="order-address">
-          <h2 id="order-address" className="text-base font-semibold text-gray-900">
+          <h2 id="order-address" className="text-base font-semibold text-ink-900">
             Shipping address
           </h2>
-          <address className="mt-3 text-sm not-italic leading-relaxed text-gray-700">
-            <span className="font-semibold text-gray-900">{address.fullName}</span>
+          <address className="mt-3 text-sm not-italic leading-relaxed text-ink-700">
+            <span className="font-semibold text-ink-900">{address.fullName}</span>
             <br />
             {address.line1}
             {address.line2 && (
@@ -330,10 +331,10 @@ export function OrderDetailView({
             <br />
             {address.country}
             <br />
-            📞 {address.phone}
+            <PhoneIcon className="inline h-3.5 w-3.5 align-[-0.125em]" /> {address.phone}
           </address>
           {order.customerNote && (
-            <p className="mt-3 rounded-lg bg-gray-50 p-2.5 text-xs text-gray-600">
+            <p className="mt-3 rounded-lg bg-cream-50 p-2.5 text-xs text-ink-500">
               <span className="font-medium">Delivery note:</span> {order.customerNote}
             </p>
           )}

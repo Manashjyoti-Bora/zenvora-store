@@ -43,12 +43,15 @@ export default async function SearchPage({
 
   return (
     <div className="container-store py-6 sm:py-8">
-      <header className="mb-5 space-y-3">
-        <h1>{q ? `Search results for “${q}”` : 'Search products'}</h1>
+      <header className="mb-6 space-y-3">
+        <div>
+          <p className="eyebrow">Search</p>
+          <h1 className="display mt-1.5">{q ? `Search results for “${q}”` : 'Search products'}</h1>
+        </div>
         <div className="max-w-md">
           <SearchForm />
         </div>
-        <p className="text-sm tabular-nums text-gray-500" aria-live="polite">
+        <p className="text-sm tabular-nums text-ink-400" aria-live="polite">
           {q
             ? `${result.total} result${result.total === 1 ? '' : 's'}`
             : `${result.total} products listed`}

@@ -78,12 +78,13 @@ export default async function CategoryPage({
           { label: category.name },
         ]}
       />
-      <header className="mb-5">
-        <h1>{category.name}</h1>
+      <header className="mb-6">
+        <p className="eyebrow">Category</p>
+        <h1 className="display mt-1.5">{category.name}</h1>
         {category.description && (
-          <p className="mt-1 max-w-2xl text-sm text-gray-500">{category.description}</p>
+          <p className="mt-1 max-w-2xl text-sm text-ink-400">{category.description}</p>
         )}
-        <p className="mt-1 text-sm tabular-nums text-gray-500">
+        <p className="mt-1 text-sm tabular-nums text-ink-400">
           {result.total} product{result.total === 1 ? '' : 's'}
         </p>
       </header>
@@ -108,7 +109,7 @@ export default async function CategoryPage({
             basePath={`/categories/${category.slug}`}
             searchParams={{ sort: sp.sort, min: sp.min, max: sp.max, stock: sp.stock }}
           />
-          <p className="mt-6 text-xs text-gray-400">
+          <p className="mt-6 text-xs text-ink-400">
             Looking for something else?{' '}
             <Link href="/shop" className="link-primary">
               Browse all products

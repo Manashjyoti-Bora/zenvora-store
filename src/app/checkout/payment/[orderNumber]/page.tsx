@@ -46,9 +46,9 @@ export default async function PaymentPage({
   return (
     <div className="container-store max-w-xl py-10 sm:py-16">
       <h1 className="text-center text-2xl">Complete your payment</h1>
-      <p className="mt-2 text-center text-sm text-gray-500">
-        Order <span className="font-semibold text-gray-800">{order.orderNumber}</span> · Amount{' '}
-        <span className="font-semibold tabular-nums text-gray-800">
+      <p className="mt-2 text-center text-sm text-ink-400">
+        Order <span className="font-semibold text-ink-800">{order.orderNumber}</span> · Amount{' '}
+        <span className="font-semibold tabular-nums text-ink-800">
           {formatINR(toPaise(order.grandTotal))}
         </span>
       </p>

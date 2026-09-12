@@ -48,7 +48,7 @@ export function OrderActions({
 
   if (!canCancel && !returnEligible) {
     return (
-      <p className="text-center text-xs text-gray-400">
+      <p className="text-center text-xs text-ink-400">
         {cancelReasonHint ??
           `Cancellation and returns are not available for this order right now. Returns are accepted within ${returnWindowDays} days of delivery.`}
       </p>
@@ -152,7 +152,7 @@ export function OrderActions({
               {error}
             </p>
           )}
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-500">
             If you already paid online, any refundable amount is returned to the original payment
             method (typically 5–7 business days after processing). This cannot be undone.
           </p>
@@ -195,7 +195,7 @@ export function OrderActions({
               {error}
             </p>
           )}
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-500">
             Returns are accepted within {returnWindowDays} days of delivery per our{' '}
             <a href="/policies/returns" className="link-primary">
               returns policy

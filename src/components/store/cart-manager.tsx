@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { apiFetch, ApiClientError } from '@/lib/client/api';
 import { toast } from '@/components/ui/toaster';
 import { Button, LinkButton, Spinner } from '@/components/ui/button';
+import { CartIcon, CheckIcon } from '@/components/ui/icons';
 import { QuantityStepper } from './quantity-stepper';
 import { Input } from '@/components/ui/form';
 import { formatINR } from '@/lib/money';
@@ -97,11 +98,9 @@ export function CartManager({
   if (cart.isEmpty) {
     return (
       <div className="py-10 text-center">
-        <p className="text-4xl" aria-hidden="true">
-          🛒
-        </p>
-        <h2 className="mt-3 text-lg font-semibold text-gray-900">Your cart is empty</h2>
-        <p className="mt-1 text-sm text-gray-500">Browse the catalog and add something you like.</p>
+        <CartIcon className="mx-auto h-10 w-10 text-ink-300" aria-hidden="true" />
+        <h2 className="mt-3 text-lg font-semibold text-ink-900">Your cart is empty</h2>
+        <p className="mt-1 text-sm text-ink-400">Browse the catalog and add something you like.</p>
         <div className="mt-5">
           <LinkButton href="/shop" size="lg">
             Start shopping
@@ -122,7 +121,7 @@ export function CartManager({
             quantity or remove the item to continue.
           </Alert>
         )}
-        <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+        <ul className="divide-y divide-ink-900/5 rounded-xl border border-ink-900/10 bg-white">
           {cart.lines.map((line) => (
             <li key={line.itemId} className="flex gap-3 p-4">
               <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-cream-100">
@@ -137,10 +136,10 @@ export function CartManager({
                   />
                 ) : (
                   <span
-                    className="flex h-full items-center justify-center text-2xl text-gray-300"
+                    className="flex h-full items-center justify-center text-2xl text-ink-300"
                     aria-hidden="true"
                   >
-                    🛍️
+                    <CartIcon className="h-6 w-6" />
                   </span>
                 )}
               </div>
@@ -149,18 +148,18 @@ export function CartManager({
                   <div className="min-w-0">
                     <Link
                       href={`/products/${line.slug}`}
-                      className="line-clamp-2 text-sm font-semibold text-gray-900 hover:text-brand-700"
+                      className="line-clamp-2 text-sm font-semibold text-ink-900 hover:text-brand-700"
                     >
                       {line.name}
                     </Link>
                     {line.variantName && (
-                      <p className="mt-0.5 text-xs text-gray-500">{line.variantName}</p>
+                      <p className="mt-0.5 text-xs text-ink-400">{line.variantName}</p>
                     )}
-                    <p className="mt-0.5 text-xs tabular-nums text-gray-400">
+                    <p className="mt-0.5 text-xs tabular-nums text-ink-400">
                       {formatINR(line.unitPricePaise)} each
                     </p>
                   </div>
-                  <p className="shrink-0 text-sm font-bold tabular-nums text-gray-900">
+                  <p className="shrink-0 text-sm font-bold tabular-nums text-ink-900">
                     {formatINR(line.lineTotalPaise)}
                   </p>
                 </div>
@@ -204,10 +203,10 @@ export function CartManager({
       {/* Summary */}
       <aside className="h-fit space-y-4 lg:sticky lg:top-20" aria-label="Order summary">
         <div className="card p-4 sm:p-5">
-          <h2 className="text-base font-semibold text-gray-900">Order summary</h2>
+          <h2 className="text-base font-semibold text-ink-900">Order summary</h2>
           <dl className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-gray-500">
+              <dt className="text-ink-400">
                 Subtotal ({cart.itemCount} item{cart.itemCount === 1 ? '' : 's'})
               </dt>
               <dd className="font-medium tabular-nums">{formatINR(cart.subtotalPaise)}</dd>
@@ -221,7 +220,7 @@ export function CartManager({
               </div>
             )}
             <div className="flex justify-between gap-4">
-              <dt className="text-gray-500">Shipping</dt>
+              <dt className="text-ink-400">Shipping</dt>
               <dd className="font-medium tabular-nums">
                 {cart.shippingPaise === 0 ? (
                   <span className="text-emerald-700">FREE</span>
@@ -231,10 +230,10 @@ export function CartManager({
               </dd>
             </div>
             {cart.freeShippingApplied && (
-              <p className="text-xs text-emerald-600">Free shipping applied 🎉</p>
+              <p className="flex items-center justify-end gap-1 text-xs text-emerald-600"><CheckIcon className="h-3.5 w-3.5" />Free shipping applied</p>
             )}
             {!cart.freeShippingApplied && cart.freeShippingThresholdPaise > 0 && (
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-ink-400">
                 Add{' '}
                 {formatINR(
                   cart.freeShippingThresholdPaise -
@@ -243,8 +242,8 @@ export function CartManager({
                 more for free shipping
               </p>
             )}
-            <div className="flex justify-between gap-4 border-t border-gray-200 pt-3 text-base">
-              <dt className="font-semibold text-gray-900">Total</dt>
+            <div className="flex justify-between gap-4 border-t border-ink-900/10 pt-3 text-base">
+              <dt className="font-semibold text-ink-900">Total</dt>
               <dd className="font-bold tabular-nums">{formatINR(cart.grandTotalPaise)}</dd>
             </div>
           </dl>
@@ -254,7 +253,7 @@ export function CartManager({
               Proceed to checkout
             </LinkButton>
             {!isLoggedIn && (
-              <p className="mt-2 text-center text-xs text-gray-400">
+              <p className="mt-2 text-center text-xs text-ink-400">
                 You can check out as a guest or{' '}
                 <Link href="/auth/login?next=/checkout" className="link-primary">
                   log in
@@ -266,7 +265,7 @@ export function CartManager({
         </div>
 
         <div className="card p-4">
-          <h2 className="text-sm font-semibold text-gray-900">Have a coupon?</h2>
+          <h2 className="text-sm font-semibold text-ink-900">Have a coupon?</h2>
           {cart.coupon ? (
             <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-emerald-50 px-3 py-2">
               <p className="text-sm font-medium text-emerald-700">{cart.coupon.code} applied</p>

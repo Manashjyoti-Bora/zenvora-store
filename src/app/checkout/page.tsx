@@ -8,6 +8,7 @@ import { prisma } from '@/lib/db';
 import { CheckoutForm } from '@/components/checkout/checkout-form';
 import { EmptyState } from '@/components/ui/feedback';
 import { LinkButton } from '@/components/ui/button';
+import { CartIcon } from '@/components/ui/icons';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +40,7 @@ export default async function CheckoutPage() {
       <div className="container-store py-16">
         <h1 className="mb-6">Checkout</h1>
         <EmptyState
-          icon="🛒"
+          icon={<CartIcon className="h-6 w-6" />}
           title="Your cart is empty"
           description="Add products to your cart before checking out."
           action={<LinkButton href="/shop">Browse products</LinkButton>}
@@ -54,12 +55,12 @@ export default async function CheckoutPage() {
     <div className="container-store py-6 sm:py-8">
       <header className="mb-6">
         <h1>Checkout</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Review your details below. Prices are final and include applicable taxes.
           {user ? (
             <>
               {' '}
-              Logged in as <span className="font-medium text-gray-700">{user.email}</span> —{' '}
+              Logged in as <span className="font-medium text-ink-700">{user.email}</span> —{' '}
               <Link href="/account" className="link-primary">
                 manage account
               </Link>

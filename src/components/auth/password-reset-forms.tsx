@@ -36,7 +36,7 @@ export function ForgotPasswordForm() {
           way. The link expires in 60 minutes. (We always show this message to protect account
           privacy.)
         </Alert>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-ink-400">
           Remembered your password?{' '}
           <Link href="/auth/login" className="link-primary">
             Log in
@@ -64,7 +64,7 @@ export function ForgotPasswordForm() {
       <Button type="submit" size="lg" className="w-full" loading={busy}>
         Send reset link
       </Button>
-      <p className="text-center text-sm text-gray-500">
+      <p className="text-center text-sm text-ink-400">
         <Link href="/auth/login" className="link-primary">
           ← Back to log in
         </Link>
@@ -170,7 +170,7 @@ function ResetPasswordFormInner() {
 
 export function ResetPasswordForm() {
   return (
-    <Suspense fallback={<div className="card p-6 text-sm text-gray-400">Loading…</div>}>
+    <Suspense fallback={<div className="card p-6 text-sm text-ink-400">Loading…</div>}>
       <ResetPasswordFormInner />
     </Suspense>
   );

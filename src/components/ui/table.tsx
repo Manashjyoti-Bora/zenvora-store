@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 export function TableWrap({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={cn('w-full overflow-x-auto rounded-xl border border-gray-200 bg-white', className)}
+      className={cn('w-full overflow-x-auto rounded-xl border border-ink-900/10 bg-white', className)}
     >
       {children}
     </div>
@@ -42,14 +42,14 @@ export function Pagination({ page, totalPages, basePath, searchParams = {} }: Pa
   };
   return (
     <nav className="flex items-center justify-between gap-3 px-1 py-3" aria-label="Pagination">
-      <p className="text-xs tabular-nums text-gray-500">
+      <p className="text-xs tabular-nums text-ink-400">
         Page {page} of {totalPages}
       </p>
       <div className="flex items-center gap-2">
         {page > 1 && (
           <Link
             href={href(page - 1)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-ink-900/20 bg-white px-3 py-1.5 text-sm font-medium text-ink-700 hover:bg-cream-50"
           >
             ← Previous
           </Link>
@@ -57,7 +57,7 @@ export function Pagination({ page, totalPages, basePath, searchParams = {} }: Pa
         {page < totalPages && (
           <Link
             href={href(page + 1)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-ink-900/20 bg-white px-3 py-1.5 text-sm font-medium text-ink-700 hover:bg-cream-50"
           >
             Next →
           </Link>

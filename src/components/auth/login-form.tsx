@@ -94,7 +94,7 @@ function LoginFormInner() {
 
 export function LoginForm() {
   return (
-    <Suspense fallback={<div className="card p-6 text-sm text-gray-400">Loading…</div>}>
+    <Suspense fallback={<div className="card p-6 text-sm text-ink-400">Loading…</div>}>
       <LoginFormInner />
     </Suspense>
   );

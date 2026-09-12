@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/feedback';
 import { LinkButton } from '@/components/ui/button';
 import { Pagination } from '@/components/ui/table';
 import type { OrderStatus, Prisma } from '@prisma/client';
+import { BoxIcon } from '@/components/ui/icons';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,7 +90,7 @@ export default async function OrdersPage({
     <div className="space-y-5">
       <header>
         <h1>My orders</h1>
-        <p className="mt-1 text-sm tabular-nums text-gray-500">
+        <p className="mt-1 text-sm tabular-nums text-ink-400">
           {total} order{total === 1 ? '' : 's'}
         </p>
       </header>
@@ -104,7 +105,7 @@ export default async function OrdersPage({
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
               i === filterIdx
                 ? 'bg-brand-600 text-white'
-                : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
+                : 'bg-white text-ink-500 ring-1 ring-ink-900/10 hover:bg-cream-50'
             }`}
           >
             {f.label}
@@ -114,13 +115,13 @@ export default async function OrdersPage({
 
       {orders.length === 0 ? (
         <EmptyState
-          icon="📦"
+          icon={<BoxIcon className="h-6 w-6" />}
           title="No orders in this view"
           description="Try a different filter, or place your first order."
           action={<LinkButton href="/shop">Browse products</LinkButton>}
         />
       ) : (
-        <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+        <ul className="divide-y divide-ink-900/5 rounded-xl border border-ink-900/10 bg-white">
           {orders.map((o) => {
             const snap = (o.items[0]?.productSnapshot ?? {}) as {
               name?: string;
@@ -132,11 +133,11 @@ export default async function OrdersPage({
                   <div className="min-w-0">
                     <Link
                       href={`/account/orders/${o.orderNumber}`}
-                      className="text-sm font-semibold text-gray-900 hover:text-brand-700"
+                      className="text-sm font-semibold text-ink-900 hover:text-brand-700"
                     >
                       {o.orderNumber}
                     </Link>
-                    <p className="mt-0.5 text-xs text-gray-400">
+                    <p className="mt-0.5 text-xs text-ink-400">
                       {new Intl.DateTimeFormat('en-IN', {
                         dateStyle: 'medium',
                         timeStyle: 'short',
@@ -145,7 +146,7 @@ export default async function OrdersPage({
                       {o.paymentMethod === 'COD' ? 'Cash on Delivery' : 'Paid online'}
                     </p>
                     {snap.name && (
-                      <p className="mt-1 line-clamp-1 text-xs text-gray-500">
+                      <p className="mt-1 line-clamp-1 text-xs text-ink-400">
                         {snap.name}
                         {o._count.items > 1 ? ` +${o._count.items - 1} more` : ''}
                       </p>
@@ -153,7 +154,7 @@ export default async function OrdersPage({
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
                     <OrderStatusBadge status={o.status} />
-                    <p className="text-sm font-bold tabular-nums text-gray-900">
+                    <p className="text-sm font-bold tabular-nums text-ink-900">
                       {formatINR(toPaise(o.grandTotal))}
                     </p>
                   </div>

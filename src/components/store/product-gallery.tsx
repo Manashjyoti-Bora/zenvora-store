@@ -55,12 +55,13 @@ export function ProductGallery({
       <div className="relative aspect-square overflow-hidden rounded-xl bg-cream-100">
         {!loaded[current.url] && <div className="skeleton absolute inset-0" aria-hidden="true" />}
         <Image
+          key={current.url}
           src={current.url}
           alt={current.alt || name}
           fill
           sizes="(max-width: 1024px) 100vw, 50vw"
           className={cn(
-            'object-cover transition-opacity duration-300',
+            'zoom-hover animate-fade-in object-cover transition-opacity duration-300 ease-zenvora',
             loaded[current.url] ? 'opacity-100' : 'opacity-0'
           )}
           onLoad={() => markLoaded(current.url)}
