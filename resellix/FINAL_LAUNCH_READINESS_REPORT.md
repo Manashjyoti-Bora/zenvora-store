@@ -150,6 +150,100 @@ This increment (→ v12): `fa30412` atomic cart merge + regression tests · `8ac
 - Not PRODUCTION READY: same reasons; plus cron execution proof and live PDP structured-data checks remain outstanding.
 - Evidence base: §13 battery (196/196 + 62/62 + build ✓ + tsc/lint 0), §11 live security probes, §12 live SEO verification, §8 measured 3D rejection. No claim of "perfect" or "bug-free" is made; known risks are itemized in §14.
 
+## 19. ADDENDUM (2026-09-13): Password-reset email failure — root cause, fix, verification
+
+**Symptom (production):** POST /api/auth/forgot-password returns 200 and the UI says
+"Check your inbox", but no `[EMAIL:console]` line ever appears in Vercel runtime logs
+and no email is delivered. No delivery error is logged either.
+
+**Root cause (code defect, proven):** `kickJobRunner()` (src/lib/jobs/queue.ts) was
+purely fire-and-forget. On Vercel the serverless function is frozen as soon as the HTTP
+response is sent, so the kicked job runner never completed: `SEND_NOTIFICATION` jobs
+stayed QUEUED/PENDING forever and the Notification row was never marked SENT. The
+absence of any log line is proof the job never ran — the logger has no level gating
+(`info` always emits in production). The cron backstop never rescued it: the v10 cron
+route was POST-only (Vercel cron sends GET → 405); the v11 daily 00:17 UTC backstop
+either had not fired or processed tokens already past the 60-minute TTL; the GitHub
+workflow has 0 runs (secret never configured).
+
+**Not an environment problem:** the console provider (the production default) needs no
+SMTP variables; APP_URL is correct (canonical host live-verified); CRON_SECRET is set
+(the cron route's 401 without a bearer token proves it); reset tokens were created and
+hashed correctly in the DB.
+
+**Fix (committed):**
+- `33e9147` fix(jobs): `kickJobRunner` registers the in-flight run with `after()` from
+  `next/server` (Vercel waitUntil semantics) so queued work completes after the
+  response; outside a request scope `after()` throws and is caught, preserving the
+  previous fire-and-forget behavior for scripts/tests. New unit tests
+  (tests/unit/jobs-kick.test.ts) cover both paths plus the burst guard.
+- `28c9e3f` feat(health): /api/health now exposes non-secret email diagnostics
+  (`emailProvider` name + `emailConfigured` boolean; never hosts/users/credentials).
+
+**Verification evidence (local production runtime, `next start`):**
+- POST /api/auth/forgot-password (with valid CSRF double-submit) → 200;
+- `[EMAIL:console]` with the reset link appeared in server logs within seconds — no
+  manual cron trigger;
+- DB rows: Notification → SENT, Job (SEND_NOTIFICATION) → DONE.
+- Full battery after the change: tsc 0 errors · lint 0 · unit+integration **199/199**
+  (23 files) · E2E **62/62** (auth-flow 9, storefront 12, shopping-checkout 14,
+  webhook-security 10, admin-authz 17) · production build exit 0.
+- Supersedes the §13 count (196) at HEAD 873d23e; new HEAD 28c9e3f.
+
+**Owner unblock without deploying (works on live v11):** request a fresh reset on the
+site, then within 60 minutes manually trigger the job runner:
+`curl -X POST https://zenvorastore.vercel.app/api/cron/jobs -H "Authorization: Bearer <your-CRON_SECRET>"`
+→ read the `[EMAIL:console]` block in Vercel → Logs (Runtime) → open the reset link →
+set a new password → log in. After deploying v13, no manual trigger is needed.
+
+**Delivery artifact:** /home/user/zenvora-store-v13.zip (551 files, secret-scanned,
+0 env files) at HEAD 28c9e3f.
+
+## 20. ADDENDUM (2026-09-13, v14): Dedupe dead-end — why v13 logged "Notification de-duplicated" with no email
+
+**Symptom (production, v13 deployed):** fresh forgot-password → 200, runtime log shows
+`Notification de-duplicated {"template":"PASSWORD_RESET","dedupeKey":"ntf:PASSWORD_RESET:-:…:<bucket>:"}`
+— and still no `[EMAIL:console]`, no email.
+
+**Root cause (second, independent code defect):** `queueNotification` treated ANY
+existing job row with the same 10-minute-bucket dedupeKey as a duplicate — regardless
+of status (stranded `PENDING` from the pre-v13 era, `FAILED`, `CANCELLED`, even `DONE`
+whose notification was never `SENT`) — and returned early **without kicking the job
+runner**. Consequences: (1) a stale pre-v13 PENDING job made every new request inside
+that window skip silently and nothing ever processed the stranded job; (2) failed
+deliveries could never be retried inside the window; (3) `enqueueJob`'s existing
+requeue-on-finished logic was unreachable for notifications. The dedupe key itself is
+correct (it embeds a 10-minute time bucket, so it is NOT constant across windows).
+
+**Fix (`97a55e0`):** status-aware dedupe — never disabled:
+- job `PENDING`/`RUNNING` → no duplicate email, but ALWAYS `kickJobRunner()` so the
+  stranded delivery completes within seconds (self-healing);
+- job finished + its notification `SENT` inside the window → true dedupe, skip
+  (spam protection preserved exactly);
+- job finished but delivery `FAILED`/missing/orphaned → legitimate retry: fresh
+  notification (with the fresh reset token) + the same job row requeued + kick.
+
+**Verification (local production runtime, exact incident staged):** stranded `QUEUED`
+notification + `PENDING` job seeded in the current bucket → POST forgot-password → 200
+→ log `Notification de-duplicated (delivery already in flight) … jobStatus:"PENDING"`
+→ `[EMAIL:console]` within seconds → Notification `SENT`, Job `DONE`. Second POST in
+the same window → `already sent inside window`, no second email. Regression tests:
+tests/integration/notification-dedupe-recovery.test.ts (4 cases: stranded, FAILED
+retry, SENT dedupe, orphaned-DONE retry). Battery: tsc 0 · lint 0 · unit+integration
+**203/203** (24 files) · E2E **62/62** · production build exit 0.
+
+**Owner fresh-test procedure (one request, after deploying v14):**
+1. Deploy v14. 2. Wait until at least 10 minutes after your last reset attempt (fresh
+dedupe window). 3. Submit forgot-password ONCE. 4. Vercel → Logs (Runtime): expect
+`[EMAIL:console]` within ~1 minute — OR a `de-duplicated` line followed within seconds
+by `[EMAIL:console]` (self-heal of the stranded row). 5. Open the reset link within
+60 minutes, set the password, log in. If — and only if — no `[EMAIL:console]` appears
+at all, run the manual backstop once:
+`curl -X POST https://zenvorastore.vercel.app/api/cron/jobs -H "Authorization: Bearer <your-CRON_SECRET>"`
+and re-check the logs.
+
+**Delivery artifact:** /home/user/zenvora-store-v14.zip at HEAD of this addendum.
+
 ## §34 Final verification matrix
 
 | Area | Status | Evidence | Remaining risk |
