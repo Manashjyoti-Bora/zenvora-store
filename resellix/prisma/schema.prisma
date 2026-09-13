@@ -1,0 +1,1139 @@
+// ============================================================================
+// Resellix - Prisma Schema (PostgreSQL)
+// Money is stored as Decimal(14,2) in the store currency (INR).
+// Percentages are stored as Decimal(10,4) (e.g. 18.0000 = 18%).
+// All models use cuid IDs + createdAt/updatedAt timestamps.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Direct (non-pooled) connection used by Prisma CLI for migrations.
+  // Locally: same value as DATABASE_URL. On Neon+Vercel: the non-pooler URL.
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & Access
+// ---------------------------------------------------------------------------
+
+enum Role {
+  CUSTOMER
+  STAFF
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id              String       @id @default(cuid())
+  email           String       @unique
+  passwordHash    String
+  name            String
+  phone           String?
+  role            Role         @default(CUSTOMER)
+  status          UserStatus   @default(ACTIVE)
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  sessions          Session[]
+  passwordResets    PasswordResetToken[]
+  addresses         Address[]
+  orders            Order[]
+  carts             Cart[]
+  couponRedemptions CouponRedemption[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+
+  @@index([role])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  // Only the SHA-256 hash of the session token is stored; the raw token
+  // lives exclusively in the httpOnly cookie.
+  tokenHash String    @unique
+  userAgent String?
+  ipHash    String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+enum AddressType {
+  SHIPPING
+  BILLING
+  BOTH
+}
+
+model Address {
+  id                String      @id @default(cuid())
+  userId            String
+  type              AddressType @default(BOTH)
+  label             String?
+  fullName          String
+  phone             String
+  line1             String
+  line2             String?
+  city              String
+  state             String
+  postalCode        String
+  country           String      @default("IN")
+  isDefaultShipping Boolean     @default(false)
+  isDefaultBilling  Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// ---------------------------------------------------------------------------
+// Catalog
+// ---------------------------------------------------------------------------
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum StockMode {
+  // Availability is checked with the supplier adapter at fulfilment time.
+  SUPPLIER_SYNC
+  // Merchant-managed stock counts on variants; decremented atomically at order time.
+  LOCAL
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  parentId    String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  seoTitle    String?
+  seoDescription String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryTree")
+  products Product[]
+  pricingRules PricingRule[]
+  coupons  Coupon[]
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+model Product {
+  id             String        @id @default(cuid())
+  name           String
+  slug           String        @unique
+  description    String
+  shortDescription String?
+  sku            String?       @unique
+  brand          String?
+  status         ProductStatus @default(DRAFT)
+  categoryId     String?
+  supplierId     String?
+  supplierSku    String?
+
+  // --- Cost & pricing ---------------------------------------------------
+  stockMode           StockMode @default(SUPPLIER_SYNC)
+  supplierCost        Decimal   @db.Decimal(14, 2) @default(0)
+  supplierShippingCost Decimal  @db.Decimal(14, 2) @default(0)
+  otherCost           Decimal   @db.Decimal(14, 2) @default(0)
+  pricingMode         PricingMode @default(PERCENT_MARKUP)
+  fixedPrice          Decimal?  @db.Decimal(14, 2)
+  fixedMargin         Decimal?  @db.Decimal(14, 2)
+  percentMarkup       Decimal?  @db.Decimal(10, 4)
+  minProfit           Decimal?  @db.Decimal(14, 2)
+  roundingRule        RoundingRule @default(ROUND_UP_10)
+  // Effective selling price (tax-inclusive) computed by the pricing engine
+  // and stored for fast queries/indexing. Recomputed on any input change.
+  sellingPrice        Decimal   @db.Decimal(14, 2) @default(0)
+  compareAtPrice      Decimal?  @db.Decimal(14, 2)
+  taxRatePercent      Decimal   @db.Decimal(10, 4) @default(0)
+
+  // Merchant-managed stock for LOCAL-mode products WITHOUT variants
+  // (variant products track stock per variant).
+  stock       Int      @default(0)
+  lowStockThreshold Int @default(5)
+
+  // --- Logistics --------------------------------------------------------
+  weightGrams Int?
+  lengthCm    Decimal? @db.Decimal(10, 2)
+  widthCm     Decimal? @db.Decimal(10, 2)
+  heightCm    Decimal? @db.Decimal(10, 2)
+
+  // --- SEO / misc ---------------------------------------------------------
+  seoTitle       String?
+  seoDescription String?
+  hasVariants    Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  viewCount      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  category       Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  supplier       Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  supplierProduct SupplierProduct?
+  variants       ProductVariant[]
+  movements      InventoryMovement[]
+  images         ProductImage[]
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+  pricingRules   PricingRule[]
+
+  @@index([status])
+  @@index([categoryId])
+  @@index([supplierId])
+  @@index([sellingPrice])
+  @@index([createdAt])
+  @@map("products")
+}
+
+model ProductVariant {
+  id        String  @id @default(cuid())
+  productId String
+  sku       String? @unique
+  name      String
+  size      String?
+  color     String?
+  attributes Json?
+  // Optional overrides; when null the product-level values are used.
+  supplierCost Decimal? @db.Decimal(14, 2)
+  supplierShippingCost Decimal? @db.Decimal(14, 2)
+  sellingPrice Decimal? @db.Decimal(14, 2)
+  compareAtPrice Decimal? @db.Decimal(14, 2)
+  taxRatePercent Decimal? @db.Decimal(10, 4)
+  stock     Int     @default(0)
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems CartItem[]
+  orderItems OrderItem[]
+
+  @@index([productId])
+  @@map("product_variants")
+  movements      InventoryMovement[]
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  url       String
+  alt       String?
+  videoUrl  String?
+  position  Int      @default(0)
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+// ---------------------------------------------------------------------------
+// Suppliers & fulfilment
+// ---------------------------------------------------------------------------
+
+enum InventoryMovementReason {
+  ORDER_PLACED
+  ORDER_CANCELLED
+  RETURN_RESTOCK
+  RTO_RESTOCK
+  ADJUSTMENT
+  SUPPLIER_SYNC
+}
+
+model InventoryMovement {
+  id        String                  @id @default(cuid())
+  productId String
+  variantId String?
+  delta     Int
+  reason    InventoryMovementReason
+  orderId   String?
+  actorId   String?
+  note      String?
+  stockAfter Int
+  createdAt DateTime                @default(now())
+
+  product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  order   Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([productId, createdAt])
+  @@map("inventory_movements")
+}
+
+enum SupplierType {
+  // No API: supplier orders are queued for manual fulfilment by the admin.
+  MANUAL
+  // Generic REST supplier; endpoints/credentials configured per supplier.
+  HTTP_REST
+  // CJ Dropshipping (general-catalogue dropshipping) via official API v2.
+  CJ
+  // Clearly-labelled demo adapter for development/testing only.
+  DEMO
+}
+
+enum SupplierOrderStatus {
+  QUEUED
+  SENT
+  ACCEPTED
+  REJECTED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  FAILED
+  RETURN_REQUESTED
+  RETURNED
+}
+
+model Supplier {
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  type         SupplierType @default(MANUAL)
+  contactEmail String?
+  contactPhone String?
+  baseUrl      String?
+  // Name of the environment variable holding this supplier's API key
+  // (e.g. "SUPPLIER_ACME_API_KEY"). The secret itself is NEVER stored in DB.
+  apiKeyEnvVar String?
+  apiSecretEnvVar String?
+  // Endpoint mapping / provider-specific options for HTTP_REST adapters.
+  config       Json?
+  leadTimeDays Int          @default(3)
+  isActive     Boolean      @default(true)
+  notes        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  products        Product[]
+  supplierProducts SupplierProduct[]
+  supplierOrders  SupplierOrder[]
+  pricingRules    PricingRule[]
+
+  @@map("suppliers")
+}
+
+model SupplierProduct {
+  id                  String    @id @default(cuid())
+  supplierId          String
+  productId           String?   @unique
+  supplierSku         String
+  externalId          String?
+  supplierCost        Decimal   @db.Decimal(14, 2)
+  supplierShippingCost Decimal? @db.Decimal(14, 2)
+  currency            String    @default("INR")
+  stockQty            Int?
+  inStock             Boolean?
+  raw                 Json?
+  isActive            Boolean   @default(true)
+  lastSyncedAt        DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  product  Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([supplierId, supplierSku])
+  @@index([supplierId])
+  @@map("supplier_products")
+}
+
+model SupplierOrder {
+  id              String              @id @default(cuid())
+  orderId         String
+  supplierId      String
+  // Guarantees we never send the same fulfilment request twice.
+  idempotencyKey  String              @unique
+  supplierOrderId String?
+  status          SupplierOrderStatus @default(QUEUED)
+  attempts        Int                 @default(0)
+  lastError       String?
+  // Sanitised request/response snapshots (secrets are stripped before saving).
+  requestPayload  Json?
+  responsePayload Json?
+  trackingNumber  String?
+  carrier         String?
+  sentAt          DateTime?
+  acceptedAt      DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  order      Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  supplier   Supplier    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  shipments  Shipment[]
+
+  @@index([orderId])
+  @@index([status])
+  @@index([supplierId])
+  @@map("supplier_orders")
+}
+
+// ---------------------------------------------------------------------------
+// Pricing rules
+// ---------------------------------------------------------------------------
+
+enum PricingMode {
+  FIXED_PRICE
+  FIXED_MARGIN
+  PERCENT_MARKUP
+}
+
+enum RoundingRule {
+  NONE
+  ROUND_UP_10
+  NEAREST_9
+  NEAREST_99
+}
+
+enum PricingRuleScope {
+  GLOBAL
+  SUPPLIER
+  CATEGORY
+  PRODUCT
+}
+
+model PricingRule {
+  id             String           @id @default(cuid())
+  name           String
+  scope          PricingRuleScope @default(GLOBAL)
+  supplierId     String?
+  categoryId     String?
+  productId      String?
+  mode           PricingMode      @default(PERCENT_MARKUP)
+  fixedMargin    Decimal?         @db.Decimal(14, 2)
+  percentMarkup  Decimal?         @db.Decimal(10, 4)
+  minProfit      Decimal?         @db.Decimal(14, 2)
+  roundingRule   RoundingRule     @default(ROUND_UP_10)
+  // Higher priority wins when multiple rules match.
+  priority       Int              @default(0)
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  supplier Supplier? @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  product  Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([scope, isActive, priority])
+  @@map("pricing_rules")
+}
+
+// ---------------------------------------------------------------------------
+// Cart
+// ---------------------------------------------------------------------------
+
+model Cart {
+  id           String    @id @default(cuid())
+  userId       String?   @unique
+  // Anonymous cart cookie token (hashed lookup not needed; random 256-bit).
+  guestToken   String?   @unique
+  currency     String    @default("INR")
+  couponCode   String?
+  // Set once the cart has been converted into an order (double-submit guard).
+  convertedOrderId String? @unique
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  expiresAt    DateTime?
+
+  user  User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@index([guestToken])
+  @@map("carts")
+}
+
+model CartItem {
+  id            String   @id @default(cuid())
+  cartId        String
+  productId     String
+  variantId     String?
+  quantity      Int      @default(1)
+  // Informational snapshot of the price when the item was added; checkout
+  // ALWAYS recomputes authoritative prices server-side.
+  unitPriceAtAdd Decimal @db.Decimal(14, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  cart    Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId, variantId])
+  @@index([cartId])
+  @@map("cart_items")
+}
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+enum PaymentMethod {
+  PREPAID_GATEWAY
+  COD
+}
+
+enum OrderPaymentStatus {
+  PENDING
+  COD_PENDING
+  PAID
+  FAILED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+enum OrderFulfilmentStatus {
+  PENDING
+  SENT_TO_SUPPLIER
+  SUPPLIER_ACCEPTED
+  PROCESSING
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  FAILED
+}
+
+enum OrderStatus {
+  // Customer-facing lifecycle derived & maintained by the order state machine:
+  PENDING_PAYMENT
+  PAYMENT_FAILED
+  PAYMENT_VERIFIED
+  ORDER_CONFIRMED
+  SENT_TO_SUPPLIER
+  SUPPLIER_ACCEPTED
+  PROCESSING
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REFUND_PENDING
+  REFUNDED
+  RETURN_REQUESTED
+  RETURNED
+  FULFILMENT_FAILED
+  // Return-to-origin (courier could not deliver; parcel coming back).
+  RTO
+  RTO_RECEIVED
+}
+
+enum OrderActorType {
+  SYSTEM
+  ADMIN
+  CUSTOMER
+  PAYMENT_PROVIDER
+  SUPPLIER
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  orderNumber  String      @unique
+  idempotencyKey String?   @unique
+  userId       String?
+  guestEmail   String?
+  guestName    String?
+  guestPhone   String?
+
+  status            OrderStatus            @default(PENDING_PAYMENT)
+  paymentStatus     OrderPaymentStatus     @default(PENDING)
+  fulfilmentStatus  OrderFulfilmentStatus  @default(PENDING)
+  paymentMethod     PaymentMethod          @default(PREPAID_GATEWAY)
+
+  currency      String  @default("INR")
+  subtotal      Decimal @db.Decimal(14, 2)
+  discountTotal Decimal @db.Decimal(14, 2) @default(0)
+  shippingTotal Decimal @db.Decimal(14, 2) @default(0)
+  taxTotal      Decimal @db.Decimal(14, 2) @default(0)
+  grandTotal    Decimal @db.Decimal(14, 2)
+  codFeeTotal   Decimal @db.Decimal(14, 2) @default(0)
+
+  // Aggregated cost/profit ledger (recomputed on every financial change):
+  supplierCostTotal Decimal @db.Decimal(14, 2) @default(0)
+  shippingCostTotal Decimal @db.Decimal(14, 2) @default(0)
+  paymentFeeTotal   Decimal @db.Decimal(14, 2) @default(0)
+  otherCostTotal    Decimal @db.Decimal(14, 2) @default(0)
+  refundedTotal     Decimal @db.Decimal(14, 2) @default(0)
+  estimatedProfit   Decimal @db.Decimal(14, 2) @default(0)
+  actualProfit      Decimal @db.Decimal(14, 2) @default(0)
+  profitFinalizedAt DateTime?
+
+  shippingAddress Json
+  billingAddress  Json?
+
+  couponCode String?
+  customerNote String?
+
+  placedAt    DateTime?
+  paidAt      DateTime?
+  confirmedAt DateTime?
+  cancelledAt DateTime?
+  cancelReason String?
+  cancelledBy OrderActorType?
+  deliveredAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user           User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  coupon         Coupon?          @relation(fields: [couponCode], references: [code], onDelete: SetNull)
+  items          OrderItem[]
+  payments       Payment[]
+  supplierOrders SupplierOrder[]
+  shipments      Shipment[]
+  returns        ReturnRequest[]
+  refunds        Refund[]
+  events         OrderEvent[]
+  notifications  Notification[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([fulfilmentStatus])
+  @@index([createdAt])
+  @@index([guestEmail])
+  @@map("orders")
+  inventoryMovements InventoryMovement[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String?
+  variantId String?
+  // Frozen snapshot of everything needed to display & audit this line forever.
+  productSnapshot Json
+  sku       String?
+  supplierId String?
+  supplierSku String?
+
+  quantity        Int
+  unitPrice       Decimal @db.Decimal(14, 2)
+  unitSupplierCost Decimal @db.Decimal(14, 2)
+  unitSupplierShipping Decimal @db.Decimal(14, 2) @default(0)
+  unitOtherCost   Decimal @db.Decimal(14, 2) @default(0)
+  taxRatePercent  Decimal @db.Decimal(10, 4) @default(0)
+
+  lineTotal       Decimal @db.Decimal(14, 2)
+  lineDiscount    Decimal @db.Decimal(14, 2) @default(0)
+  lineTax         Decimal @db.Decimal(14, 2) @default(0)
+  lineSupplierCost Decimal @db.Decimal(14, 2) @default(0)
+  lineEstimatedProfit Decimal @db.Decimal(14, 2) @default(0)
+  refundedAmount  Decimal @db.Decimal(14, 2) @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  supplierOrderId String?
+
+  order          Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant        ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  supplierOrder  SupplierOrder?   @relation(fields: [supplierOrderId], references: [id], onDelete: SetNull)
+  returns        ReturnRequest[]
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model OrderEvent {
+  id         String         @id @default(cuid())
+  orderId    String
+  type       String
+  fromStatus String?
+  toStatus   String?
+  message    String?
+  actorType  OrderActorType @default(SYSTEM)
+  actorId    String?
+  data       Json?
+  createdAt  DateTime       @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("order_events")
+}
+
+// ---------------------------------------------------------------------------
+// Payments
+// ---------------------------------------------------------------------------
+
+enum PaymentProviderKind {
+  RAZORPAY
+  TEST
+}
+
+enum PaymentStatus {
+  CREATED
+  PAID
+  FAILED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+model Payment {
+  id              String              @id @default(cuid())
+  orderId         String
+  provider        PaymentProviderKind
+  providerOrderId String?             @unique
+  providerPaymentId String?
+  amount          Decimal             @db.Decimal(14, 2)
+  currency        String              @default("INR")
+  status          PaymentStatus       @default(CREATED)
+  method          String?
+  // Gateway fee actually charged (from provider payload) or estimated.
+  feeAmount       Decimal             @db.Decimal(14, 2) @default(0)
+  feeIsEstimate   Boolean             @default(true)
+  refundedTotal   Decimal             @db.Decimal(14, 2) @default(0)
+  signatureVerifiedAt DateTime?
+  failureReason   String?
+  // Sanitised provider payload (never contains card/CVV/UPI secrets).
+  raw             Json?
+  paidAt          DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  refunds Refund[]
+
+  @@index([orderId])
+  @@index([status])
+  @@map("payments")
+}
+
+enum WebhookSource {
+  PAYMENT
+  SUPPLIER
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSED
+  DUPLICATE
+  REJECTED
+  FAILED
+}
+
+model WebhookEvent {
+  id         String        @id @default(cuid())
+  source     WebhookSource
+  provider   String
+  // Provider event id when available; combined with provider this is the
+  // idempotency guard for duplicate webhook deliveries.
+  externalEventId String?
+  eventType  String
+  signatureValid Boolean   @default(false)
+  status     WebhookStatus @default(RECEIVED)
+  payload    Json
+  error      String?
+  paymentId  String?
+  orderId    String?
+  receivedAt DateTime      @default(now())
+  processedAt DateTime?
+
+  @@unique([provider, externalEventId])
+  @@index([source, receivedAt])
+  @@index([status])
+  @@map("webhook_events")
+}
+
+enum RefundStatus {
+  REQUESTED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Refund {
+  id              String       @id @default(cuid())
+  orderId         String
+  paymentId       String?
+  returnRequestId String?
+  amount          Decimal      @db.Decimal(14, 2)
+  status          RefundStatus @default(REQUESTED)
+  provider        PaymentProviderKind?
+  providerRefundId String?     @unique
+  reason          String?
+  failureReason   String?
+  initiatedBy     OrderActorType @default(ADMIN)
+  processedAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  order           Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  payment         Payment?         @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  returnRequest   ReturnRequest?   @relation(fields: [returnRequestId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("refunds")
+}
+
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  RECEIVED
+  REFUNDED
+  CLOSED
+}
+
+model ReturnRequest {
+  id          String       @id @default(cuid())
+  orderId     String
+  orderItemId String?
+  reason      String
+  customerNote String?
+  status      ReturnStatus @default(REQUESTED)
+  adminNote   String?
+  refundAmount Decimal?    @db.Decimal(14, 2)
+  resolvedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  refunds   Refund[]
+
+  @@index([orderId])
+  @@index([status])
+  @@map("return_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Shipments & tracking
+// ---------------------------------------------------------------------------
+
+enum ShipmentStatus {
+  PENDING
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  EXCEPTION
+  RETURNED
+}
+
+model Shipment {
+  id              String         @id @default(cuid())
+  orderId         String
+  supplierOrderId String?
+  carrier         String?
+  trackingNumber  String?
+  trackingUrl     String?
+  status          ShipmentStatus @default(PENDING)
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  estimatedDeliveryAt DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplierOrder  SupplierOrder? @relation(fields: [supplierOrderId], references: [id], onDelete: SetNull)
+  events         TrackingEvent[]
+
+  @@index([orderId])
+  @@index([trackingNumber])
+  @@map("shipments")
+}
+
+model TrackingEvent {
+  id         String   @id @default(cuid())
+  shipmentId String
+  status     String
+  message    String?
+  location   String?
+  eventAt    DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, eventAt])
+  @@map("tracking_events")
+}
+
+// ---------------------------------------------------------------------------
+// Coupons & promotions
+// ---------------------------------------------------------------------------
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+enum CouponScope {
+  ALL_PRODUCTS
+  CATEGORY
+}
+
+model Coupon {
+  code             String      @id
+  description      String?
+  type             CouponType
+  value            Decimal     @db.Decimal(14, 2)
+  scope            CouponScope @default(ALL_PRODUCTS)
+  categoryId       String?
+  minOrderAmount   Decimal?    @db.Decimal(14, 2)
+  maxDiscountAmount Decimal?   @db.Decimal(14, 2)
+  usageLimit       Int?
+  usageCount       Int         @default(0)
+  perUserLimit     Int         @default(1)
+  startsAt         DateTime?
+  endsAt          DateTime?
+  // Admin-explicit override: this coupon MAY push the final price below the
+  // store's minimum-margin floor. Default false = protection always wins.
+  bypassMarginProtection Boolean @default(false)
+  firstOrderOnly  Boolean   @default(false)
+  isActive        Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  category    Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  orders      Order[]
+  redemptions CouponRedemption[]
+
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id        String   @id @default(cuid())
+  couponCode String
+  userId    String?
+  guestEmail String?
+  orderId   String
+  amount    Decimal  @db.Decimal(14, 2)
+  createdAt DateTime @default(now())
+
+  coupon Coupon @relation(fields: [couponCode], references: [code], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([couponCode])
+  @@index([userId])
+  @@map("coupon_redemptions")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications, logging, settings, jobs
+// ---------------------------------------------------------------------------
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum NotificationTemplate {
+  WELCOME
+  PASSWORD_RESET
+  ORDER_CONFIRMATION
+  PAYMENT_FAILED
+  ORDER_PROCESSING
+  ORDER_SHIPPED
+  ORDER_DELIVERED
+  ORDER_CANCELLED
+  REFUND_INITIATED
+  REFUND_COMPLETED
+  RETURN_UPDATE
+  FULFILMENT_FAILED_ADMIN
+  CONTACT_MESSAGE_ADMIN
+}
+
+model Notification {
+  id         String               @id @default(cuid())
+  template   NotificationTemplate
+  channel    String               @default("EMAIL")
+  email      String
+  userId     String?
+  subject    String
+  bodyHtml   String?
+  bodyText   String?
+  status     NotificationStatus   @default(QUEUED)
+  provider   String?
+  error      String?
+  relatedType String?
+  relatedId  String?
+  orderId    String?
+  sentAt     DateTime?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([template])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String
+  entityType String?
+  entityId   String?
+  data       Json?
+  ipHash     String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum ApiLogDirection {
+  OUTBOUND
+  INBOUND
+}
+
+model ApiLog {
+  id           String          @id @default(cuid())
+  direction    ApiLogDirection @default(OUTBOUND)
+  service      String
+  endpoint     String?
+  method       String?
+  statusCode   Int?
+  durationMs   Int?
+  // Sanitised payloads - secrets are stripped by the logger before saving.
+  requestBody  Json?
+  responseBody Json?
+  errorMessage String?
+  supplierId   String?
+  requestId    String?
+  createdAt    DateTime        @default(now())
+
+  @@index([service, createdAt])
+  @@index([supplierId])
+  @@map("api_logs")
+}
+
+enum ErrorLevel {
+  WARN
+  ERROR
+  FATAL
+}
+
+model ErrorLog {
+  id        String     @id @default(cuid())
+  level     ErrorLevel @default(ERROR)
+  message   String
+  stack     String?
+  route     String?
+  context   Json?
+  createdAt DateTime   @default(now())
+
+  @@index([createdAt])
+  @@index([level])
+  @@map("error_logs")
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+enum JobType {
+  FULFIL_SUPPLIER_ORDER
+  SYNC_SUPPLIER_ORDER
+  CANCEL_SUPPLIER_ORDER
+  SEND_NOTIFICATION
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+  CANCELLED
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  type        JobType
+  payload     Json
+  // Deterministic dedupe key (e.g. "FULFIL_SUPPLIER_ORDER:so_xxx") so the same
+  // work item is never enqueued twice. Null when dedupe is not applicable.
+  dedupeKey   String?   @unique
+  status      JobStatus @default(PENDING)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(6)
+  nextRunAt   DateTime  @default(now())
+  lockedAt    DateTime?
+  lastError   String?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, nextRunAt])
+  @@map("jobs")
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  status    String   @default("NEW")
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@map("contact_messages")
+}

@@ -1,0 +1,8 @@
+.next
+node_modules
+coverage
+playwright-report
+test-results
+public/uploads
+prisma/migrations/**/migration_lock.toml.bak
+package-lock.json

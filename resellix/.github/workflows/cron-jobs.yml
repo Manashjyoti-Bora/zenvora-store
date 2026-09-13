@@ -1,0 +1,32 @@
+name: cron-jobs
+
+# Keeps production background jobs (supplier retries, notification queue,
+# session/abandoned-cart housekeeping) running on a 5-minute cadence.
+# Scheduled workflows only run on the DEFAULT branch (main) and need the
+# repository secret CRON_SECRET (same value as the Vercel env var).
+# The vercel.json daily cron is a zero-config backstop; this is the fast path.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  kick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call production cron endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET repository secret is not set - skipping (no request sent)."
+            exit 0
+          fi
+          code=$(curl -s -o /tmp/cron-out.json -w '%{http_code}' -X POST \
+            https://zenvorastore.vercel.app/api/cron/jobs \
+            -H "Authorization: Bearer $CRON_SECRET")
+          echo "cron endpoint responded HTTP $code"
+          head -c 300 /tmp/cron-out.json
+          test "$code" = "200"
