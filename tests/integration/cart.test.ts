@@ -7,10 +7,12 @@ import {
   applyCouponToCart,
   getCartView,
   getCartItemCount,
+  attachGuestCartToUser,
+  CART_COOKIE,
 } from '@/lib/cart/service';
 import { ApiError } from '@/lib/errors';
 import { clearCookieJar } from './mock-headers';
-import { cleanupTestData, createTestProduct, createTestCoupon } from './fixtures';
+import { cleanupTestData, createTestProduct, createTestCoupon, unique, testEmail } from './fixtures';
 
 describe('cart service (stock-aware, price-at-add snapshots)', () => {
   let plainProductId: string;
@@ -151,5 +153,100 @@ describe('cart service (stock-aware, price-at-add snapshots)', () => {
       where: { items: { some: { productId: plainProductId } } },
     });
     expect(carts).toBeGreaterThanOrEqual(1);
+  });
+});
+
+const jar = () =>
+  (globalThis as unknown as { __cookieJar: Map<string, { value: string }> }).__cookieJar;
+
+describe('guest→user cart merge (atomic, retry-safe)', () => {
+  /**
+   * Regression coverage for the non-atomic merge defect: previously each line
+   * merged outside a transaction and the guest cart was deleted last, so a
+   * failed/concurrent merge left the guest cart alive with lines already
+   * copied — the next attach re-merged them and double-counted quantities.
+   * The merge now runs in a single prisma.$transaction: all lines + guest-cart
+   * deletion commit together, or nothing does.
+   */
+  async function setupMergeScenario() {
+    const product = await createTestProduct({
+      name: 'Itest Merge',
+      stock: 20,
+      sellingPrice: '100.00',
+    });
+    const user = await prisma.user.create({
+      data: {
+        email: testEmail(`merge-${unique('x')}`),
+        name: 'Itest Merge User',
+        passwordHash: 'itest-not-a-real-hash',
+        role: 'CUSTOMER',
+        status: 'ACTIVE',
+      },
+    });
+    const userCart = await prisma.cart.create({
+      data: { userId: user.id, expiresAt: new Date(Date.now() + 86400e3) },
+    });
+    await prisma.cartItem.create({
+      data: { cartId: userCart.id, productId: product.id, quantity: 1, unitPriceAtAdd: 10_000 },
+    });
+    const guestToken = unique('itest-guest');
+    const guestCart = await prisma.cart.create({
+      data: { guestToken, expiresAt: new Date(Date.now() + 86400e3) },
+    });
+    await prisma.cartItem.create({
+      data: { cartId: guestCart.id, productId: product.id, quantity: 2, unitPriceAtAdd: 10_000 },
+    });
+    return { product, user, userCart, guestToken };
+  }
+
+  async function teardownMergeScenario(userId: string, cartId: string) {
+    await prisma.cartItem.deleteMany({ where: { cartId } });
+    await prisma.cart.deleteMany({ where: { userId } });
+    await prisma.user.deleteMany({ where: { id: userId } });
+    clearCookieJar();
+  }
+
+  it('merges once, deletes the guest cart, clears the cookie; repeated attach is a no-op', async () => {
+    const { user, userCart, guestToken } = await setupMergeScenario();
+    jar().set(CART_COOKIE, { value: guestToken });
+
+    await attachGuestCartToUser(user.id);
+
+    const items = await prisma.cartItem.findMany({ where: { cartId: userCart.id } });
+    expect(items).toHaveLength(1);
+    expect(items[0].quantity).toBe(3); // 1 + 2, merged once
+    expect(await prisma.cart.findUnique({ where: { guestToken } })).toBeNull();
+    expect(jar().get(CART_COOKIE)).toBeUndefined();
+
+    // Stale cookie replay after a successful merge must not double-count.
+    jar().set(CART_COOKIE, { value: guestToken });
+    await attachGuestCartToUser(user.id);
+    const after = await prisma.cartItem.findMany({ where: { cartId: userCart.id } });
+    expect(after).toHaveLength(1);
+    expect(after[0].quantity).toBe(3);
+
+    await teardownMergeScenario(user.id, userCart.id);
+  });
+
+  it('concurrent attaches cannot double-count quantities (transactional merge)', async () => {
+    const { user, userCart, guestToken } = await setupMergeScenario();
+    jar().set(CART_COOKIE, { value: guestToken });
+
+    // Double-click login / two tabs: both calls read the same guest token.
+    // The losing transaction must roll back entirely (guest-cart delete fails
+    // once the winner committed), so the final quantity is 3 — a non-atomic
+    // merge would leave 5.
+    const results = await Promise.allSettled([
+      attachGuestCartToUser(user.id),
+      attachGuestCartToUser(user.id),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled').length).toBeGreaterThanOrEqual(1);
+
+    const items = await prisma.cartItem.findMany({ where: { cartId: userCart.id } });
+    expect(items).toHaveLength(1);
+    expect(items[0].quantity).toBe(3);
+    expect(await prisma.cart.findUnique({ where: { guestToken } })).toBeNull();
+
+    await teardownMergeScenario(user.id, userCart.id);
   });
 });

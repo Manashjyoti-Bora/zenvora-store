@@ -23,12 +23,28 @@ import { hashPassword } from '../src/lib/auth/password';
 
 async function main(): Promise<void> {
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  const password = process.env.ADMIN_PASSWORD;
+  const rawPassword = process.env.ADMIN_PASSWORD;
+  // Env-paste hygiene: dashboard pastes often carry a trailing space/newline.
+  // Login compares bytes exactly, so an untrimmed env value would create an
+  // admin whose password can never be typed. Trim surrounding whitespace only.
+  const password = rawPassword?.trim();
 
   if (!email || !password) {
     console.warn(
       '[create-admin] ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping admin bootstrap. ' +
         'Set them in the environment (see .env.example) and redeploy.'
+    );
+    return;
+  }
+  if (rawPassword !== password) {
+    console.log(
+      '[create-admin] note: trimmed surrounding whitespace from ADMIN_PASSWORD (env-paste hygiene).'
+    );
+  }
+  if (Buffer.byteLength(password, 'utf8') > 72) {
+    console.warn(
+      '[create-admin] ADMIN_PASSWORD exceeds bcrypt\'s 72-byte limit — shorten it and redeploy. ' +
+        'Skipping admin bootstrap so unrelated deployments are not blocked.'
     );
     return;
   }

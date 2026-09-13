@@ -5,9 +5,13 @@ Nothing is marked `[x]` without evidence observed in this audit. Living document
 
 ## 1. Code
 - [x] Production content identical to audited release (tree hash `15e71b07…` = origin/main `21a81e3`; live v10 markers: canonical, `line2…||void 0` chunk, 404 SVG watermark)
-- [x] Local battery green after launch-ops cron change: tsc 0 · lint clean · 194/194 · build ✓ · 103 kB shared JS
-- [~] Cron scheduler support (GET alias + vercel.json + GH workflow) committed locally — **awaiting owner push/deploy**
-- [ ] Full E2E re-run (62 tests) before recommending the next deploy
+- [x] Local battery green (current HEAD): tsc 0 · lint clean · **196/196** unit+integration (2 new cart-merge regression tests) · E2E **62/62** · build ✓ · **103 kB** shared JS
+- [x] v11 baseline Lighthouse (local prod build): home mob 96 (LCP 2.3s, TBT 170ms) · home desk 100 (LCP 0.5s) · PDP mob 98 (LCP 2.4s) — a11y/BP/SEO 100, CLS 0 everywhere
+- [x] Cron scheduler support DEPLOYED + live-verified (GET /api/cron/jobs → 401 timing-safe rejection; was 405 on v10)
+- [~] Cron scheduler EXECUTION proof pending: 0 GitHub runs ~90 min post-push (scheduler delay common for new workflows; owner must add CRON_SECRET repo secret or runs no-op); vercel.json daily 00:17 UTC backstop fires tonight — re-check both next session
+- [x] Full E2E re-run after cron+cart changes: **62/62** (storefront 12, shopping-checkout 14, webhook-security 10, admin-authz 17, auth-flow 9; fresh server per suite)
+- [x] Cart merge atomicity fix (`fa30412`): guest→user merge wrapped in $transaction + 2 regression tests (concurrent attach qty-stable at 3, not 5)
+- [x] §30 3D performance gate executed → **REJECTED with measurements** (`8acc4d5` experiment, `2f03ef2` removal): lazy 132kB gzip, 0 impact on customer routes/shared bundle, gates verified (mobile/RM/low-memory → poster, 0 bytes); decoration-only value, no real GLB assets exist
 
 ## 2. Deployment
 - [x] Vercel serving production build (HTTP/2 200, `server: Vercel`, x-vercel-cache headers, HSTS)

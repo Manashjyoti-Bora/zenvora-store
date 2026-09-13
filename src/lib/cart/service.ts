@@ -100,28 +100,34 @@ async function mergeGuestCart(guestToken: string, targetCartId: string): Promise
     include: { items: true },
   });
   if (!guestCart || guestCart.id === targetCartId) return;
-  for (const item of guestCart.items) {
-    const existing = await prisma.cartItem.findFirst({
-      where: { cartId: targetCartId, productId: item.productId, variantId: item.variantId },
-    });
-    if (existing) {
-      await prisma.cartItem.update({
-        where: { id: existing.id },
-        data: { quantity: Math.min(existing.quantity + item.quantity, MAX_QTY_PER_LINE) },
+  // Atomic merge: all lines merge AND the guest cart is deleted in one
+  // transaction, or nothing happens. Without this, a mid-merge failure left
+  // the guest cart alive with some lines already copied — the next login
+  // re-merged them and double-counted quantities.
+  await prisma.$transaction(async (tx) => {
+    for (const item of guestCart.items) {
+      const existing = await tx.cartItem.findFirst({
+        where: { cartId: targetCartId, productId: item.productId, variantId: item.variantId },
       });
-    } else {
-      await prisma.cartItem.create({
-        data: {
-          cartId: targetCartId,
-          productId: item.productId,
-          variantId: item.variantId,
-          quantity: item.quantity,
-          unitPriceAtAdd: item.unitPriceAtAdd,
-        },
-      });
+      if (existing) {
+        await tx.cartItem.update({
+          where: { id: existing.id },
+          data: { quantity: Math.min(existing.quantity + item.quantity, MAX_QTY_PER_LINE) },
+        });
+      } else {
+        await tx.cartItem.create({
+          data: {
+            cartId: targetCartId,
+            productId: item.productId,
+            variantId: item.variantId,
+            quantity: item.quantity,
+            unitPriceAtAdd: item.unitPriceAtAdd,
+          },
+        });
+      }
     }
-  }
-  await prisma.cart.delete({ where: { id: guestCart.id } });
+    await tx.cart.delete({ where: { id: guestCart.id } });
+  });
 }
 
 /** Attach a guest cart to a user right after login/registration. */
