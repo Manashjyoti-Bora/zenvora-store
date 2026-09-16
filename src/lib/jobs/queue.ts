@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import type { JobType, Prisma } from '@prisma/client';
@@ -73,12 +74,22 @@ export async function rescheduleJob(jobId: string, runAt: Date): Promise<void> {
  * Fire-and-forget runner trigger with an in-flight guard so bursts of events
  * don't spawn parallel runs inside the same process. Failures are logged, and
  * the cron endpoint remains the reliable backstop.
+ *
+ * Serverless reliability: on Vercel the function is frozen as soon as the
+ * HTTP response is sent, so a purely fire-and-forget kick usually never
+ * finishes (this is why queued notification emails — e.g. password resets —
+ * were enqueued but never processed in production). `after()` from next/server
+ * registers the work in the platform's post-response window (waitUntil
+ * semantics on Vercel), keeping the function alive until the kicked run
+ * completes. Outside a request scope (scripts, tests, direct service calls)
+ * after() throws — caught, and the in-flight promise keeps the previous
+ * fire-and-forget behavior.
  */
 let runnerInFlight: Promise<unknown> | null = null;
 
 export function kickJobRunner(): void {
   if (runnerInFlight) return;
-  runnerInFlight = (async () => {
+  const run = (async () => {
     try {
       const { processDueJobs } = await import('./runner');
       await processDueJobs({ limit: 10 });
@@ -90,4 +101,12 @@ export function kickJobRunner(): void {
       runnerInFlight = null;
     }
   })();
+
+  runnerInFlight = run;
+
+  try {
+    after(() => run);
+  } catch {
+    // preserve legacy fire-and-forget behavior outside request scope
+  }
 }

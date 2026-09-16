@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { env } from '@/lib/env';
 import { describePaymentProvider } from '@/lib/payments';
+import { getEmailProvider } from '@/lib/notifications/providers';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,7 @@ export async function GET(): Promise<Response> {
   }
 
   const provider = describePaymentProvider();
+  const emailProvider = getEmailProvider();
   const healthy = db;
 
   return NextResponse.json(
@@ -30,6 +32,11 @@ export async function GET(): Promise<Response> {
         paymentsConfigured: provider.kind !== 'NONE',
         paymentsProvider: provider.kind,
         paymentsTestMode: provider.isTest,
+        // Non-secret email diagnostics: provider NAME + configured flag only
+        // (never hosts, users or credentials). Tells operators whether mail
+        // goes to a real SMTP service or just to server logs (console).
+        emailProvider: emailProvider.name,
+        emailConfigured: emailProvider.isConfigured(),
         environment: env.NODE_ENV,
       },
     },
