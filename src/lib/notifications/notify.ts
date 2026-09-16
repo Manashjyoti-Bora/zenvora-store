@@ -18,8 +18,12 @@ import type { NotificationTemplate } from '@prisma/client';
  * fails silently.
  *
  * De-duplication: identical (template, order, recipient) notifications inside
- * a 10-minute window are dropped, which makes duplicate webhooks/job retries
- * harmless for customer email volume.
+ * a 10-minute window are dropped ONLY while a delivery is genuinely in flight
+ * (job PENDING/RUNNING) or has already been SENT inside the window. A
+ * stranded, failed or cancelled previous attempt never blocks a legitimate
+ * retry — otherwise a single stale row could swallow every recovery request
+ * (e.g. password resets) for the rest of the window, which is exactly what
+ * happened in production.
  */
 
 export interface QueueNotificationInput {
@@ -34,6 +38,15 @@ export interface QueueNotificationInput {
   skipIfNoEmail?: boolean;
   /** Extra dedupe discriminator (e.g. shipment id). */
   dedupeExtra?: string;
+}
+
+/** Safely extract the notificationId from a job's JSON payload. */
+function payloadNotificationId(payload: unknown): string | null {
+  if (payload && typeof payload === 'object' && 'notificationId' in payload) {
+    const value = (payload as { notificationId?: unknown }).notificationId;
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return null;
 }
 
 export async function queueNotification(input: QueueNotificationInput): Promise<string | null> {
@@ -75,8 +88,43 @@ export async function queueNotification(input: QueueNotificationInput): Promise<
 
   const existing = await prisma.job.findUnique({ where: { dedupeKey } });
   if (existing) {
-    logger.info('Notification de-duplicated', { template: input.template, dedupeKey });
-    return null;
+    if (existing.status === 'PENDING' || existing.status === 'RUNNING') {
+      // A delivery for this window is already on record — never create a
+      // second email. But ALWAYS kick the runner: a PENDING job stranded by
+      // an older deployment (or a crashed worker) must not become a dead end
+      // for the whole window. The kick processes it within seconds.
+      logger.info('Notification de-duplicated (delivery already in flight)', {
+        template: input.template,
+        dedupeKey,
+        jobStatus: existing.status,
+      });
+      kickJobRunner();
+      return null;
+    }
+
+    // Finished job (DONE/FAILED/CANCELLED): this only counts as a duplicate
+    // when the email was actually SENT. Anything else — FAILED delivery,
+    // cancelled job, orphaned QUEUED notification, missing row — means the
+    // window produced no email, so a retry is legitimate (with fresh content,
+    // e.g. a fresh password-reset token). enqueueJob's unique-key branch
+    // requeues the finished job row with the new payload.
+    const previousId = payloadNotificationId(existing.payload);
+    const previous = previousId
+      ? await prisma.notification.findUnique({ where: { id: previousId } })
+      : null;
+    if (previous?.status === 'SENT') {
+      logger.info('Notification de-duplicated (already sent inside window)', {
+        template: input.template,
+        dedupeKey,
+      });
+      return null;
+    }
+    logger.info('Retrying notification: previous attempt inside window was not delivered', {
+      template: input.template,
+      dedupeKey,
+      previousJobStatus: existing.status,
+      previousNotificationStatus: previous?.status ?? 'MISSING',
+    });
   }
 
   const notification = await prisma.notification.create({
