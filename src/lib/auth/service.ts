@@ -120,6 +120,15 @@ export async function requestPasswordReset(input: {
       email: user.email,
       userId: user.id,
       vars: { name: user.name, resetUrl: `${env.APP_URL}/auth/reset-password?token=${token}` },
+      // Per-token dedupe identity: every reset request must produce its OWN
+      // email. Without this, a second request inside the same 10-minute
+      // window was de-duplicated against the first — the newest token was
+      // stored in the DB but never emailed, and the older link the user
+      // actually received could already be used/expired ("invalid or has
+      // expired"). sha256(token) is a one-way discriminator: the raw token
+      // never appears in the dedupe key. Route-level rate limiting remains
+      // the anti-spam layer for this template.
+      dedupeExtra: sha256(token),
     });
     await auditLog({
       actor: { id: user.id, email },
