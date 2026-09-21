@@ -128,6 +128,10 @@ describe('password-reset token dedupe identity (per-token emails)', () => {
           payload: { path: ['notificationId'], equals: n.id },
         })),
       },
+      // Deterministic alignment with `tokens` (also createdAt asc): without
+      // an orderBy the two jobs can be returned in either order, so jobs[i]
+      // would not reliably correspond to tokens[i] (observed full-suite flake).
+      orderBy: { createdAt: 'asc' },
     });
     expect(jobs).toHaveLength(2);
     expect(jobs[0].dedupeKey).not.toBe(jobs[1].dedupeKey);
