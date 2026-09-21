@@ -48,3 +48,20 @@ export function formatDate(value: Date | string | null | undefined, withTime = f
 export function cartLineKey(productId: string, variantId?: string | null): string {
   return variantId ? `${productId}:${variantId}` : productId;
 }
+
+/**
+ * Serialize JSON-LD for safe inline `<script type="application/ld+json">`
+ * embedding.
+ *
+ * JSON.stringify does NOT escape `<`, `>` or `&`. Structured data here is
+ * built from database strings (product names/descriptions — which can arrive
+ * via supplier sync — category names, FAQ content, store settings), so a value
+ * containing `</script>` would prematurely close the tag and inject arbitrary
+ * markup into customer-facing pages (stored XSS). Escaping to `\u003c` etc.
+ * is invisible to JSON parsers and search engines but inert in HTML.
+ */
+export function jsonLdScript(data: unknown): string {
+  return JSON.stringify(data).replace(/[<>&]/g, (ch) =>
+    ch === '<' ? '\\u003c' : ch === '>' ? '\\u003e' : '\\u0026'
+  );
+}

@@ -8,6 +8,7 @@ import { Footer } from '@/components/layout/footer';
 import { DemoBanner } from '@/components/layout/demo-banner';
 import { CookieConsent } from '@/components/layout/cookie-consent';
 import { Toaster } from '@/components/ui/toaster';
+import { jsonLdScript } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,7 +78,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <script
               type="application/ld+json"
               dangerouslySetInnerHTML={{
-                __html: JSON.stringify([
+                __html: jsonLdScript([
                   {
                     '@context': 'https://schema.org',
                     '@type': 'Organization',

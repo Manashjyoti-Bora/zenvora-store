@@ -13,6 +13,7 @@ import { Breadcrumbs } from '@/components/store/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
 import { CreditCardIcon, ReceiptIcon } from '@/components/ui/icons';
 import { AddToCartButton } from '@/components/store/add-to-cart-button';
+import { jsonLdScript } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -136,11 +137,11 @@ export default async function ProductPage({ params }: Ctx) {
     <div className="container-store pb-28 pt-6 sm:py-8 lg:pb-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbLd) }}
       />
       <Breadcrumbs items={crumbs} />
 

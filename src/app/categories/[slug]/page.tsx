@@ -14,6 +14,7 @@ import { FilterSidebar } from '@/components/store/filter-sidebar';
 import { ListingControls } from '@/components/store/listing-controls';
 import { Pagination } from '@/components/ui/table';
 import { Breadcrumbs } from '@/components/store/breadcrumbs';
+import { jsonLdScript } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,7 +70,7 @@ export default async function CategoryPage({
     <div className="container-store py-6 sm:py-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <Breadcrumbs
         items={[

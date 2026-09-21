@@ -4,6 +4,7 @@ import { getSettings } from '@/lib/settings';
 import { env } from '@/lib/env';
 import { formatINR } from '@/lib/money';
 import { DemoExplainer } from '@/components/store/demo-explainer';
+import { jsonLdScript } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -247,7 +248,7 @@ export default async function FaqPage() {
     <div className="container-store max-w-3xl py-8 sm:py-12">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <header className="mb-8">
         <h1>Frequently asked questions</h1>

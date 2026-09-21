@@ -101,7 +101,10 @@ describe('password-reset token dedupe identity (per-token emails)', () => {
     for (const n of notifications) {
       // (2) the notification carries the actual reset URL …
       expect(n.bodyText).toContain('/auth/reset-password?token=');
-      expect(n.status).toBe('QUEUED');
+      // The kicked in-process runner may beat this assertion (same idiom as
+      // jobs.test.ts): QUEUED before delivery, SENT after — both are correct;
+      // FAILED would indicate a real problem.
+      expect(['QUEUED', 'SENT']).toContain(n.status);
     }
 
     // … and each emailed token corresponds to a real, unused token row for
