@@ -486,3 +486,238 @@ describe('supplier adapter diagnostics (registry)', () => {
     expect(diag.adapterType).toBe('MANUAL');
   });
 });
+
+/**
+ * Stateful stub: each route serves its `bodies` in order and repeats the last
+ * one afterwards, counting every call so tests can assert exact attempt
+ * counts (retry bounds, exchange counts, logout attempts).
+ */
+function stubFetchSequence(routes: Array<{ match: string; bodies: unknown[] }>): {
+  calls: CapturedCall[];
+} {
+  const calls: CapturedCall[] = [];
+  const counters = new Map<string, number>();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      const route = routes.find((r) => url.includes(r.match));
+      if (!route) {
+        return new Response(
+          JSON.stringify({ success: false, code: 404, message: `no stub for ${url}` }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      const index = Math.min(counters.get(route.match) ?? 0, route.bodies.length - 1);
+      counters.set(route.match, (counters.get(route.match) ?? 0) + 1);
+      return new Response(JSON.stringify(route.bodies[index]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    })
+  );
+  return { calls };
+}
+
+const tokenBody = (token: string) => ({
+  code: 200,
+  success: true,
+  result: true,
+  message: 'Success',
+  data: {
+    accessToken: token,
+    accessTokenExpiryDate: new Date(Date.now() + 3_600_000).toISOString(),
+    refreshToken: `rt-${token}`,
+  },
+});
+
+describe('CJ authentication failure messages are safe and actionable', () => {
+  it('explains the 1600300 "email must be not empty" param error without leaking the key', async () => {
+    // A real secret sits in the env under the name the supplier references
+    // while CJ still reports the empty-key param error: the thrown message
+    // must contain the actionable hint but never the value.
+    process.env.CJ_HINT_CANARY = 'canary-secret-value';
+    try {
+      stubFetch(
+        [
+          {
+            match: 'getAccessToken',
+            body: { success: false, result: false, code: 1600300, message: 'email must be not empty.' },
+          },
+        ],
+        []
+      );
+      const adapter = new CJDropshippingAdapter(makeSupplier({ apiKeyEnvVar: 'CJ_HINT_CANARY' }));
+      let message = '';
+      try {
+        await adapter.getProducts();
+      } catch (err) {
+        message = err instanceof Error ? err.message : String(err);
+      }
+      expect(message).toMatch(
+        /CJ authentication failed: email must be not empty[\s\S]*apiKey value reached CJ empty[\s\S]*code 1600300/
+      );
+      // The canary value must not appear anywhere in the error.
+      expect(message).not.toContain('canary-secret-value');
+    } finally {
+      delete process.env.CJ_HINT_CANARY;
+    }
+  });
+});
+
+describe('CJ token self-healing (1600001 stale-token recovery)', () => {
+  it('logs out, exchanges a fresh token and retries ONCE when CJ rejects the token', async () => {
+    const { calls } = stubFetchSequence([
+      { match: 'getAccessToken', bodies: [tokenBody('tok-1'), tokenBody('tok-2')] },
+      {
+        match: 'authentication/logout',
+        bodies: [{ code: 200, success: true, result: true, data: true }],
+      },
+      {
+        match: 'myProduct/query',
+        bodies: [
+          {
+            success: false,
+            result: false,
+            code: 1600001,
+            message:
+              'Invalid API key or access token. How to get access token: https://developers.cjdropshipping.cn/en/api/api2/api/auth.html',
+          },
+          {
+            success: true,
+            result: true,
+            code: 200,
+            data: [{ pid: 'P1', productName: 'Speaker', sku: 'CJSPK1', buyPrice: 2 }],
+          },
+        ],
+      },
+    ]);
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const products = await adapter.getProducts();
+    expect(products).toHaveLength(1);
+    expect(products[0].sku).toBe('CJSPK1');
+
+    const myProductCalls = calls.filter((c) => c.url.includes('myProduct/query'));
+    expect(myProductCalls).toHaveLength(2);
+    // The retry carried the NEW token.
+    expect((myProductCalls[1].init!.headers as Record<string, string>)['CJ-Access-Token']).toBe(
+      'tok-2'
+    );
+    // Exactly one fresh exchange and one logout, and the logout used the
+    // REJECTED token so CJ's 24h server-side cache is broken.
+    expect(calls.filter((c) => c.url.includes('getAccessToken'))).toHaveLength(2);
+    const logoutCall = calls.find((c) => c.url.includes('authentication/logout'));
+    expect(logoutCall).toBeTruthy();
+    expect((logoutCall!.init!.headers as Record<string, string>)['CJ-Access-Token']).toBe('tok-1');
+  });
+
+  it('retries exactly once, then surfaces the CJ error honestly (no loop, no fake success)', async () => {
+    const { calls } = stubFetchSequence([
+      { match: 'getAccessToken', bodies: [tokenBody('tok-1'), tokenBody('tok-2')] },
+      { match: 'authentication/logout', bodies: [{ success: true, data: true }] },
+      {
+        match: 'myProduct/query',
+        bodies: [
+          { success: false, code: 1600001, message: 'Invalid API key or access token.' },
+        ],
+      },
+    ]);
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    await expect(adapter.getProducts()).rejects.toThrow(
+      /CJ product\/myProduct\/query failed: Invalid API key or access token\. \(code 1600001\)/
+    );
+    expect(calls.filter((c) => c.url.includes('myProduct/query'))).toHaveLength(2);
+    expect(calls.filter((c) => c.url.includes('getAccessToken'))).toHaveLength(2);
+    expect(calls.filter((c) => c.url.includes('authentication/logout'))).toHaveLength(1);
+  });
+
+  it('does not self-heal business errors (only token-class codes trigger a retry)', async () => {
+    const { calls } = stubFetchSequence([
+      { match: 'getAccessToken', bodies: [tokenBody('tok-1')] },
+      {
+        match: 'myProduct/query',
+        bodies: [{ success: false, code: 1602001, message: 'Product not found' }],
+      },
+    ]);
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    await expect(adapter.getProducts()).rejects.toThrow(/Product not found/);
+    expect(calls.filter((c) => c.url.includes('myProduct/query'))).toHaveLength(1);
+    expect(calls.filter((c) => c.url.includes('getAccessToken'))).toHaveLength(1);
+    expect(calls.some((c) => c.url.includes('authentication/logout'))).toBe(false);
+  });
+});
+
+describe('CJ envelope robustness', () => {
+  it('accepts documented envelopes that carry result:true without a success field', async () => {
+    const calls: CapturedCall[] = [];
+    stubFetch(
+      [
+        {
+          match: 'getAccessToken',
+          body: {
+            code: 200,
+            result: true,
+            message: 'Success',
+            data: {
+              accessToken: 'tok-r',
+              accessTokenExpiryDate: new Date(Date.now() + 3_600_000).toISOString(),
+              refreshToken: 'rt-r',
+            },
+          },
+        },
+        { match: 'myProduct/query', body: { code: 200, result: true, message: 'Success', data: [] } },
+      ],
+      calls
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const products = await adapter.getProducts();
+    expect(products).toEqual([]);
+  });
+});
+
+describe('CJ refresh-token fallback', () => {
+  it('refreshes a near-expiry cached token instead of exchanging a new one', async () => {
+    const calls: CapturedCall[] = [];
+    stubFetch(
+      [
+        {
+          match: 'getAccessToken',
+          body: {
+            success: true,
+            data: {
+              accessToken: 'tok-old',
+              // 30s left < the 60s cache-safety margin → next call must refresh
+              accessTokenExpiryDate: new Date(Date.now() + 30_000).toISOString(),
+              refreshToken: 'rt-old',
+            },
+          },
+        },
+        {
+          match: 'refreshAccessToken',
+          body: {
+            success: true,
+            data: {
+              accessToken: 'tok-new',
+              accessTokenExpiryDate: new Date(Date.now() + 3_600_000).toISOString(),
+              refreshToken: 'rt-new',
+            },
+          },
+        },
+        { match: 'myProduct/query', body: { success: true, data: [] } },
+      ],
+      calls
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    await adapter.getProducts(); // first call: fresh exchange
+    await adapter.getProducts(); // second call: near-expiry cache → refresh path
+    expect(calls.filter((c) => c.url.includes('getAccessToken'))).toHaveLength(1);
+    const refreshes = calls.filter((c) => c.url.includes('refreshAccessToken'));
+    expect(refreshes).toHaveLength(1);
+    expect(JSON.parse(String(refreshes[0].init?.body))).toEqual({ refreshToken: 'rt-old' });
+    const listCalls = calls.filter((c) => c.url.includes('myProduct/query'));
+    expect((listCalls[1].init!.headers as Record<string, string>)['CJ-Access-Token']).toBe(
+      'tok-new'
+    );
+  });
+});

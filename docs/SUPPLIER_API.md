@@ -296,6 +296,25 @@ Diagnostics (safe, no secret values):
   dashboard, you must **redeploy Production** before the running server can see it; otherwise
   diagnostics correctly report `valuePresent: false`.
 
+Token lifecycle & self-healing (verified against CJ's current docs):
+- Access/refresh tokens live **180 days**, but CJ **server-side caches the same token per
+  account for 24 hours**: repeated `getAccessToken` calls inside the window return the SAME
+  token, and only after 24h **or an explicit logout** (`POST /authentication/logout`) will a
+  new token be generated.
+- When an authenticated call is rejected with a token-class code (1600001 "Invalid API key or
+  access token", 1600002 "access token cannot be empty"), CJ's official remedy is "Get new
+  access token". The adapter therefore: logs out with the rejected token (best-effort, breaks
+  CJ's 24h server-side cache) → clears its local token cache → exchanges a fresh token →
+  retries the original call **exactly once**. Business errors (e.g. 1602001 "Product not
+  found") and repeated failures are never retried or hidden.
+- `1600300 "email must be not empty"` from `getAccessToken` is the **empty-key artifact**:
+  1600300 is CJ's generic "Param error", and the auth validator falls back to the legacy
+  email+password grant when `apiKey` arrives empty. CJ's current auth contract requires ONLY
+  `apiKey` — no email parameter exists. If you ever see this, the env var value did not reach
+  the request intact; check the named variable's presence via Admin → Suppliers → diagnostics.
+- Rate limits: CJ documents **QPS = 1** for authentication and "consistent with other API
+  endpoints" — multi-page catalog syncs pace page requests accordingly.
+
 Inbound webhooks: `POST /api/suppliers/cj/webhook` is **trigger-only** — CJ cannot sign
 payloads with our secret, so the endpoint only enqueues `SYNC_SUPPLIER_ORDER`, which re-fetches
 authoritative status with our token. A forged webhook causes at most one authenticated read.

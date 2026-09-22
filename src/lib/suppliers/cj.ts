@@ -50,6 +50,23 @@ import type { Supplier } from '@prisma/client';
 const API_BASE = 'https://developers.cjdropshipping.com/api2.0/v1';
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+/**
+ * CJ token-class rejection codes on an AUTHENTICATED call that a fresh token
+ * can fix. CJ's official troubleshooting for 1600001 ("Invalid API key or
+ * access token") is literally "Get new access token".
+ * (1600003 is refresh-token specific and already handled inside token();
+ * 1600030 is a logout-endpoint error and must never trigger retries.)
+ */
+const TOKEN_RETRYABLE_CODES = new Set([1600001, 1600002]);
+
+/** CJ documents QPS = 1 for authentication and "consistent with other API
+ * endpoints" — pace pagination and the logout→exchange sequence. */
+const CJ_QPS_DELAY_MS = 1_100;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 interface CjConfig {
   fxRateInrPerUsd?: number;
   logisticName?: string;
@@ -149,6 +166,9 @@ export class CJDropshippingAdapter implements SupplierAdapter {
         out.push(this.mapProduct(item as Record<string, unknown>));
       }
       if (list.length < pageSize) break;
+      // CJ documents QPS = 1 ("consistent with other API endpoints"): pace
+      // multi-page syncs instead of bursting and tripping 1600200.
+      if (out.length < cap && pageNum < maxPages) await sleep(CJ_QPS_DELAY_MS);
     }
     return out;
   }
@@ -440,9 +460,33 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     return entry.token;
   }
 
+  /**
+   * Tolerant success check. CJ's documented envelope sets BOTH `success:true`
+   * and `result:true` on success, but some endpoint error examples omit the
+   * `success` field entirely — never treat a missing flag as failure when the
+   * documented result flag or the code says otherwise. (When both flags are
+   * absent, fall back to code 200.)
+   */
+  private ok(res: CjEnvelope): boolean {
+    if (res.success === true || res.result === true) return true;
+    if (res.success === undefined && res.result === undefined) return res.code === 200;
+    return false;
+  }
+
   private storeToken(key: string, res: CjEnvelope<unknown>): TokenEntry {
-    if (!res.success) {
-      throw new Error(`CJ authentication failed: ${res.message ?? 'unknown error'}`);
+    if (!this.ok(res)) {
+      let message = res.message ?? 'unknown error';
+      if (res.code === 1600300 && /email/i.test(message)) {
+        // Official code table: 1600300 = "Param error". CJ's auth validator
+        // falls back to the legacy email+password grant when the apiKey field
+        // arrives EMPTY, so this exact message means the key never reached CJ
+        // intact (e.g. an unset/empty env var in THIS runtime) — not that CJ
+        // now requires an email parameter (it does not; apiKey is the only
+        // documented credential for getAccessToken).
+        message +=
+          ' — the apiKey value reached CJ empty or unparseable. Verify the environment variable named by apiKeyEnvVar exists and holds the FULL API Key value in this runtime (Admin → Suppliers → diagnostics shows presence, never the value).';
+      }
+      throw new Error(`CJ authentication failed: ${message} (code ${res.code ?? 'n/a'})`);
     }
     const data = (res.data ?? {}) as Record<string, unknown>;
     const accessToken = str(data.accessToken);
@@ -460,11 +504,63 @@ export class CJDropshippingAdapter implements SupplierAdapter {
   private async get(path: string, params: Record<string, string>): Promise<CjEnvelope> {
     const url = new URL(`${API_BASE}/${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-    return this.request(url.toString(), 'GET', undefined);
+    const target = url.toString();
+    return this.withTokenRetry(this.request(target, 'GET', undefined), () =>
+      this.request(target, 'GET', undefined)
+    );
   }
 
   private async post(path: string, body: unknown): Promise<CjEnvelope> {
-    return this.request(`${API_BASE}/${path}`, 'POST', body);
+    const target = `${API_BASE}/${path}`;
+    return this.withTokenRetry(this.request(target, 'POST', body), () =>
+      this.request(target, 'POST', body)
+    );
+  }
+
+  /**
+   * Self-heal for CJ's documented 24-hour server-side token cache: when an
+   * authenticated call is rejected with a token-class code (1600001/1600002),
+   * CJ's own remedy is "Get new access token" — but inside the 24h window the
+   * exchange endpoint returns the SAME cached token unless it was explicitly
+   * logged out. So: best-effort logout with the rejected token (expires access
+   * + refresh tokens server-side) → clear the local cache → exchange a fresh
+   * token → retry the original call exactly ONCE. Business errors, network
+   * errors and repeated token failures are never retried or hidden.
+   */
+  private async withTokenRetry(
+    first: Promise<CjEnvelope>,
+    retry: () => Promise<CjEnvelope>
+  ): Promise<CjEnvelope> {
+    const res = await first;
+    if (
+      res.success !== false ||
+      typeof res.code !== 'number' ||
+      !TOKEN_RETRYABLE_CODES.has(res.code)
+    ) {
+      return res;
+    }
+    logger.warn('CJ rejected the access token - re-authenticating once', {
+      supplier: this.supplier.slug,
+      code: res.code,
+    });
+    await this.reauthenticate();
+    return retry();
+  }
+
+  private async reauthenticate(): Promise<void> {
+    const stale = tokenCache.get(this.supplier.id);
+    tokenCache.delete(this.supplier.id);
+    if (stale) {
+      try {
+        // Best-effort: expires CJ's server-cached token so the next exchange
+        // mints a NEW token instead of returning the same rejected one.
+        await this.request(`${API_BASE}/authentication/logout`, 'POST', undefined, stale.token);
+      } catch {
+        // ignore - the fresh exchange below is what matters
+      }
+      await sleep(CJ_QPS_DELAY_MS); // CJ auth endpoints: QPS = 1
+    }
+    await this.token();
   }
 
   private async rawPost(path: string, body: unknown): Promise<CjEnvelope> {
@@ -524,7 +620,7 @@ export class CJDropshippingAdapter implements SupplierAdapter {
   }
 
   private unwrap<T>(res: CjEnvelope<unknown>, op: string): T {
-    if (!res.success && res.code !== 200) {
+    if (!this.ok(res)) {
       throw new Error(`CJ ${op} failed: ${res.message ?? 'unknown error'} (code ${res.code ?? 'n/a'})`);
     }
     return res.data as T;
