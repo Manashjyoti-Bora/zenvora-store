@@ -5,6 +5,7 @@ import {
   mapCjOrderStatus,
   mapCjTrackingStatus,
 } from '@/lib/suppliers/cj';
+import { diagnoseSupplierAdapter } from '@/lib/suppliers/registry';
 import {
   SupplierRejectedError,
   UnsupportedSupplierOperation,
@@ -119,6 +120,36 @@ describe('CJ adapter construction', () => {
     expect(
       () => new CJDropshippingAdapter(makeSupplier({ apiKeyEnvVar: 'CJ_MISSING_KEY_XYZ' }))
     ).toThrow(/apiKeyEnvVar|environment/);
+  });
+
+  it('distinguishes a missing record field from a missing environment variable', () => {
+    // Cause 1: the supplier record has no env-var NAME at all.
+    expect(() => new CJDropshippingAdapter(makeSupplier({ apiKeyEnvVar: null }))).toThrow(
+      /apiKeyEnvVar is not set on the supplier record/
+    );
+    // Cause 2: the record names a variable that this runtime does not have.
+    expect(
+      () => new CJDropshippingAdapter(makeSupplier({ apiKeyEnvVar: 'CJ_DEFINITELY_MISSING_XYZ' }))
+    ).toThrow(/CJ_DEFINITELY_MISSING_XYZ.*valuePresent: false/);
+  });
+
+  it('never includes env var values in configuration errors', () => {
+    // A secret exists in the environment under one name while the supplier
+    // names a MISSING variable: the error must carry only the name and
+    // valuePresent:false — never any value picked up from process.env.
+    process.env.CJ_LEAK_CANARY = 'super-secret-canary-value';
+    try {
+      let message = '';
+      try {
+        new CJDropshippingAdapter(makeSupplier({ apiKeyEnvVar: 'CJ_LEAK_CANARY_ABSENT' }));
+      } catch (err) {
+        message = err instanceof Error ? err.message : String(err);
+      }
+      expect(message).toMatch(/CJ_LEAK_CANARY_ABSENT.*valuePresent: false/);
+      expect(message).not.toContain('super-secret-canary-value');
+    } finally {
+      delete process.env.CJ_LEAK_CANARY;
+    }
   });
 
   it('reports honest capabilities (no fake cancellation/returns)', () => {
@@ -372,5 +403,86 @@ describe('CJ unsupported operations are honest', () => {
     const body = JSON.parse(String(calls.find((c) => c.url.includes('webhook/set'))!.init?.body));
     expect(body.order.callbackUrls).toEqual(['https://store.example/api/suppliers/cj/webhook']);
     expect(body.logistics.type).toBe('ENABLE');
+  });
+});
+
+describe('CJ catalogue pagination + failure handling', () => {
+  it('follows pagination across full pages and stops on a short page', async () => {
+    const calls: CapturedCall[] = [];
+    const items = (page: number, count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        pid: `P${page}_${i}`,
+        productName: `Item ${page}-${i}`,
+        sku: `SKU${page}_${i}`,
+        buyPrice: 1,
+      }));
+    stubFetch(
+      [
+        TOKEN_ROUTE,
+        { match: 'pageNum=1', body: { success: true, data: items(1, 100) } },
+        { match: 'pageNum=2', body: { success: true, data: items(2, 30) } },
+      ],
+      calls
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const products = await adapter.getProducts({ limit: 200 }); // what the sync route uses
+    expect(products).toHaveLength(130);
+    expect(products[0].sku).toBe('SKU1_0');
+    expect(products[99].sku).toBe('SKU1_99');
+    expect(products[100].sku).toBe('SKU2_0');
+    expect(products[129].sku).toBe('SKU2_29');
+    const listCalls = calls.filter((c) => c.url.includes('myProduct/query'));
+    expect(listCalls).toHaveLength(2); // short page 2 ends the loop — page 3 never fetched
+    expect(listCalls[0].url).toContain('pageNum=1');
+    expect(listCalls[1].url).toContain('pageNum=2');
+  });
+
+  it('reports non-JSON (HTML/CDN) responses honestly instead of parse errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('<html>503 Service Unavailable</html>', { status: 503 }))
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    await expect(adapter.getProducts()).rejects.toThrow(/non-JSON response \(HTTP 503\)/);
+  });
+
+  it('surfaces authentication failures with CJ’s own reason', async () => {
+    stubFetch([
+      {
+        match: 'getAccessToken',
+        body: { success: false, code: 100001, message: 'Invalid api key' },
+      },
+    ], []);
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    await expect(adapter.getProducts()).rejects.toThrow(
+      /CJ authentication failed: Invalid api key/
+    );
+  });
+});
+
+describe('supplier adapter diagnostics (registry)', () => {
+  it('reports the precise CJ configuration problem instead of silently falling back', () => {
+    const diag = diagnoseSupplierAdapter(
+      makeSupplier({ apiKeyEnvVar: 'CJ_DEFINITELY_MISSING_XYZ' })
+    );
+    expect(diag.ok).toBe(false);
+    expect(diag.adapterType).toBe('CJ');
+    expect(diag.error).toMatch(/CJ_DEFINITELY_MISSING_XYZ.*valuePresent: false/);
+  });
+
+  it('reports configured when the named environment variable exists', () => {
+    const diag = diagnoseSupplierAdapter(makeSupplier());
+    expect(diag.ok).toBe(true);
+    expect(diag.error).toBeNull();
+  });
+
+  it('manual suppliers always construct', () => {
+    const diag = diagnoseSupplierAdapter({
+      ...makeSupplier(),
+      type: 'MANUAL',
+      apiKeyEnvVar: null,
+    } as unknown as Supplier);
+    expect(diag.ok).toBe(true);
+    expect(diag.adapterType).toBe('MANUAL');
   });
 });

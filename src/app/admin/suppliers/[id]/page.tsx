@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
+import { diagnoseSupplierAdapter } from '@/lib/suppliers/registry';
 import { Badge } from '@/components/ui/badge';
 import { Card, Alert } from '@/components/ui/feedback';
 import {
@@ -57,6 +58,11 @@ export default async function SupplierDetailPage({ params }: Ctx) {
 
   const supportsSync =
     supplier.type === 'HTTP_REST' || supplier.type === 'CJ' || supplier.type === 'DEMO';
+
+  // Server-side configuration diagnostics (never exposes secret values).
+  const diag = diagnoseSupplierAdapter(supplier);
+  const envValue = supplier.apiKeyEnvVar ? process.env[supplier.apiKeyEnvVar] : undefined;
+  const envPresent = typeof envValue === 'string' && envValue.length > 0;
 
   return (
     <div className="space-y-5">
@@ -130,6 +136,23 @@ export default async function SupplierDetailPage({ params }: Ctx) {
           Endpoint configuration lives in the supplier&apos;s JSON config (env var names hold the
           secrets). Contract documentation: <code>docs/SUPPLIER_API.md</code>. Failed calls retry
           with backoff via the job queue; every attempt is logged (sanitised) on the supplier order.
+        </Alert>
+      )}
+
+      {diag.ok && supplier.apiKeyEnvVar && envPresent && (
+        <Alert tone="success" title="API configuration OK">
+          Environment variable <code>{supplier.apiKeyEnvVar}</code> is present in this environment
+          (value never displayed). Catalog sync and automatic forwarding are enabled.
+        </Alert>
+      )}
+      {!diag.ok && (
+        <Alert tone="error" title="Automation blocked — configuration problem">
+          <p>{diag.error}</p>
+          <p className="mt-2">
+            Fix this in Vercel → Settings → Environment Variables for the affected scope, then
+            redeploy (variables are only read at deploy time). Until fixed, catalog sync fails and
+            affected orders fall back to the manual queue — nothing pretends to be automated.
+          </p>
         </Alert>
       )}
 

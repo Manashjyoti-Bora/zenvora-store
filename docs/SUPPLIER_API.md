@@ -271,6 +271,31 @@ CJ SKU (resolved via stock/queryBySku). Idempotency: `storeLineItemId` = `<job i
 key>:<line>`; duplicate createOrder responses fall back to `shopping/order/list` lookup so a
 retry can never create a second CJ order.
 
+Catalog sync semantics (intentional):
+- Sync pulls **My Products only** (`GET /product/myProduct/query`). CJ's general catalogue
+  (`/product/listV2`) is deliberately NOT auto-imported: nothing becomes publicly sellable in
+  Zenvora without the owner explicitly adding it to CJ My Products, syncing, and mapping it to
+  a Zenvora product with a reviewed price.
+- Pagination is bounded: at most 5 pages of ≤100 items (≤500 products) per sync; a short page
+  ends the loop (a small catalogue costs exactly one request).
+- Items with an unknown CJ cost are **skipped** (reported as `skippedNoCost` in the sync
+  response) instead of being stored with a fabricated 0.00 cost, which would corrupt
+  auto-pricing and margin floors.
+- A supplier whose configuration cannot construct (e.g. missing API-key env var) fails the
+  sync request with the precise, secret-free reason via `diagnoseSupplierAdapter` — it never
+  silently degrades to the manual adapter on this endpoint.
+
+Diagnostics (safe, no secret values):
+- `GET /api/admin/suppliers/<id>/diagnostics` → `{ configured, apiKeyEnvVar, valuePresent, adapterError }`.
+  `valuePresent` only says whether the named env var exists in the current runtime — the value
+  is never returned.
+- The admin supplier detail page shows the same status: green when the variable is present,
+  a red "Automation blocked" alert with the exact missing configuration otherwise.
+- Vercel note: environment variables are read at **request time** by the Node runtime but are
+  only **baked into a deployment at deploy time**. If you add `CJ_API_KEY` in the Vercel
+  dashboard, you must **redeploy Production** before the running server can see it; otherwise
+  diagnostics correctly report `valuePresent: false`.
+
 Inbound webhooks: `POST /api/suppliers/cj/webhook` is **trigger-only** — CJ cannot sign
 payloads with our secret, so the endpoint only enqueues `SYNC_SUPPLIER_ORDER`, which re-fetches
 authoritative status with our token. A forged webhook causes at most one authenticated read.

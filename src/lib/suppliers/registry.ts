@@ -49,3 +49,53 @@ export function getSupplierAdapter(supplier: Supplier): SupplierAdapter {
 
 export { ManualAdapter, HttpRestAdapter, CJDropshippingAdapter, DemoAdapter };
 export * from './types';
+
+/** Safe adapter-configuration diagnostics (never includes secret values). */
+export interface SupplierAdapterDiagnostics {
+  /** true when the supplier's real adapter constructs successfully. */
+  ok: boolean;
+  adapterType: Supplier['type'];
+  /** Precise, secret-free reason when construction fails. */
+  error: string | null;
+}
+
+/**
+ * Try to construct the supplier's REAL adapter (not the manual fallback the
+ * registry swaps in for resilience) and report the precise configuration
+ * problem. Admin endpoints use this so a misconfigured automated supplier
+ * fails loudly with the exact missing configuration instead of silently
+ * degrading to manual fulfilment.
+ */
+export function diagnoseSupplierAdapter(supplier: Supplier): SupplierAdapterDiagnostics {
+  try {
+    switch (supplier.type) {
+      case 'HTTP_REST':
+        new HttpRestAdapter(supplier);
+        break;
+      case 'CJ':
+        new CJDropshippingAdapter(supplier);
+        break;
+      case 'DEMO':
+        if (!isDemoSupplierAllowed()) {
+          return {
+            ok: false,
+            adapterType: supplier.type,
+            error:
+              'DEMO supplier is disabled in this environment (demo supplier mode is off), so it falls back to manual fulfilment.',
+          };
+        }
+        new DemoAdapter(supplier);
+        break;
+      default:
+        // MANUAL (and anything unrecognised) always constructs.
+        break;
+    }
+    return { ok: true, adapterType: supplier.type, error: null };
+  } catch (err) {
+    return {
+      ok: false,
+      adapterType: supplier.type,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}

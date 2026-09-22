@@ -98,9 +98,19 @@ export class CJDropshippingAdapter implements SupplierAdapter {
   constructor(private supplier: Supplier) {
     this.label = `CJ Dropshipping: ${supplier.name}`;
     this.config = (supplier.config ?? {}) as CjConfig;
-    if (!this.apiKey) {
+    if (!supplier.apiKeyEnvVar) {
+      // Distinct cause 1: the DB record is missing the env-var NAME.
       throw new UnsupportedSupplierOperation(
-        `CJ supplier "${supplier.name}": apiKeyEnvVar is not set or the named environment variable is missing (e.g. CJ_API_KEY).`
+        `CJ supplier "${supplier.name}": apiKeyEnvVar is not set on the supplier record. Set it to the NAME of the environment variable holding the CJ API key (e.g. CJ_API_KEY) - never the key itself.`
+      );
+    }
+    if (!this.apiKey) {
+      // Distinct cause 2: the named variable is absent/empty in THIS runtime.
+      // Never include the value; only the name and presence. Env vars on
+      // Vercel are baked in at deploy time, so a freshly added variable also
+      // requires a redeploy before the running server can see it.
+      throw new UnsupportedSupplierOperation(
+        `CJ supplier "${supplier.name}": environment variable ${supplier.apiKeyEnvVar} is not present in this environment (envVarName: ${supplier.apiKeyEnvVar}, valuePresent: false). Add it in Vercel → Settings → Environment Variables (Production) and redeploy; until then catalog sync and automatic CJ forwarding stay disabled.`
       );
     }
     if (!this.config.fxRateInrPerUsd || this.config.fxRateInrPerUsd <= 0) {
@@ -117,16 +127,30 @@ export class CJDropshippingAdapter implements SupplierAdapter {
   // --- Catalogue ------------------------------------------------------------
 
   async getProducts(opts?: { limit?: number }): Promise<SupplierProductDto[]> {
-    const pageSize = Math.min(opts?.limit ?? 50, 100);
-    const res = await this.get('product/myProduct/query', {
-      pageNum: '1',
-      pageSize: String(pageSize),
-    });
-    const data = this.unwrap<unknown>(res, 'product/myProduct/query');
-    const list = Array.isArray(data)
-      ? data
-      : (((data as Record<string, unknown>)?.list ?? []) as unknown[]);
-    return list.slice(0, pageSize).map((item) => this.mapProduct(item as Record<string, unknown>));
+    // Bounded pagination over CJ My Products: at most 5 pages of ≤100 items
+    // (≤500 products per sync). The sync endpoint passes limit:200, which
+    // needs two pages; short pages end the loop early so a small catalogue
+    // costs exactly one request.
+    const cap = Math.max(1, Math.min(opts?.limit ?? 50, 500));
+    const pageSize = Math.min(cap, 100);
+    const maxPages = 5;
+    const out: SupplierProductDto[] = [];
+    for (let pageNum = 1; pageNum <= maxPages && out.length < cap; pageNum += 1) {
+      const res = await this.get('product/myProduct/query', {
+        pageNum: String(pageNum),
+        pageSize: String(pageSize),
+      });
+      const data = this.unwrap<unknown>(res, 'product/myProduct/query');
+      const list = Array.isArray(data)
+        ? data
+        : (((data as Record<string, unknown>)?.list ?? []) as unknown[]);
+      for (const item of list) {
+        if (out.length >= cap) break;
+        out.push(this.mapProduct(item as Record<string, unknown>));
+      }
+      if (list.length < pageSize) break;
+    }
+    return out;
   }
 
   async getProduct(supplierSku: string): Promise<SupplierProductDto | null> {
@@ -469,7 +493,18 @@ export class CJDropshippingAdapter implements SupplierAdapter {
         signal: controller.signal,
       });
       const text = await response.text();
-      const parsed = text ? (JSON.parse(text) as CjEnvelope) : {};
+      let parsed: CjEnvelope;
+      try {
+        parsed = text ? (JSON.parse(text) as CjEnvelope) : {};
+      } catch {
+        // CDN/proxy error pages (HTML) must not surface as confusing
+        // "Unexpected token" parse errors.
+        return {
+          success: false,
+          code: response.status,
+          message: `CJ returned a non-JSON response (HTTP ${response.status})`,
+        };
+      }
       if (!response.ok && parsed.success === undefined) {
         return { success: false, code: response.status, message: `HTTP ${response.status}` };
       }
