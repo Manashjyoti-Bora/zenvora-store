@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Supplier } from '@prisma/client';
 import {
   CJDropshippingAdapter,
+  classifyCjFailure,
   mapCjOrderStatus,
   mapCjTrackingStatus,
 } from '@/lib/suppliers/cj';
@@ -719,5 +720,198 @@ describe('CJ refresh-token fallback', () => {
     expect((listCalls[1].init!.headers as Record<string, string>)['CJ-Access-Token']).toBe(
       'tok-new'
     );
+  });
+});
+
+describe('CJ failure classification (official code table)', () => {
+  it('maps official CJ codes to safe support-ready classes', () => {
+    expect(classifyCjFailure(1600005)).toBe('AUTH_CREDENTIAL_FAILURE');
+    expect(classifyCjFailure(1600006)).toBe('AUTH_CREDENTIAL_FAILURE');
+    expect(classifyCjFailure(1601000)).toBe('AUTH_CREDENTIAL_FAILURE');
+    expect(classifyCjFailure(1600001)).toBe('AUTH_TOKEN_FAILURE');
+    expect(classifyCjFailure(1600002)).toBe('AUTH_TOKEN_FAILURE');
+    expect(classifyCjFailure(1600003)).toBe('AUTH_TOKEN_FAILURE');
+    expect(classifyCjFailure(1600004)).toBe('AUTHORIZATION_FAILURE');
+    expect(classifyCjFailure(1600013)).toBe('AUTHORIZATION_FAILURE');
+    expect(classifyCjFailure(1600200)).toBe('RATE_LIMIT');
+    expect(classifyCjFailure(1600300)).toBe('PARAMETER_FAILURE');
+    expect(classifyCjFailure(1600101)).toBe('ENDPOINT_FAILURE');
+    expect(classifyCjFailure(1600000)).toBe('CJ_SERVER_FAILURE');
+    expect(classifyCjFailure(0)).toBe('NETWORK_FAILURE');
+    expect(classifyCjFailure(null)).toBe('NETWORK_FAILURE');
+    expect(classifyCjFailure(999999)).toBe('CJ_SERVER_FAILURE');
+  });
+});
+
+describe('CJ single-flight token recovery (serverless concurrency)', () => {
+  it('concurrent rejections share ONE logout + ONE fresh exchange', async () => {
+    const calls: CapturedCall[] = [];
+    const counters = new Map<string, number>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        calls.push({ url, init });
+        const key = url.includes('getAccessToken')
+          ? 'auth'
+          : url.includes('logout')
+            ? 'logout'
+            : 'list';
+        const n = counters.get(key) ?? 0;
+        counters.set(key, n + 1);
+        if (key === 'auth') {
+          // Slow the exchange so concurrent callers overlap inside the
+          // single-flight window (deterministic overlap for the test).
+          await new Promise((r) => setTimeout(r, 80));
+          return new Response(
+            JSON.stringify(tokenBody(n === 0 ? 'tok-1' : 'tok-2')),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (key === 'logout') {
+          return new Response(JSON.stringify({ success: true, data: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        // myProduct: first two calls rejected, retries succeed.
+        return new Response(
+          JSON.stringify(
+            n < 2
+              ? { success: false, code: 1600001, message: 'Invalid API key or access token.' }
+              : {
+                  success: true,
+                  data: [{ pid: 'P1', productName: 'Speaker', sku: 'CJSPK1', buyPrice: 2 }],
+                }
+          ),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      })
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const [a, b] = await Promise.all([adapter.getProducts(), adapter.getProducts()]);
+    expect(a).toHaveLength(1);
+    expect(b).toHaveLength(1);
+    // Without single-flight this would be 2 logouts + 3-4 exchanges, and the
+    // second logout would invalidate the first caller's fresh token.
+    expect(calls.filter((c) => c.url.includes('authentication/logout'))).toHaveLength(1);
+    expect(calls.filter((c) => c.url.includes('getAccessToken'))).toHaveLength(2);
+  });
+});
+
+describe('CJ authorization failures are not retried', () => {
+  it('1600004 surfaces once, classified, with no logout/self-heal', async () => {
+    const { calls } = stubFetchSequence([
+      { match: 'getAccessToken', bodies: [tokenBody('tok-1')] },
+      {
+        match: 'myProduct/query',
+        bodies: [
+          { success: false, code: 1600004, message: 'Authorization failed, Please check cj account' },
+        ],
+      },
+    ]);
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    await expect(adapter.getProducts()).rejects.toThrow(
+      /\(code 1600004\) \[AUTHORIZATION_FAILURE\]/
+    );
+    expect(calls.filter((c) => c.url.includes('myProduct/query'))).toHaveLength(1);
+    expect(calls.some((c) => c.url.includes('authentication/logout'))).toBe(false);
+  });
+});
+
+describe('CJ forensic probe (safe; no secret material)', () => {
+  it('reports structured diagnostics without ever exposing key or token values', async () => {
+    stubFetch(
+      [
+        {
+          match: 'getAccessToken',
+          body: {
+            code: 200,
+            success: true,
+            result: true,
+            data: {
+              accessToken: 'tok-probe-secret-value',
+              accessTokenExpiryDate: new Date(Date.now() + 3_600_000).toISOString(),
+              refreshToken: 'rt-probe',
+            },
+          },
+        },
+        {
+          match: 'setting/get',
+          body: { code: 200, success: true, result: true, data: { root: 'GENERAL', isSandbox: false } },
+        },
+        {
+          match: 'myProduct/query',
+          body: {
+            code: 200,
+            success: true,
+            result: true,
+            data: { total: 3, list: [{ pid: 'P1', sku: 'CJSPK1' }] },
+          },
+        },
+      ],
+      []
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const probe = await adapter.probe();
+    expect(probe.apiKeyPresent).toBe(true);
+    expect(probe.apiKeyLength).toBeGreaterThan(0);
+    expect(probe.apiKeyFingerprint).toMatch(/^[0-9a-f]{12}$/);
+    expect(probe.getAccessToken.ok).toBe(true);
+    expect(probe.getAccessToken.tokenPresent).toBe(true);
+    expect(probe.getAccessToken.tokenFingerprint).toMatch(/^[0-9a-f]{12}$/);
+    expect(probe.getAccessToken.tokenExpiryPresent).toBe(true);
+    expect(probe.authenticatedProbe.ok).toBe(true);
+    expect(probe.authenticatedProbe.root).toBe('GENERAL');
+    expect(probe.myProductQuery.ok).toBe(true);
+    expect(probe.myProductQuery.returned).toBe(1);
+    expect(probe.myProductQuery.total).toBe(3);
+    expect(probe.classification).toBeNull();
+    expect(probe.conclusion).toMatch(/no CJ-side blocker/);
+    // Secret-material canary: neither the token nor the API key value may
+    // appear anywhere in the serialized probe result.
+    const json = JSON.stringify(probe);
+    expect(json).not.toContain('tok-probe-secret-value');
+    expect(json).not.toContain('cj-test-key');
+    expect(json).not.toContain('rt-probe');
+  });
+
+  it('reads CJ’s own authorization verdict and concludes CJ-side when it denies access', async () => {
+    stubFetch(
+      [
+        {
+          match: 'getAccessToken',
+          body: {
+            code: 200,
+            success: true,
+            data: {
+              accessToken: 'tok-auth-ok',
+              accessTokenExpiryDate: new Date(Date.now() + 3_600_000).toISOString(),
+              refreshToken: 'rt-ok',
+            },
+          },
+        },
+        {
+          match: 'setting/get',
+          body: { code: 200, success: true, data: { root: 'NO_PERMISSION', isSandbox: false } },
+        },
+        {
+          match: 'myProduct/query',
+          body: { success: false, code: 1600001, message: 'Invalid API key or access token.' },
+        },
+      ],
+      []
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const probe = await adapter.probe();
+    // Exchange + authenticated setting/get succeed…
+    expect(probe.getAccessToken.ok).toBe(true);
+    expect(probe.authenticatedProbe.ok).toBe(true);
+    expect(probe.authenticatedProbe.root).toBe('NO_PERMISSION');
+    // …but the catalog endpoint still rejects the freshly issued token.
+    expect(probe.myProductQuery.code).toBe(1600001);
+    expect(probe.classification).toBe('AUTH_TOKEN_FAILURE');
+    expect(probe.conclusion).toMatch(/NOT fully authorized|CJ's side/);
+    expect(JSON.stringify(probe)).not.toContain('tok-auth-ok');
   });
 });

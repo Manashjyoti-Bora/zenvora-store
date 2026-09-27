@@ -289,6 +289,22 @@ Diagnostics (safe, no secret values):
 - `GET /api/admin/suppliers/<id>/diagnostics` → `{ configured, apiKeyEnvVar, valuePresent, adapterError }`.
   `valuePresent` only says whether the named env var exists in the current runtime — the value
   is never returned.
+- `POST /api/admin/suppliers/<id>/diagnostics/cj` (CJ suppliers only) runs a three-step
+  **forensic probe**: (1) `getAccessToken`, (2) `setting/get` — a minimal authenticated call
+  that also reads CJ's own account-authorization view (`root`: `NO_PERMISSION` = not
+  authorized; `isSandbox`), (3) `product/myProduct/query` — the exact catalog endpoint.
+  Returns only codes/flags/`requestId`s/timings and sha256 fingerprints (first 12 hex) of the
+  API key and token — never any secret value. It performs **no logout and no retries**, so
+  running it never invalidates the working token. Its output is exactly what CJ support asks
+  for when a failure turns out to be CJ-side.
+- Failure classification: every CJ business error message carries a safe class suffix —
+  `AUTH_CREDENTIAL_FAILURE` (1600005/1600006/1600007/1601000), `AUTH_TOKEN_FAILURE`
+  (1600001/1600002/1600003/1600030), `AUTHORIZATION_FAILURE` (1600004/1600008/1600012/1600013),
+  `RATE_LIMIT` (1600200/1600201), `PARAMETER_FAILURE` (1600300/1600301), `ENDPOINT_FAILURE`
+  (1600100/1600101/16900202), `CJ_SERVER_FAILURE`, `NETWORK_FAILURE`.
+- Concurrency: token exchange and logout+re-exchange are **single-flight per supplier**
+  (process-local), so concurrent serverless requests share one recovery instead of invalidating
+  each other's fresh tokens (CJ logout expires the account's current tokens server-side).
 - The admin supplier detail page shows the same status: green when the variable is present,
   a red "Automation blocked" alert with the exact missing configuration otherwise.
 - Vercel note: environment variables are read at **request time** by the Node runtime but are

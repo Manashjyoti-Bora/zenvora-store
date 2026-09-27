@@ -43,10 +43,17 @@ function assertSameBucket(before: number): void {
 }
 
 async function deliverAll(): Promise<void> {
-  for (let i = 0; i < 25; i++) {
+  // Wait until no job is PENDING *or* RUNNING: queueNotification kicks a
+  // fire-and-forget runner, which may hold the job in RUNNING while this
+  // helper polls. Exiting on `PENDING === 0` alone raced that kick (the job
+  // was claimed but the notification not yet SENT) and flaked the SENT
+  // assertions below. SKIP LOCKED makes the concurrent pass harmless.
+  for (let i = 0; i < 50; i++) {
     await processDueJobs({ limit: 25 });
-    const pending = await prisma.job.count({ where: { status: 'PENDING' } });
-    if (pending === 0) return;
+    const outstanding = await prisma.job.count({
+      where: { status: { in: ['PENDING', 'RUNNING'] } },
+    });
+    if (outstanding === 0) return;
     await new Promise((r) => setTimeout(r, 200));
   }
 }

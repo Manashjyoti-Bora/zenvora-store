@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { logger } from '../logger';
 import {
   SupplierRejectedError,
@@ -59,6 +60,52 @@ const DEFAULT_TIMEOUT_MS = 15_000;
  */
 const TOKEN_RETRYABLE_CODES = new Set([1600001, 1600002]);
 
+/**
+ * Safe, structured failure classes for observability and CJ support tickets.
+ * Mapping follows CJ's official global error-code table (ps-code.html):
+ * credential = key/account wrong; token = issued token rejected (fresh token
+ * can fix); authorization = account/store-level permission (CJ-side).
+ */
+export type CjFailureClass =
+  | 'AUTH_CREDENTIAL_FAILURE'
+  | 'AUTH_TOKEN_FAILURE'
+  | 'AUTHORIZATION_FAILURE'
+  | 'ENDPOINT_FAILURE'
+  | 'PARAMETER_FAILURE'
+  | 'RATE_LIMIT'
+  | 'CJ_SERVER_FAILURE'
+  | 'NETWORK_FAILURE';
+
+const CODE_CLASS: Record<number, CjFailureClass> = {
+  1600005: 'AUTH_CREDENTIAL_FAILURE', // API key wrong
+  1600006: 'AUTH_CREDENTIAL_FAILURE', // developer account not found
+  1600007: 'AUTH_CREDENTIAL_FAILURE', // user bound to another developer account
+  1601000: 'AUTH_CREDENTIAL_FAILURE', // user not found
+  1600001: 'AUTH_TOKEN_FAILURE', // invalid API key or access token
+  1600002: 'AUTH_TOKEN_FAILURE', // access token empty
+  1600003: 'AUTH_TOKEN_FAILURE', // invalid refresh token
+  1600030: 'AUTH_TOKEN_FAILURE', // token invalidation failure
+  1600004: 'AUTHORIZATION_FAILURE', // authorization failed / API store not authorized
+  1600008: 'AUTHORIZATION_FAILURE',
+  1600012: 'AUTHORIZATION_FAILURE',
+  1600013: 'AUTHORIZATION_FAILURE', // store info does not exist
+  1600100: 'ENDPOINT_FAILURE', // interface offline
+  1600101: 'ENDPOINT_FAILURE', // interface not found
+  16900202: 'ENDPOINT_FAILURE', // request method not supported
+  1600200: 'RATE_LIMIT',
+  1600201: 'RATE_LIMIT',
+  1600300: 'PARAMETER_FAILURE',
+  1600301: 'PARAMETER_FAILURE',
+  1600000: 'CJ_SERVER_FAILURE', // system busy
+  1608002: 'CJ_SERVER_FAILURE', // warehouse data source transiently unavailable
+};
+
+/** Map a CJ response code (or a transport failure) to its safe class. */
+export function classifyCjFailure(code: number | null | undefined): CjFailureClass {
+  if (code === null || code === undefined || code === 0) return 'NETWORK_FAILURE';
+  return CODE_CLASS[code] ?? 'CJ_SERVER_FAILURE';
+}
+
 /** CJ documents QPS = 1 for authentication and "consistent with other API
  * endpoints" — pace pagination and the logout→exchange sequence. */
 const CJ_QPS_DELAY_MS = 1_100;
@@ -89,8 +136,55 @@ interface TokenEntry {
   refreshToken: string | null;
 }
 
+/** One safe probe step: codes/flags/timings only — never secret material. */
+export interface CjProbeStep {
+  ok: boolean;
+  code: number | null;
+  httpStatus: number | null;
+  successFlag: boolean | null;
+  resultFlag: boolean | null;
+  message: string | null;
+  requestId: string | null;
+  elapsedMs: number;
+}
+
+export interface CjProbeResult {
+  apiKeyPresent: boolean;
+  apiKeyLength: number | null;
+  /** sha256(apiKey) first 12 hex — safe to share with CJ support. */
+  apiKeyFingerprint: string | null;
+  getAccessToken: CjProbeStep & {
+    tokenPresent: boolean;
+    tokenFingerprint: string | null;
+    tokenExpiryPresent: boolean;
+  };
+  authenticatedProbe: CjProbeStep & {
+    endpoint: 'setting/get';
+    /** CJ's own account-authorization read: NO_PERMISSION = not authorized. */
+    root: string | null;
+    isSandbox: boolean | null;
+  };
+  myProductQuery: CjProbeStep & {
+    total: number | null;
+    returned: number | null;
+  };
+  /** Classification of the first failing step (null when all succeeded). */
+  classification: CjFailureClass | null;
+  conclusion: string;
+  elapsedMs: number;
+}
+
 /** Process-local token cache keyed by supplier id (never persisted). */
 const tokenCache = new Map<string, TokenEntry>();
+
+/**
+ * Per-supplier single-flight guard (process-local). On serverless instances
+ * concurrent requests can hit a token rejection simultaneously; without this
+ * guard each would logout + re-exchange, invalidating the other's fresh token
+ * (CJ logout expires the account's current tokens server-side). All callers
+ * arriving during one recovery share that single recovery.
+ */
+const inFlight = new Map<string, Promise<unknown>>();
 
 export class CJDropshippingAdapter implements SupplierAdapter {
   readonly type = 'CJ' as const;
@@ -439,25 +533,40 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     return str(data.vid) ?? str(data.variantId) ?? null;
   }
 
+  /** Deduplicate concurrent async recoveries for the same supplier+purpose. */
+  private singleFlight<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const existing = inFlight.get(key);
+    if (existing) return existing as Promise<T>;
+    const run = fn().finally(() => {
+      if (inFlight.get(key) === run) inFlight.delete(key);
+    });
+    inFlight.set(key, run);
+    return run;
+  }
+
   private async token(): Promise<string> {
-    const cached = tokenCache.get(this.supplier.id);
-    if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
-    if (cached?.refreshToken) {
-      try {
-        const refreshed = await this.rawPost('authentication/refreshAccessToken', {
-          refreshToken: cached.refreshToken,
-        });
-        if (refreshed.success) {
-          const entry = this.storeToken(this.supplier.id, refreshed);
-          return entry.token;
+    // Single-flight: concurrent callers share one cache read / refresh /
+    // exchange wave instead of racing (which could invalidate each other).
+    return this.singleFlight(`token:${this.supplier.id}`, async () => {
+      const cached = tokenCache.get(this.supplier.id);
+      if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
+      if (cached?.refreshToken) {
+        try {
+          const refreshed = await this.rawPost('authentication/refreshAccessToken', {
+            refreshToken: cached.refreshToken,
+          });
+          if (this.ok(refreshed)) {
+            const entry = this.storeToken(this.supplier.id, refreshed);
+            return entry.token;
+          }
+        } catch {
+          // fall through to a fresh token exchange
         }
-      } catch {
-        // fall through to a fresh token exchange
       }
-    }
-    const res = await this.rawPost('authentication/getAccessToken', { apiKey: this.apiKey });
-    const entry = this.storeToken(this.supplier.id, res);
-    return entry.token;
+      const res = await this.rawPost('authentication/getAccessToken', { apiKey: this.apiKey });
+      const entry = this.storeToken(this.supplier.id, res);
+      return entry.token;
+    });
   }
 
   /**
@@ -486,7 +595,9 @@ export class CJDropshippingAdapter implements SupplierAdapter {
         message +=
           ' — the apiKey value reached CJ empty or unparseable. Verify the environment variable named by apiKeyEnvVar exists and holds the FULL API Key value in this runtime (Admin → Suppliers → diagnostics shows presence, never the value).';
       }
-      throw new Error(`CJ authentication failed: ${message} (code ${res.code ?? 'n/a'})`);
+      throw new Error(
+        `CJ authentication failed: ${message} (code ${res.code ?? 'n/a'}) [${classifyCjFailure(res.code ?? null)}]`
+      );
     }
     const data = (res.data ?? {}) as Record<string, unknown>;
     const accessToken = str(data.accessToken);
@@ -548,19 +659,24 @@ export class CJDropshippingAdapter implements SupplierAdapter {
   }
 
   private async reauthenticate(): Promise<void> {
-    const stale = tokenCache.get(this.supplier.id);
-    tokenCache.delete(this.supplier.id);
-    if (stale) {
-      try {
-        // Best-effort: expires CJ's server-cached token so the next exchange
-        // mints a NEW token instead of returning the same rejected one.
-        await this.request(`${API_BASE}/authentication/logout`, 'POST', undefined, stale.token);
-      } catch {
-        // ignore - the fresh exchange below is what matters
+    // Single-flight: if several requests hit the same token rejection, ONE
+    // logout+exchange runs; the others await it instead of performing their
+    // own logout (which would expire the fresh token the first caller got).
+    await this.singleFlight(`reauth:${this.supplier.id}`, async () => {
+      const stale = tokenCache.get(this.supplier.id);
+      tokenCache.delete(this.supplier.id);
+      if (stale) {
+        try {
+          // Best-effort: expires CJ's server-cached token so the next exchange
+          // mints a NEW token instead of returning the same rejected one.
+          await this.request(`${API_BASE}/authentication/logout`, 'POST', undefined, stale.token);
+        } catch {
+          // ignore - the fresh exchange below is what matters
+        }
+        await sleep(CJ_QPS_DELAY_MS); // CJ auth endpoints: QPS = 1
       }
-      await sleep(CJ_QPS_DELAY_MS); // CJ auth endpoints: QPS = 1
-    }
-    await this.token();
+      await this.token();
+    });
   }
 
   private async rawPost(path: string, body: unknown): Promise<CjEnvelope> {
@@ -573,6 +689,16 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     body: unknown,
     useToken: string | null | undefined = undefined
   ): Promise<CjEnvelope> {
+    return (await this.rawRequest(url, method, body, useToken)).res;
+  }
+
+  /** Like request() but also reports HTTP status and elapsed time (for probes). */
+  private async rawRequest(
+    url: string,
+    method: 'GET' | 'POST',
+    body: unknown,
+    useToken: string | null | undefined = undefined
+  ): Promise<{ res: CjEnvelope; httpStatus: number; elapsedMs: number }> {
     const token = useToken === null ? null : (useToken ?? (await this.token()));
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (token) headers['CJ-Access-Token'] = token;
@@ -581,6 +707,7 @@ export class CJDropshippingAdapter implements SupplierAdapter {
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    const started = Date.now();
     try {
       const response = await fetch(url, {
         method,
@@ -588,6 +715,7 @@ export class CJDropshippingAdapter implements SupplierAdapter {
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
+      const httpStatus = response.status;
       const text = await response.text();
       let parsed: CjEnvelope;
       try {
@@ -596,15 +724,23 @@ export class CJDropshippingAdapter implements SupplierAdapter {
         // CDN/proxy error pages (HTML) must not surface as confusing
         // "Unexpected token" parse errors.
         return {
-          success: false,
-          code: response.status,
-          message: `CJ returned a non-JSON response (HTTP ${response.status})`,
+          res: {
+            success: false,
+            code: response.status,
+            message: `CJ returned a non-JSON response (HTTP ${response.status})`,
+          },
+          httpStatus,
+          elapsedMs: Date.now() - started,
         };
       }
       if (!response.ok && parsed.success === undefined) {
-        return { success: false, code: response.status, message: `HTTP ${response.status}` };
+        return {
+          res: { success: false, code: response.status, message: `HTTP ${response.status}` },
+          httpStatus,
+          elapsedMs: Date.now() - started,
+        };
       }
-      return parsed;
+      return { res: parsed, httpStatus, elapsedMs: Date.now() - started };
     } catch (err) {
       const message =
         err instanceof Error
@@ -613,15 +749,154 @@ export class CJDropshippingAdapter implements SupplierAdapter {
             : err.message
           : 'CJ request failed';
       logger.warn(message, { supplier: this.supplier.slug, url });
-      return { success: false, code: 0, message };
+      return {
+        res: { success: false, code: 0, message },
+        httpStatus: 0,
+        elapsedMs: Date.now() - started,
+      };
     } finally {
       clearTimeout(timer);
     }
   }
 
+  // --- Forensic probe (safe; no secret material in the result) ---------------
+
+  /**
+   * Production-safe three-step CJ probe for support escalation:
+   *  1. getAccessToken — fresh exchange (cache-independent)
+   *  2. setting/get — minimal authenticated endpoint that also reads CJ's own
+   *     account-authorization view (`root`: NO_PERMISSION means not authorized;
+   *     `isSandbox`)
+   *  3. product/myProduct/query — the exact catalog-sync endpoint
+   * Reports only codes, flags, requestIds, timings and sha256 fingerprints
+   * (first 12 hex) — NEVER the API key or token values. Performs no logout and
+   * no retries, so running it never invalidates the currently-working token.
+   */
+  async probe(): Promise<CjProbeResult> {
+    const started = Date.now();
+    const key = this.apiKey;
+    const result: CjProbeResult = {
+      apiKeyPresent: Boolean(key),
+      apiKeyLength: key ? key.length : null,
+      apiKeyFingerprint: fingerprint(key),
+      getAccessToken: {
+        ok: false, code: null, httpStatus: null, successFlag: null, resultFlag: null,
+        message: null, requestId: null, elapsedMs: 0,
+        tokenPresent: false, tokenFingerprint: null, tokenExpiryPresent: false,
+      },
+      authenticatedProbe: {
+        ok: false, code: null, httpStatus: null, successFlag: null, resultFlag: null,
+        message: null, requestId: null, elapsedMs: 0,
+        endpoint: 'setting/get', root: null, isSandbox: null,
+      },
+      myProductQuery: {
+        ok: false, code: null, httpStatus: null, successFlag: null, resultFlag: null,
+        message: null, requestId: null, elapsedMs: 0,
+        total: null, returned: null,
+      },
+      classification: null,
+      conclusion: '',
+      elapsedMs: 0,
+    };
+
+    // TEST 1: credential → token exchange.
+    let token: string | null = null;
+    {
+      const { res, httpStatus, elapsedMs } = await this.rawRequest(
+        `${API_BASE}/authentication/getAccessToken`,
+        'POST',
+        { apiKey: key },
+        null
+      );
+      const s = result.getAccessToken;
+      s.elapsedMs = elapsedMs;
+      s.httpStatus = httpStatus;
+      s.code = typeof res.code === 'number' ? res.code : null;
+      s.successFlag = res.success ?? null;
+      s.resultFlag = res.result ?? null;
+      s.message = res.message ?? null;
+      s.requestId = res.requestId ?? null;
+      const data = (res.data ?? {}) as Record<string, unknown>;
+      const access = str(data.accessToken);
+      s.tokenPresent = Boolean(access);
+      s.tokenFingerprint = fingerprint(access);
+      s.tokenExpiryPresent = Boolean(str(data.accessTokenExpiryDate));
+      s.ok = this.ok(res) && s.tokenPresent;
+      token = access ?? null;
+    }
+
+    if (token) {
+      // TEST 2: minimal authenticated endpoint + CJ's authorization view.
+      {
+        const { res, httpStatus, elapsedMs } = await this.rawRequest(
+          `${API_BASE}/setting/get`,
+          'GET',
+          undefined,
+          token
+        );
+        const s = result.authenticatedProbe;
+        s.elapsedMs = elapsedMs;
+        s.httpStatus = httpStatus;
+        s.code = typeof res.code === 'number' ? res.code : null;
+        s.successFlag = res.success ?? null;
+        s.resultFlag = res.result ?? null;
+        s.message = res.message ?? null;
+        s.requestId = res.requestId ?? null;
+        const data = (res.data ?? {}) as Record<string, unknown>;
+        s.root = str(data.root);
+        s.isSandbox = typeof data.isSandbox === 'boolean' ? data.isSandbox : null;
+        s.ok = this.ok(res);
+      }
+
+      // TEST 3: the exact endpoint catalog sync uses.
+      {
+        const url = new URL(`${API_BASE}/product/myProduct/query`);
+        url.searchParams.set('pageNum', '1');
+        url.searchParams.set('pageSize', '1');
+        const { res, httpStatus, elapsedMs } = await this.rawRequest(
+          url.toString(),
+          'GET',
+          undefined,
+          token
+        );
+        const s = result.myProductQuery;
+        s.elapsedMs = elapsedMs;
+        s.httpStatus = httpStatus;
+        s.code = typeof res.code === 'number' ? res.code : null;
+        s.successFlag = res.success ?? null;
+        s.resultFlag = res.result ?? null;
+        s.message = res.message ?? null;
+        s.requestId = res.requestId ?? null;
+        const data = (res.data ?? {}) as Record<string, unknown>;
+        const list = Array.isArray(data.list)
+          ? (data.list as unknown[])
+          : Array.isArray(res.data)
+            ? (res.data as unknown[])
+            : [];
+        s.total = typeof data.total === 'number' ? data.total : null;
+        s.returned = list.length;
+        s.ok = this.ok(res);
+      }
+    }
+
+    const firstFailure: CjProbeStep | null = !result.getAccessToken.ok
+      ? result.getAccessToken
+      : !result.authenticatedProbe.ok
+        ? result.authenticatedProbe
+        : !result.myProductQuery.ok
+          ? result.myProductQuery
+          : null;
+    result.classification = firstFailure ? classifyCjFailure(firstFailure.code) : null;
+    result.elapsedMs = Date.now() - started;
+    result.conclusion = probeConclusion(result);
+    return result;
+  }
+
   private unwrap<T>(res: CjEnvelope<unknown>, op: string): T {
     if (!this.ok(res)) {
-      throw new Error(`CJ ${op} failed: ${res.message ?? 'unknown error'} (code ${res.code ?? 'n/a'})`);
+      throw new Error(
+        `CJ ${op} failed: ${res.message ?? 'unknown error'} (code ${res.code ?? 'n/a'}) [${classifyCjFailure(res.code ?? null)}]`
+      );
     }
     return res.data as T;
   }
@@ -668,6 +943,29 @@ export function mapCjTrackingStatus(code: number | null): SupplierOrderStatusRes
   if (code === 13) return 'REJECTED';
   if (code === 14) return 'CANCELLED';
   return 'UNKNOWN';
+}
+
+/** Safe fingerprint (sha256 prefix) for support tickets — never reversible. */
+function fingerprint(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return createHash('sha256').update(value, 'utf8').digest('hex').slice(0, 12);
+}
+
+/** Human-readable, secret-free verdict for the probe result. */
+function probeConclusion(r: CjProbeResult): string {
+  if (r.getAccessToken.ok && r.authenticatedProbe.ok && r.myProductQuery.ok) {
+    return 'All three CJ probes succeeded: the API key authenticates, the account reads as authorized, and product/myProduct/query responds. There is no CJ-side blocker for catalog sync.';
+  }
+  if (!r.getAccessToken.ok) {
+    return `CJ rejected the credential exchange itself (${r.classification}). Verify the environment variable holds the FULL key of Type "API Key" (CJ also issues MCP tokens, which are not API keys) for the "Zenvora API" app.`;
+  }
+  if (!r.authenticatedProbe.ok) {
+    return `CJ rejected an authenticated setting/get call (${r.classification}) even though a token was issued — account/authorization-level failure on CJ's side. Send the requestId below to CJ support.`;
+  }
+  if (r.authenticatedProbe.root === 'NO_PERMISSION' || r.authenticatedProbe.isSandbox === true) {
+    return `CJ itself reports this account as root=${r.authenticatedProbe.root ?? 'unknown'}, isSandbox=${String(r.authenticatedProbe.isSandbox)} — the token authenticates but the account is NOT fully authorized for API access. This must be fixed on CJ's side (API store authorization).`;
+  }
+  return `CJ-side endpoint authorization mismatch: the token authenticates and setting/get succeeds (root=${r.authenticatedProbe.root ?? 'unknown'}), but product/myProduct/query still fails (code ${r.myProductQuery.code ?? 'n/a'}). This is not a Zenvora code or token-caching problem — send both requestIds to CJ support and verify the API store "Zenvora Store" authorization for the "Zenvora API" app.`;
 }
 
 function firstNum(o: Record<string, unknown>, keys: string[]): number | null {
