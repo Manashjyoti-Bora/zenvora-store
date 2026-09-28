@@ -612,7 +612,7 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     const accessToken = str(data.accessToken);
     if (!accessToken) throw new Error('CJ authentication returned no accessToken');
 
-    logger.warn('CJ forensic token received', {
+    logger.warn(`CJ forensic token received length=${accessToken.length}`, {
       supplier: this.supplier.slug,
       tokenLength: accessToken.length,
       tokenFingerprint: tokenFingerprint(accessToken),
@@ -719,7 +719,7 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     if (token) headers['CJ-Access-Token'] = token;
 
     if (token) {
-      logger.warn('CJ forensic token sent', {
+      logger.warn(`CJ forensic token sent length=${token.length}`, {
         supplier: this.supplier.slug,
         tokenLength: token.length,
         tokenFingerprint: tokenFingerprint(token),
