@@ -114,6 +114,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function tokenFingerprint(token: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < token.length; i++) {
+    hash ^= token.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
 interface CjConfig {
   fxRateInrPerUsd?: number;
   logisticName?: string;
@@ -602,6 +611,12 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     const data = (res.data ?? {}) as Record<string, unknown>;
     const accessToken = str(data.accessToken);
     if (!accessToken) throw new Error('CJ authentication returned no accessToken');
+
+    logger.warn('CJ forensic token received', {
+      supplier: this.supplier.slug,
+      tokenLength: accessToken.length,
+      tokenFingerprint: tokenFingerprint(accessToken),
+    });
     const parsedExpiry = Date.parse(str(data.accessTokenExpiryDate) ?? '');
     const entry: TokenEntry = {
       token: accessToken,
@@ -702,6 +717,15 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     const token = useToken === null ? null : (useToken ?? (await this.token()));
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (token) headers['CJ-Access-Token'] = token;
+
+    if (token) {
+      logger.warn('CJ forensic token sent', {
+        supplier: this.supplier.slug,
+        tokenLength: token.length,
+        tokenFingerprint: tokenFingerprint(token),
+        tokenMatchesCache: token === tokenCache.get(this.supplier.id)?.token,
+      });
+    }
     if (this.config.platformToken) headers.platformToken = this.config.platformToken;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
 
