@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Supplier } from '@prisma/client';
+import { prisma } from '@/lib/db';
 import {
   CJDropshippingAdapter,
   classifyCjFailure,
@@ -1579,6 +1580,171 @@ describe('CJ My Products envelope + mapping regression (data.content / totalReco
       else process.env.VERCEL_ENV = prevVercelEnv;
       if (prevGitRef === undefined) delete process.env.VERCEL_GIT_COMMIT_REF;
       else process.env.VERCEL_GIT_COMMIT_REF = prevGitRef;
+    }
+  });
+
+  it('verifies DB Supplier (apiKeyEnvVar=CJ_API_KEY, fxRateInrPerUsd=88.5) probe + idempotent SupplierProduct catalog upsert', async () => {
+    const prevKey = process.env.CJ_API_KEY;
+    process.env.CJ_API_KEY = 'cj-live-like-test-key';
+    const slug = `cj-dropshipping-db-${Date.now()}`;
+    let supplierId: string | null = null;
+
+    try {
+      const dbSupplier = await prisma.supplier.create({
+        data: {
+          name: 'CJ Dropshipping',
+          slug,
+          type: 'CJ',
+          apiKeyEnvVar: 'CJ_API_KEY',
+          config: { fxRateInrPerUsd: 88.5 },
+          isActive: true,
+          leadTimeDays: 7,
+        },
+      });
+      supplierId = dbSupplier.id;
+
+      // 1. Verify diagnoseSupplierAdapter succeeds with CJ_API_KEY + fxRateInrPerUsd: 88.5
+      const diag = diagnoseSupplierAdapter(dbSupplier);
+      expect(diag.ok).toBe(true);
+      expect(diag.error).toBeNull();
+
+      // 2. Stub CJ endpoints for both probe (pageSize=1) and sync (pageSize=100)
+      const cjProducts = [
+        {
+          productId: 'CJ-PID-2001',
+          nameEn: 'Magnetic Wireless Power Bank',
+          sku: 'CJPB-2001',
+          sellPrice: '10.00',
+          freightTrial: '2.00',
+          totalPrice: '12.00',
+        },
+        {
+          productId: 'CJ-PID-2002',
+          nameEn: 'Ergonomic Laptop Stand',
+          sku: 'CJLS-2002',
+          sellPrice: '8.00 - 14.00',
+          freightTrial: '3.00',
+          totalPrice: '11.00 - 17.00',
+        },
+      ];
+
+      stubFetch(
+        [
+          TOKEN_ROUTE,
+          {
+            match: 'setting/get',
+            body: { code: 200, result: true, data: { root: 'GENERAL', isSandbox: false } },
+          },
+          {
+            match: 'pageSize=1&',
+            body: {
+              code: 200,
+              result: true,
+              data: {
+                pageSize: 1,
+                pageNumber: 1,
+                totalRecords: 2,
+                totalPages: 2,
+                content: [cjProducts[0]],
+              },
+            },
+          },
+          {
+            match: 'myProduct/query',
+            body: {
+              code: 200,
+              result: true,
+              data: {
+                pageSize: 100,
+                pageNumber: 1,
+                totalRecords: 2,
+                totalPages: 1,
+                content: cjProducts,
+              },
+            },
+          },
+        ],
+        []
+      );
+
+      const adapter = new CJDropshippingAdapter(dbSupplier);
+      const probe = await adapter.probe();
+      expect(probe.getAccessToken.ok).toBe(true);
+      expect(probe.authenticatedProbe.ok).toBe(true);
+      expect(probe.myProductQuery.ok).toBe(true);
+      expect(probe.myProductQuery.total).toBe(2);
+      expect(probe.myProductQuery.listKey).toBe('content');
+
+      // 3. Run sync pass #1 (creates 2 SupplierProduct rows)
+      const runSync = async () => {
+        const fetched = await adapter.getProducts({ limit: 200 });
+        let created = 0;
+        let updated = 0;
+        for (const p of fetched) {
+          const sku = p.sku.trim();
+          if (!sku || p.costPaise == null) continue;
+          const existing =
+            (await prisma.supplierProduct.findUnique({
+              where: { supplierId_supplierSku: { supplierId: dbSupplier.id, supplierSku: sku } },
+            })) ??
+            (p.externalId
+              ? await prisma.supplierProduct.findFirst({
+                  where: { supplierId: dbSupplier.id, externalId: p.externalId },
+                })
+              : null);
+          const data = {
+            supplierSku: sku,
+            externalId: p.externalId ?? null,
+            supplierCost: (p.costPaise / 100).toFixed(2),
+            supplierShippingCost:
+              p.shippingPaise != null ? (p.shippingPaise / 100).toFixed(2) : null,
+            inStock: p.inStock ?? null,
+            stockQty: p.qty ?? null,
+            raw: (p.raw ?? {}) as object,
+            lastSyncedAt: new Date(),
+          };
+          if (existing) {
+            await prisma.supplierProduct.update({ where: { id: existing.id }, data });
+            updated += 1;
+          } else {
+            await prisma.supplierProduct.create({
+              data: { supplierId: dbSupplier.id, ...data },
+            });
+            created += 1;
+          }
+        }
+        return { fetched: fetched.length, created, updated };
+      };
+
+      const firstRun = await runSync();
+      expect(firstRun).toEqual({ fetched: 2, created: 2, updated: 0 });
+
+      // 4. Run sync pass #2 (idempotent: updates the same 2 rows, 0 new rows, 0 duplicates)
+      const secondRun = await runSync();
+      expect(secondRun).toEqual({ fetched: 2, created: 0, updated: 2 });
+
+      const stored = await prisma.supplierProduct.findMany({
+        where: { supplierId: dbSupplier.id },
+        orderBy: { supplierSku: 'asc' },
+      });
+      expect(stored).toHaveLength(2);
+      // 14.00 USD * 88.5 = 1239.00 INR; shipping 3.00 USD * 88.5 = 265.50 INR
+      expect(stored[0].supplierSku).toBe('CJLS-2002');
+      expect(stored[0].externalId).toBe('CJ-PID-2002');
+      expect(Number(stored[0].supplierCost)).toBe(1239);
+      expect(Number(stored[0].supplierShippingCost)).toBe(265.5);
+      // 10.00 USD * 88.5 = 885.00 INR; shipping 2.00 USD * 88.5 = 177.00 INR
+      expect(stored[1].supplierSku).toBe('CJPB-2001');
+      expect(stored[1].externalId).toBe('CJ-PID-2001');
+      expect(Number(stored[1].supplierCost)).toBe(885);
+      expect(Number(stored[1].supplierShippingCost)).toBe(177);
+    } finally {
+      if (supplierId) {
+        await prisma.supplierProduct.deleteMany({ where: { supplierId } });
+        await prisma.supplier.delete({ where: { id: supplierId } }).catch(() => undefined);
+      }
+      if (prevKey === undefined) delete process.env.CJ_API_KEY;
+      else process.env.CJ_API_KEY = prevKey;
     }
   });
 });

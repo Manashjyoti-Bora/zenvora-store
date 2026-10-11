@@ -30,6 +30,11 @@ export interface SupplierRow {
   supplierProductCount: number;
   supplierOrderCount: number;
   lastSyncedAt: string | null;
+  configured?: boolean;
+  adapterError?: string | null;
+  envPresent?: boolean;
+  vercelEnv?: string | null;
+  gitBranch?: string | null;
 }
 
 interface FormState {
@@ -275,9 +280,16 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                     : 'never'}
                 </Td>
                 <Td>
-                  <Badge tone={s.isActive ? 'green' : 'gray'}>
-                    {s.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge tone={s.isActive ? 'green' : 'gray'}>
+                      {s.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                    {(s.type === 'CJ' || s.type === 'HTTP_REST') && s.configured !== undefined && (
+                      <Badge tone={s.configured ? 'green' : 'red'}>
+                        {s.configured ? 'Env OK' : 'Env missing'}
+                      </Badge>
+                    )}
+                  </div>
                 </Td>
                 <Td className="text-right">
                   <div className="flex justify-end gap-3 text-xs">
@@ -364,7 +376,15 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                 <Select
                   {...p}
                   value={form.type}
-                  onChange={(e) => set('type', e.target.value as SupplierRow['type'])}
+                  onChange={(e) => {
+                    const nextType = e.target.value as SupplierRow['type'];
+                    setForm((f) => ({
+                      ...f,
+                      type: nextType,
+                      apiKeyEnvVar:
+                        nextType === 'CJ' && !f.apiKeyEnvVar.trim() ? 'CJ_API_KEY' : f.apiKeyEnvVar,
+                    }));
+                  }}
                 >
                   <option value="MANUAL">Manual fulfilment</option>
                   <option value="HTTP_REST">HTTP REST API (automated)</option>
@@ -491,9 +511,26 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
               <Alert tone="warning">
                 The CJ API key lives <strong>only in an environment variable</strong>. Enter the
                 variable NAME here (default <code>CJ_API_KEY</code>); put the actual key in
-                Vercel/server env (CJ dashboard → My CJ → Authorization → API). Never paste the
-                key into this form or into chat.
+                Vercel/server env (CJ dashboard → My CJ → Authorization → API). Enable both{' '}
+                <strong>Production</strong> and <strong>Preview</strong> scopes in Vercel → Project
+                Settings → Environment Variables and redeploy. Never paste the key into this form or
+                into chat.
               </Alert>
+              {editing && editing.type === 'CJ' && editing.configured !== undefined && (
+                <Alert
+                  tone={editing.configured ? 'success' : 'error'}
+                  title={
+                    editing.configured
+                      ? `Runtime check: ${editing.apiKeyEnvVar || 'CJ_API_KEY'} is present${editing.vercelEnv ? ` (${editing.vercelEnv}${editing.gitBranch ? ` · ${editing.gitBranch}` : ''})` : ''}`
+                      : `Runtime check: ${editing.apiKeyEnvVar || 'CJ_API_KEY'} is missing in this environment${editing.vercelEnv ? ` (${editing.vercelEnv}${editing.gitBranch ? ` · ${editing.gitBranch}` : ''})` : ''}`
+                  }
+                >
+                  {editing.configured
+                    ? 'The server-side adapter constructed cleanly in this runtime (secret value is never exposed).'
+                    : (editing.adapterError ??
+                      'Enable this variable for the Preview environment in Vercel → Project Settings → Environment Variables and redeploy.')}
+                </Alert>
+              )}
               <Field label="API key env var name" hint="UPPER_SNAKE_CASE">
                 {(p) => (
                   <Input

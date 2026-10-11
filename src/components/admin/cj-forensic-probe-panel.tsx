@@ -20,12 +20,27 @@ import { Badge } from '@/components/ui/badge';
 
 /** The route answers with the probe result, or a Zenvora-side config gate. */
 type ProbeResponse =
-  | ({ zenvoraSide: true; configured: false; adapterError?: string | null; conclusion: string } &
-      Partial<CjProbeResult>)
-  | ({ zenvoraSide: false; configured: true; apiKeyEnvVar: string | null } & CjProbeResult);
+  | ({
+      zenvoraSide: true;
+      configured: false;
+      apiKeyEnvVar?: string | null;
+      vercelEnv?: string | null;
+      gitBranch?: string | null;
+      adapterError?: string | null;
+      conclusion: string;
+    } & Partial<CjProbeResult>)
+  | ({
+      zenvoraSide: false;
+      configured: true;
+      apiKeyEnvVar: string | null;
+      vercelEnv?: string | null;
+      gitBranch?: string | null;
+    } & CjProbeResult);
 export function CjForensicProbePanel({ supplierId }: { supplierId: string }) {
   const [busy, setBusy] = useState(false);
-  const [probe, setProbe] = useState<CjProbeResult | null>(null);
+  const [probe, setProbe] = useState<
+    (CjProbeResult & { vercelEnv?: string | null; gitBranch?: string | null }) | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
 
   async function run() {
@@ -93,7 +108,11 @@ export function CjForensicProbePanel({ supplierId }: { supplierId: string }) {
                 {probe.classification ?? 'ALL STEPS OK'}
               </Badge>
               <span className="text-xs text-ink-400">
-                total {probe.elapsedMs} ms · API key:{' '}
+                total {probe.elapsedMs} ms
+                {probe.vercelEnv
+                  ? ` · env: ${probe.vercelEnv}${probe.gitBranch ? ` (${probe.gitBranch})` : ''}`
+                  : ''}{' '}
+                · API key:{' '}
                 {probe.apiKeyPresent ? (
                   <span className="font-mono">
                     {probe.apiKeyLength} chars · {probe.apiKeyFingerprint}
