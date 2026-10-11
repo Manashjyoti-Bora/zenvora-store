@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isSitemapEligible, SITEMAP_PRODUCT_WHERE } from '@/lib/catalog/eligibility';
+import {
+  isSitemapEligible,
+  SITEMAP_PRODUCT_WHERE,
+  STOREFRONT_PRODUCT_WHERE,
+} from '@/lib/catalog/eligibility';
 
 /**
  * Only genuinely published, priced products may be advertised to crawlers.
@@ -27,10 +31,13 @@ describe('isSitemapEligible', () => {
     expect(isSitemapEligible({ status: 'ACTIVE', pricePaise: -100 })).toBe(false);
   });
 
-  it('keeps the Prisma filter in step with the predicate', () => {
-    // The query and the predicate are the same rule; this pins the shared shape
-    // so a future edit to one is caught by the other.
-    expect(SITEMAP_PRODUCT_WHERE.status).toBe('ACTIVE');
-    expect(SITEMAP_PRODUCT_WHERE.sellingPrice).toEqual({ gt: '0' });
+  it('shares one public eligibility filter between storefront and sitemap', () => {
+    // The public listing/count query and sitemap use the same predicate so
+    // ACTIVE-but-unpriced records cannot inflate the public product count.
+    expect(STOREFRONT_PRODUCT_WHERE).toEqual({
+      status: 'ACTIVE',
+      sellingPrice: { gt: '0' },
+    });
+    expect(SITEMAP_PRODUCT_WHERE).toBe(STOREFRONT_PRODUCT_WHERE);
   });
 });

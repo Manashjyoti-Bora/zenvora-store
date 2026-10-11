@@ -8,6 +8,7 @@ import {
   getAllSupplierSyncReports,
 } from '@/lib/catalog/auto-import';
 import { getFulfilmentReadinessReport } from '@/lib/catalog/fulfilment-readiness';
+import { getCatalogPipelineCounts } from '@/lib/catalog/diagnostics';
 import {
   SupplierProductMapper,
   type SupplierProductRow,
@@ -23,31 +24,40 @@ export const metadata: Metadata = {
 };
 
 export default async function SupplierProductsPage() {
-  const [supplierProducts, products, suppliers, settings, activeRules, syncReports, readiness] =
-    await Promise.all([
-      prisma.supplierProduct.findMany({
-        orderBy: [{ productId: 'asc' }, { updatedAt: 'desc' }],
-        take: 500,
-        include: {
-          supplier: true,
-          product: { select: { id: true, name: true, slug: true, status: true } },
-        },
-      }),
-      prisma.product.findMany({
-        where: { status: { not: 'ARCHIVED' } },
-        orderBy: { name: 'asc' },
-        take: 500,
-        select: { id: true, name: true, supplierSku: true, status: true },
-      }),
-      prisma.supplier.findMany({
-        orderBy: { name: 'asc' },
-        select: { id: true, name: true, type: true, isActive: true },
-      }),
-      getSettings(),
-      prisma.pricingRule.findMany({ where: { isActive: true } }),
-      getAllSupplierSyncReports(),
-      getFulfilmentReadinessReport({ includeDrafts: true }),
-    ]);
+  const [
+    supplierProducts,
+    products,
+    suppliers,
+    settings,
+    activeRules,
+    syncReports,
+    readiness,
+    pipelineCounts,
+  ] = await Promise.all([
+    prisma.supplierProduct.findMany({
+      orderBy: [{ productId: 'asc' }, { updatedAt: 'desc' }],
+      take: 500,
+      include: {
+        supplier: true,
+        product: { select: { id: true, name: true, slug: true, status: true } },
+      },
+    }),
+    prisma.product.findMany({
+      where: { status: { not: 'ARCHIVED' } },
+      orderBy: { name: 'asc' },
+      take: 500,
+      select: { id: true, name: true, supplierSku: true, status: true },
+    }),
+    prisma.supplier.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, type: true, isActive: true },
+    }),
+    getSettings(),
+    prisma.pricingRule.findMany({ where: { isActive: true } }),
+    getAllSupplierSyncReports(),
+    getFulfilmentReadinessReport({ includeDrafts: true }),
+    getCatalogPipelineCounts(),
+  ]);
 
   const tierCounts = {
     HIGH_POTENTIAL: 0,
@@ -99,8 +109,8 @@ export default async function SupplierProductsPage() {
     };
   });
 
-  const publishedCount = products.filter((p) => p.status === 'ACTIVE').length;
-  const draftCount = products.filter((p) => p.status === 'DRAFT').length;
+  const publishedCount = pipelineCounts.products.storefrontEligible;
+  const draftCount = pipelineCounts.products.draft;
   const latestReport = syncReports[0] ?? null;
   const notReadySellable = readiness.items.filter((i) => i.status === 'ACTIVE' && !i.ready);
   const marginAlerts = readiness.items.filter((i) => i.marginAlert);
@@ -122,17 +132,20 @@ export default async function SupplierProductsPage() {
         </div>
       </header>
 
-      {/* Pipeline Summary KPIs */}
+      {/* Pipeline Summary KPIs. Persistent counts use whole-table aggregates;
+          rank tiers are recalculated only for the supplier rows loaded below. */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         <div className="card p-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-            Discovered
+            Supplier records stored
           </p>
-          <p className="mt-1 text-xl font-bold tabular-nums text-ink-900">{rows.length}</p>
+          <p className="mt-1 text-xl font-bold tabular-nums text-ink-900">
+            {pipelineCounts.supplierProducts.total}
+          </p>
         </div>
         <div className="card border-emerald-200 bg-emerald-50/40 p-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
-            High Potential
+            High potential · loaded
           </p>
           <p className="mt-1 text-xl font-bold tabular-nums text-emerald-900">
             {tierCounts.HIGH_POTENTIAL}
@@ -140,7 +153,7 @@ export default async function SupplierProductsPage() {
         </div>
         <div className="card border-blue-200 bg-blue-50/40 p-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-800">
-            Promising
+            Promising · loaded
           </p>
           <p className="mt-1 text-xl font-bold tabular-nums text-blue-900">
             {tierCounts.PROMISING}
@@ -148,33 +161,153 @@ export default async function SupplierProductsPage() {
         </div>
         <div className="card border-amber-200 bg-amber-50/40 p-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-800">
-            Needs Review
+            Import state · needs review
           </p>
           <p className="mt-1 text-xl font-bold tabular-nums text-amber-900">
-            {tierCounts.NEEDS_REVIEW}
+            {pipelineCounts.supplierProducts.needsReview}
           </p>
         </div>
         <div className="card border-red-200 bg-red-50/40 p-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-red-800">
-            Rejected / Ineligible
+            Import state · rejected
           </p>
           <p className="mt-1 text-xl font-bold tabular-nums text-red-900">
-            {tierCounts.NOT_ELIGIBLE}
+            {pipelineCounts.supplierProducts.rejected}
           </p>
         </div>
         <div className="card p-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-            Published (Live)
+            Storefront eligible
           </p>
           <p className="mt-1 text-xl font-bold tabular-nums text-ink-900">{publishedCount}</p>
         </div>
         <div className="card p-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-            Saved as Draft
+            Products in draft
           </p>
           <p className="mt-1 text-xl font-bold tabular-nums text-ink-900">{draftCount}</p>
         </div>
       </div>
+      <p className="-mt-4 text-xs text-ink-400">
+        Database totals cover every row. Current rules flag {tierCounts.NEEDS_REVIEW} of the
+        up-to-500 loaded supplier records for review and {tierCounts.NOT_ELIGIBLE} as ineligible;
+        these are not whole-database counts.
+      </p>
+
+      <section className="card space-y-3 p-4 sm:p-5" aria-labelledby="catalog-diagnostics-title">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 id="catalog-diagnostics-title" className="text-base font-bold text-ink-900">
+              Storefront eligibility &amp; catalogue diagnostics
+            </h2>
+            <p className="mt-1 text-xs leading-relaxed text-ink-500">
+              The public shop uses the same rule as the sitemap: product status must be ACTIVE and
+              the stored selling price must be above ₹0.
+            </p>
+          </div>
+          <Badge tone={publishedCount > 0 ? 'green' : 'amber'}>
+            {publishedCount} eligible for /shop
+          </Badge>
+        </div>
+        <dl className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:grid-cols-5">
+          <div className="rounded-lg bg-cream-50 p-3">
+            <dt className="text-ink-500">All catalogue products</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-ink-900">
+              {pipelineCounts.products.total}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-cream-50 p-3">
+            <dt className="text-ink-500">Active product records</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-ink-900">
+              {pipelineCounts.products.active}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-amber-50 p-3">
+            <dt className="text-amber-800">Active, hidden: price ≤ ₹0</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-amber-900">
+              {pipelineCounts.products.activeUnpriced}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-cream-50 p-3">
+            <dt className="text-ink-500">Draft products</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-ink-900">
+              {pipelineCounts.products.draft}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-cream-50 p-3">
+            <dt className="text-ink-500">Archived products</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-ink-900">
+              {pipelineCounts.products.archived}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-cream-50 p-3">
+            <dt className="text-ink-500">Supplier records stored</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-ink-900">
+              {pipelineCounts.supplierProducts.total}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-cream-50 p-3">
+            <dt className="text-ink-500">Active supplier records</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-ink-900">
+              {pipelineCounts.supplierProducts.active}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-cream-50 p-3">
+            <dt className="text-ink-500">Inactive supplier records</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-ink-900">
+              {pipelineCounts.supplierProducts.inactive}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-cream-50 p-3">
+            <dt className="text-ink-500">Mapped to a catalogue product</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-ink-900">
+              {pipelineCounts.supplierProducts.mapped}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-amber-50 p-3">
+            <dt className="text-amber-800">Unmapped supplier records</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-amber-900">
+              {pipelineCounts.supplierProducts.unmapped}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-amber-50 p-3">
+            <dt className="text-amber-800">Last recorded import state: needs review</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-amber-900">
+              {pipelineCounts.supplierProducts.needsReview}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-red-50 p-3">
+            <dt className="text-red-800">Supplier records with import state: rejected</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-red-900">
+              {pipelineCounts.supplierProducts.rejected}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-emerald-50 p-3">
+            <dt className="text-emerald-800">Last recorded import state: published</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-emerald-900">
+              {pipelineCounts.supplierProducts.importPublished}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-cream-50 p-3">
+            <dt className="text-ink-500">Last recorded import state: draft</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-ink-900">
+              {pipelineCounts.supplierProducts.importDraft}
+            </dd>
+          </div>
+          <div className="rounded-lg bg-cream-50 p-3">
+            <dt className="text-ink-500">Last recorded import state: unmapped</dt>
+            <dd className="mt-1 text-lg font-bold tabular-nums text-ink-900">
+              {pipelineCounts.supplierProducts.importUnmapped}
+            </dd>
+          </div>
+        </dl>
+        <p className="text-xs leading-relaxed text-ink-500">
+          Category and stock are not default visibility filters. Stock affects availability and
+          purchase limits; “In stock only” is opt-in. Stored import states reflect the last recorded
+          evaluation and may differ from current product state. A supplier record is not storefront
+          visible until it maps to a reviewed, positively priced product that is set ACTIVE.
+        </p>
+      </section>
 
       {/* Automated Pipeline & Quality Gate Rules */}
       <SupplierCatalogOps
@@ -234,6 +367,12 @@ export default async function SupplierProductsPage() {
                   </span>
                 </div>
               </div>
+              <p className="text-[11px] leading-relaxed text-ink-500">
+                Skipped: {latestReport.totals.skippedDuplicate} duplicate,{' '}
+                {latestReport.totals.skippedNoSku} missing SKU, {latestReport.totals.skippedNoCost}{' '}
+                missing or negative cost, {latestReport.totals.skippedIncomplete} incomplete.
+                Per-item failures: {latestReport.totals.failed}.
+              </p>
             </div>
           ) : (
             <p className="text-xs text-ink-400">
@@ -265,15 +404,11 @@ export default async function SupplierProductsPage() {
             </div>
             <div>
               <span className="block text-[10px] text-ink-400">Missing Images</span>
-              <span className="font-bold text-ink-900">
-                {readiness.summary.missingImagesCount}
-              </span>
+              <span className="font-bold text-ink-900">{readiness.summary.missingImagesCount}</span>
             </div>
             <div>
               <span className="block text-[10px] text-ink-400">Margin Alerts</span>
-              <span className="font-bold text-amber-700">
-                {readiness.summary.marginAlertCount}
-              </span>
+              <span className="font-bold text-amber-700">{readiness.summary.marginAlertCount}</span>
             </div>
           </div>
           {notReadySellable.length > 0 && (

@@ -8,13 +8,16 @@ import {
   listActiveCategories,
   parseSort,
   parsePriceBound,
+  countStorefrontProducts,
 } from '@/lib/catalog/storefront';
 import { ProductGrid } from '@/components/store/product-grid';
 import { FilterSidebar } from '@/components/store/filter-sidebar';
+import { ActiveFilterChips } from '@/components/store/active-filter-chips';
 import { ListingControls } from '@/components/store/listing-controls';
 import { Pagination } from '@/components/ui/table';
 import { Breadcrumbs } from '@/components/store/breadcrumbs';
 import { jsonLdScript } from '@/lib/utils';
+import { getListingEmptyState } from '@/lib/catalog/listing-state';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,6 +61,22 @@ export default async function CategoryPage({
     listActiveCategories(),
   ]);
 
+  const catalogTotal = result.total === 0 ? await countStorefrontProducts() : undefined;
+  const emptyState = getListingEmptyState({
+    itemCount: result.items.length,
+    total: result.total,
+    catalogTotal,
+    page: result.page,
+    totalPages: result.totalPages,
+    basePath: `/categories/${category.slug}`,
+    searchParams: sp,
+    query: sp.q,
+    category: category.slug,
+    minPrice: sp.min,
+    maxPrice: sp.max,
+    inStockOnly: sp.stock === '1',
+  });
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
@@ -88,7 +107,7 @@ export default async function CategoryPage({
         {category.description && (
           <p className="mt-1 max-w-2xl text-sm text-ink-500">{category.description}</p>
         )}
-        <p className="mt-1 text-sm tabular-nums text-ink-400">
+        <p className="mt-1 text-sm tabular-nums text-ink-500" role="status" aria-live="polite">
           {result.total} product{result.total === 1 ? '' : 's'}
         </p>
         {category.children && category.children.length > 0 && (
@@ -109,25 +128,53 @@ export default async function CategoryPage({
         )}
       </header>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[220px_1fr]">
-        <div className="order-2 lg:order-1">
+      <ActiveFilterChips
+        basePath={`/categories/${category.slug}`}
+        searchParams={sp}
+        categories={categories}
+        activeCategory={category.slug}
+        categoryInPath
+      />
+
+      <div className="mb-3 lg:hidden">
+        <FilterSidebar
+          presentation="mobile"
+          categories={categories}
+          basePath={`/categories/${category.slug}`}
+          categoryBasePath="/categories"
+          activeCategory={category.slug}
+          searchParams={sp}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8">
+        <div>
           <FilterSidebar
+            presentation="desktop"
             categories={categories}
-            basePath="/shop"
+            basePath={`/categories/${category.slug}`}
+            categoryBasePath="/categories"
             activeCategory={category.slug}
             searchParams={sp}
           />
         </div>
-        <div className="order-1 min-w-0 lg:order-2">
-          <div className="mb-4">
+        <div className="min-w-0">
+          <div className="border-ink-900/8 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white px-3.5 py-3 shadow-hair sm:px-4">
+            <span className="text-xs font-medium text-ink-500">Sort and availability</span>
             <ListingControls />
           </div>
-          <ProductGrid products={result.items} />
+          <ProductGrid products={result.items} emptyState={emptyState} />
           <Pagination
             page={result.page}
             totalPages={result.totalPages}
             basePath={`/categories/${category.slug}`}
-            searchParams={{ sort: sp.sort, min: sp.min, max: sp.max, stock: sp.stock }}
+            searchParams={{
+              q: sp.q,
+              sort: sp.sort,
+              min: sp.min,
+              max: sp.max,
+              stock: sp.stock,
+            }}
           />
           <p className="mt-6 text-xs text-ink-400">
             Looking for something else?{' '}

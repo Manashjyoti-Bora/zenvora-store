@@ -2,16 +2,43 @@ import { ProductCard } from './product-card';
 import { EmptyState } from '@/components/ui/feedback';
 import { LinkButton } from '@/components/ui/button';
 import type { ProductCardData } from '@/lib/catalog/storefront';
-import { SearchIcon } from '@/components/ui/icons';
+import { BoxIcon, SearchIcon } from '@/components/ui/icons';
+import type { ListingEmptyState } from '@/lib/catalog/listing-state';
 
-export function ProductGrid({ products }: { products: ProductCardData[] }) {
+export function ProductGrid({
+  products,
+  emptyState,
+}: {
+  products: ProductCardData[];
+  emptyState?: ListingEmptyState | null;
+}) {
   if (products.length === 0) {
+    const state = emptyState ?? {
+      kind: 'no-results' as const,
+      title: 'No products found',
+      description: 'Try adjusting your filters or search terms, or browse the full catalogue.',
+      actionHref: '/shop',
+      actionLabel: 'Browse all products',
+    };
     return (
       <EmptyState
-        icon={<SearchIcon className="h-6 w-6" />}
-        title="No products found"
-        description="Try adjusting your filters or search terms, or browse the full catalog."
-        action={<LinkButton href="/shop">Browse all products</LinkButton>}
+        icon={
+          state.kind === 'catalog-empty' ? (
+            <BoxIcon className="h-6 w-6" />
+          ) : (
+            <SearchIcon className="h-6 w-6" />
+          )
+        }
+        title={state.title}
+        description={state.description}
+        action={
+          <LinkButton
+            href={state.actionHref}
+            variant={state.kind === 'catalog-empty' ? 'outline' : 'primary'}
+          >
+            {state.actionLabel}
+          </LinkButton>
+        }
       />
     );
   }
