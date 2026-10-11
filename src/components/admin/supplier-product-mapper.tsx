@@ -69,6 +69,30 @@ export function SupplierProductMapper({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastPricing, setLastPricing] = useState<PricingSummary | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+
+  /** Create a DRAFT catalog product from an unmapped, costed supplier entry. */
+  async function publishRow(r: SupplierProductRow) {
+    setPublishingId(r.id);
+    try {
+      const data = await apiFetch<{ productId: string; slug: string; warnings: string[] }>(
+        `/api/admin/supplier-products/${r.id}/publish`,
+        { body: { status: 'DRAFT' } }
+      );
+      toast(
+        `Draft product created — review it, then set it to ACTIVE.${data?.warnings?.[0] ? ` ${data.warnings[0]}` : ''}`,
+        'success'
+      );
+      router.refresh();
+    } catch (err) {
+      toast(
+        err instanceof ApiClientError ? err.message : 'Could not create the catalog product',
+        'error'
+      );
+    } finally {
+      setPublishingId(null);
+    }
+  }
 
   const visible = useMemo(() => {
     let list = rows;
@@ -305,13 +329,33 @@ export function SupplierProductMapper({
                     )}
                   </Td>
                   <Td className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => openMap(r)}
-                      className="text-xs font-medium text-brand-700 hover:underline"
-                    >
-                      {r.productId ? 'Change map' : 'Map →'}
-                    </button>
+                    <div className="flex flex-col items-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => openMap(r)}
+                        className="text-xs font-medium text-brand-700 hover:underline"
+                      >
+                        {r.productId ? 'Change map' : 'Map →'}
+                      </button>
+                      {/* Publishing creates a real catalog product from this
+                          synced entry (draft first — an admin reviews it before
+                          it can go live). Disabled once mapped. */}
+                      {!r.productId && (
+                        <button
+                          type="button"
+                          onClick={() => publishRow(r)}
+                          disabled={publishingId === r.id}
+                          className="text-xs font-medium text-ink-500 hover:text-brand-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                          title={
+                            r.supplierCost > 0
+                              ? 'Create a draft catalog product from this supplier entry'
+                              : 'This entry has no usable supplier cost'
+                          }
+                        >
+                          {publishingId === r.id ? 'Publishing…' : 'Create product'}
+                        </button>
+                      )}
+                    </div>
                   </Td>
                 </tr>
               ))}

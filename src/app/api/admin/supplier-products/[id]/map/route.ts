@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { auditLog } from '@/lib/audit';
 import { readJson } from '@/lib/http';
 import { applyEnginePricingToProduct } from '@/lib/catalog/products';
+import { revalidateCatalog } from '@/lib/catalog/revalidate';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,17 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       if (taken) {
         throw badRequest(
           'That product is already mapped to another supplier product. Unmap it first.'
+        );
+      }
+      // Mapping writes the supplier cost onto the product and re-runs the
+      // pricing engine, so a zero-unknown cost would reprice it to ₹0.00.
+      const costPaise =
+        body.supplierCost !== undefined
+          ? body.supplierCost
+          : Math.round(Number(sp.supplierCost) * 100);
+      if (!(costPaise > 0)) {
+        throw badRequest(
+          'This supplier entry has no usable cost (zero or unknown). Fix the supplier cost before mapping — mapping it would reprice the product to ₹0.00.'
         );
       }
     }
@@ -72,6 +84,17 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       data: { productId: body.productId, pricing },
       req,
     });
+
+    // Mapping changes the product's cost, price AND supplier-synced
+    // availability, so every public surface for it must refresh.
+    const mappedProduct = mapping.productId
+      ? await prisma.product.findUnique({
+          where: { id: mapping.productId },
+          select: { slug: true },
+        })
+      : null;
+    revalidateCatalog({ productSlugs: mappedProduct ? [mappedProduct.slug] : [] });
+
     return jsonOk({ mapping, pricing });
   })(req, ctx);
 }

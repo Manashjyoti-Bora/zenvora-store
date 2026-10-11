@@ -5,6 +5,7 @@ import { formatINR, formatDiscountPercent } from '@/lib/money';
 import { QuantityStepper } from './quantity-stepper';
 import { AddToCartButton } from './add-to-cart-button';
 import { Badge } from '@/components/ui/badge';
+import type { Availability, AvailabilityState } from '@/lib/catalog/availability';
 
 export interface BuyBoxVariant {
   id: string | null;
@@ -13,6 +14,12 @@ export interface BuyBoxVariant {
   compareAtPricePaise: number | null;
   stock: number;
   isActive: boolean;
+  /**
+   * Server-computed per-variant purchasability. For LOCAL products this is
+   * "variant stock > 0"; for supplier-synced products it follows the product's
+   * supplier-verified availability (variants do not carry supplier stock).
+   */
+  purchasable?: boolean;
 }
 
 /**
@@ -26,6 +33,7 @@ export function ProductBuyBox({
   baseCompareAtPaise,
   baseStock,
   variants,
+  availability,
   maxPerOrder = 10,
   lowStockThreshold = 5,
 }: {
@@ -34,6 +42,12 @@ export function ProductBuyBox({
   baseCompareAtPaise: number | null;
   baseStock: number;
   variants: BuyBoxVariant[];
+  /**
+   * Shared availability model (server-computed). Only a verified out-of-stock
+   * blocks purchase; supplier-synced products with no fresh report show an
+   * honest "confirmed at checkout" state instead of a fabricated stock badge.
+   */
+  availability?: Availability;
   maxPerOrder?: number;
   lowStockThreshold?: number;
 }) {
@@ -47,8 +61,21 @@ export function ProductBuyBox({
   const pricePaise = selected ? selected.pricePaise : basePricePaise;
   const compareAtPaise = selected ? selected.compareAtPricePaise : baseCompareAtPaise;
   const stock = selected ? selected.stock : baseStock;
-  const soldOut = stock === 0;
   const discount = formatDiscountPercent(pricePaise, compareAtPaise);
+  // Server-computed availability wins; the local fallback below only applies if
+  // a caller renders this component without it.
+  const state: AvailabilityState =
+    availability?.state ??
+    (stock === 0
+      ? 'OUT_OF_STOCK'
+      : lowStockThreshold > 0 && stock <= lowStockThreshold
+        ? 'LOW_STOCK'
+        : 'IN_STOCK');
+  const stateLabel =
+    availability?.label ??
+    (state === 'LOW_STOCK' ? `Low stock — only ${stock} left` : state === 'IN_STOCK' ? 'In stock' : '');
+  const soldOut = state === 'OUT_OF_STOCK';
+  const unverified = state === 'UNVERIFIED';
 
   return (
     <div className="space-y-4">
@@ -70,10 +97,14 @@ export function ProductBuyBox({
       <div aria-live="polite" className="text-sm">
         {soldOut ? (
           <Badge tone="red">Currently sold out</Badge>
-        ) : lowStockThreshold > 0 && stock <= lowStockThreshold ? (
-          <Badge tone="amber">Low stock — only {stock} left</Badge>
+        ) : state === 'LOW_STOCK' ? (
+          <Badge tone="amber">{stateLabel}</Badge>
+        ) : unverified ? (
+          // No fabrication: we have no fresh supplier report, so we neither
+          // claim stock nor invent scarcity.
+          <Badge tone="neutral">{stateLabel || 'Availability confirmed at checkout'}</Badge>
         ) : (
-          <Badge tone="green">In stock</Badge>
+          <Badge tone="green">{stateLabel || 'In stock'}</Badge>
         )}
       </div>
 

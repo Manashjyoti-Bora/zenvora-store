@@ -97,3 +97,41 @@ describe('applyEnginePricingToProduct (mapping cost sync)', () => {
     expect(res.marginPercent).toBeLessThan(20); // (799-700)/799 = 12.39%
   });
 });
+
+/**
+ * Regression: a supplier entry with no usable cost must never reprice a live
+ * product. Before this guard a zero/unknown cost flowed into the engine and
+ * wrote ₹0.00 onto a published product.
+ */
+describe('applyEnginePricingToProduct — zero-cost protection', () => {
+  it('keeps the existing price and reports why when the supplier cost is zero', async () => {
+    const created = await prisma.product.create({
+      data: {
+        name: `Zero cost guard ${suffix}`,
+        slug: `zero-cost-guard-${suffix}`,
+        description: 'Integration-test fixture product for the zero-cost guard.',
+        status: 'ACTIVE',
+        stockMode: 'SUPPLIER_SYNC',
+        supplierCost: '400.00',
+        pricingMode: 'PERCENT_MARKUP',
+        percentMarkup: '30',
+        roundingRule: 'NONE',
+        sellingPrice: '520.00', // 400 × 1.30
+      },
+    });
+
+    try {
+      // The supplier now reports an unusable cost (unknown → persisted as 0).
+      await prisma.product.update({ where: { id: created.id }, data: { supplierCost: '0.00' } });
+      const res = await applyEnginePricingToProduct(created.id);
+
+      expect(res.applied).toBe(false);
+      expect(res.warnings.join(' ')).toMatch(/landed supplier cost is zero or missing/i);
+
+      const row = await prisma.product.findUniqueOrThrow({ where: { id: created.id } });
+      expect(Number(row.sellingPrice)).toBeCloseTo(520, 2); // untouched
+    } finally {
+      await prisma.product.delete({ where: { id: created.id } });
+    }
+  });
+});

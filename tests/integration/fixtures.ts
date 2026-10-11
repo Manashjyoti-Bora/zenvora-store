@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { hashPassword } from '@/lib/auth/password';
 
 /**
  * Shared fixtures + cleanup for integration tests.
@@ -70,6 +71,26 @@ export async function createTestProduct(opts: TestProductOpts = {}) {
     include: { variants: true },
   });
   return product;
+}
+
+/**
+ * Minimal user fixture. Unlike `registerUser`, this queues NO welcome
+ * notification and creates no session - tests that only need a user ROW should
+ * not leave job-runner work behind (which can race the notification tests that
+ * assert on job state).
+ */
+export async function createTestUser(
+  over: { role?: 'CUSTOMER' | 'STAFF' | 'ADMIN'; name?: string } = {}
+) {
+  return prisma.user.create({
+    data: {
+      email: testEmail(over.role === 'ADMIN' ? 'admin' : 'user'),
+      passwordHash: await hashPassword('Str0ng!Passphrase'),
+      name: over.name ?? 'Integration Test User',
+      role: over.role ?? 'CUSTOMER',
+      status: 'ACTIVE',
+    },
+  });
 }
 
 export async function createTestSupplier() {

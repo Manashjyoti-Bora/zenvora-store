@@ -2,11 +2,21 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../db';
 import { toPaise, paiseToDecimalString } from '../money';
 import { clampInt } from '../money';
+import {
+  resolveAvailability,
+  supplierFreshnessCutoff,
+  type Availability,
+} from './availability';
 
 /**
  * Storefront catalog queries - read-only, ACTIVE products only.
  * Admin listing lives in catalog/products.ts.
  */
+
+/** Supplier columns the public availability model needs (never costs). */
+const supplierAvailabilitySelect = {
+  select: { inStock: true, stockQty: true, lastSyncedAt: true },
+} satisfies Prisma.Product$supplierProductArgs;
 
 export type StoreSort = 'featured' | 'newest' | 'price-asc' | 'price-desc' | 'popular';
 
@@ -18,10 +28,16 @@ export interface ProductCardData {
   imageAlt: string | null;
   pricePaise: number;
   compareAtPricePaise: number | null;
+  /**
+   * LOCAL merchant stock only (0 for supplier-synced products — their real
+   * availability lives in `availability`, never in this counter).
+   */
   stock: number;
   lowStockThreshold: number;
   hasVariants: boolean;
   categoryName: string | null;
+  /** What the storefront is allowed to claim about availability. */
+  availability: Availability;
 }
 
 const cardInclude = {
@@ -34,6 +50,7 @@ const cardInclude = {
   },
   category: { select: { name: true } },
   variants: { where: { isActive: true }, select: { sellingPrice: true, stock: true } },
+  supplierProduct: supplierAvailabilitySelect,
 } satisfies Prisma.ProductInclude;
 
 type CardProduct = Prisma.ProductGetPayload<{ include: typeof cardInclude }>;
@@ -46,7 +63,26 @@ export function toCardData(p: CardProduct): ProductCardData {
     variantPrices.length > 0
       ? Math.min(...variantPrices, toPaise(p.sellingPrice))
       : toPaise(p.sellingPrice);
-  const stock = p.hasVariants ? p.variants.reduce((a, v) => a + v.stock, 0) : p.stock;
+  const stock = p.stockMode === 'LOCAL'
+    ? p.hasVariants
+      ? p.variants.reduce((a, v) => a + v.stock, 0)
+      : p.stock
+    : 0;
+  const availability = resolveAvailability({
+    isActive: p.status === 'ACTIVE',
+    stockMode: p.stockMode,
+    stock: p.stock,
+    hasVariants: p.hasVariants,
+    variants: p.variants.map((v) => ({ stock: v.stock })),
+    lowStockThreshold: p.lowStockThreshold,
+    supplier: p.supplierProduct
+      ? {
+          inStock: p.supplierProduct.inStock,
+          stockQty: p.supplierProduct.stockQty,
+          lastSyncedAt: p.supplierProduct.lastSyncedAt,
+        }
+      : null,
+  });
   return {
     id: p.id,
     slug: p.slug,
@@ -59,6 +95,7 @@ export function toCardData(p: CardProduct): ProductCardData {
     lowStockThreshold: p.lowStockThreshold,
     hasVariants: p.hasVariants,
     categoryName: p.category?.name ?? null,
+    availability,
   };
 }
 
@@ -116,26 +153,35 @@ export async function listStorefrontProducts(params: ListParams): Promise<ListRe
       where.sellingPrice.lte = paiseToDecimalString(params.maxPricePaise);
   }
   if (params.inStockOnly) {
-    // Variant products: at least one active variant in stock; local: stock > 0.
-    where.OR = params.q?.trim()
-      ? // combine text OR with stock OR would clash; keep stock filter simple here
-        [{ stock: { gt: 0 } }, { variants: { some: { isActive: true, stock: { gt: 0 } } } }]
-      : [{ stock: { gt: 0 } }, { variants: { some: { isActive: true, stock: { gt: 0 } } } }];
-    if (params.q?.trim()) {
-      // both q and inStock: wrap q conditions and stock conditions with AND
-      const term = params.q.trim();
-      const qOr = where.OR;
-      delete where.OR;
-      (where as Prisma.ProductWhereInput).AND = [
+    // Availability must never fall back to the LOCAL counter for supplier-synced
+    // products (that counter is not written by any supplier feed). A product is
+    // "in stock" only when either its LOCAL stock is positive, or a FRESH
+    // supplier report says it is available.
+    const inStockWhere: Prisma.ProductWhereInput = {
+      OR: [
         {
-          OR: qOr as Prisma.ProductWhereInput[],
-        },
-        {
+          stockMode: 'LOCAL',
           OR: [{ stock: { gt: 0 } }, { variants: { some: { isActive: true, stock: { gt: 0 } } } }],
         },
-      ];
-      void term;
-    }
+        {
+          stockMode: 'SUPPLIER_SYNC',
+          supplierProduct: {
+            is: {
+              isActive: true,
+              inStock: true,
+              lastSyncedAt: { gte: supplierFreshnessCutoff() },
+            },
+          },
+        },
+      ],
+    };
+    // Combine with the text query (if any) via AND so neither filter is lost.
+    const existing = where.OR;
+    if (existing) delete where.OR;
+    (where as Prisma.ProductWhereInput).AND = [
+      ...(existing ? [{ OR: existing }] : []),
+      inStockWhere,
+    ];
   }
 
   const sort = params.sort ?? 'featured';
@@ -178,9 +224,29 @@ const detailInclude = {
     ] as Prisma.ProductVariantOrderByWithRelationInput[],
     where: { isActive: true },
   },
+  supplierProduct: supplierAvailabilitySelect,
 } satisfies Prisma.ProductInclude;
 
 export type StorefrontProduct = Prisma.ProductGetPayload<{ include: typeof detailInclude }>;
+
+/** Availability for a product loaded via `detailInclude` (same model as cards). */
+export function availabilityOf(p: StorefrontProduct): Availability {
+  return resolveAvailability({
+    isActive: p.status === 'ACTIVE',
+    stockMode: p.stockMode,
+    stock: p.stock,
+    hasVariants: p.hasVariants,
+    variants: p.variants.map((v) => ({ stock: v.stock })),
+    lowStockThreshold: p.lowStockThreshold,
+    supplier: p.supplierProduct
+      ? {
+          inStock: p.supplierProduct.inStock,
+          stockQty: p.supplierProduct.stockQty,
+          lastSyncedAt: p.supplierProduct.lastSyncedAt,
+        }
+      : null,
+  });
+}
 
 export async function getStorefrontProduct(slug: string): Promise<StorefrontProduct | null> {
   const product = await prisma.product.findFirst({

@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/db';
+import { isSitemapEligible, SITEMAP_PRODUCT_WHERE } from '@/lib/catalog/eligibility';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,9 +27,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       where: { isActive: true },
       select: { slug: true, updatedAt: true },
     }),
+    // Only published products with a real price: an unpriced/unpublished page
+    // must not be advertised to crawlers. Same predicate as the query (shared
+    // module) so the rule cannot drift between the two.
     prisma.product.findMany({
-      where: { status: 'ACTIVE' },
-      select: { slug: true, updatedAt: true },
+      where: SITEMAP_PRODUCT_WHERE,
+      select: { slug: true, updatedAt: true, status: true, sellingPrice: true },
       take: 5000,
       orderBy: { updatedAt: 'desc' },
     }),
@@ -42,12 +46,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'weekly' as const,
       priority: 0.7,
     })),
-    ...products.map((p) => ({
-      url: `${base}/products/${p.slug}`,
-      lastModified: p.updatedAt,
-      changeFrequency: 'weekly' as const,
-      priority: 0.8,
-    })),
+    ...products
+      .filter((p) =>
+        isSitemapEligible({
+          status: p.status,
+          pricePaise: Math.round(Number(p.sellingPrice) * 100),
+        })
+      )
+      .map((p) => ({
+        url: `${base}/products/${p.slug}`,
+        lastModified: p.updatedAt,
+        changeFrequency: 'weekly' as const,
+        priority: 0.8,
+      })),
   ].map((entry) => ({
     ...entry,
     lastModified: (entry as { lastModified?: Date }).lastModified ?? now,

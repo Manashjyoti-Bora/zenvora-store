@@ -7,6 +7,7 @@ import { calcShipping, calcTotals, type CheckoutLine } from '../checkout/calc';
 import { evaluateCoupon } from '../checkout/coupons';
 import { prorateDiscount } from '../pricing/engine';
 import { randomToken } from '../crypto';
+import { resolveAvailability } from '../catalog/availability';
 import type { Cart } from '@prisma/client';
 
 /**
@@ -154,6 +155,7 @@ export async function loadCartItems(cartId: string) {
       product: {
         include: {
           images: { orderBy: [{ isPrimary: 'desc' }, { position: 'asc' }], take: 1 },
+          supplierProduct: { select: { inStock: true, stockQty: true, lastSyncedAt: true } },
         },
       },
       variant: true,
@@ -187,12 +189,33 @@ export function lineAvailable(item: CartItemWithProduct): {
 } {
   if (item.product.status !== 'ACTIVE') return { available: false, maxQuantity: 0 };
   if (item.variant && !item.variant.isActive) return { available: false, maxQuantity: 0 };
-  if (item.product.stockMode === 'LOCAL') {
-    const stock = item.variant ? item.variant.stock : item.product.stock;
-    if (stock <= 0) return { available: false, maxQuantity: 0 };
-    return { available: true, maxQuantity: Math.min(stock, MAX_QTY_PER_LINE) };
-  }
-  return { available: true, maxQuantity: MAX_QTY_PER_LINE };
+
+  // One availability model for storefront, product page, cart and checkout:
+  // LOCAL counters for LOCAL products, fresh supplier reports for supplier-
+  // synced products, and an honest UNVERIFIED state when the supplier has not
+  // told us anything recent. Only a verified out-of-stock blocks the line.
+  const availability = resolveAvailability({
+    isActive: true,
+    stockMode: item.product.stockMode,
+    stock: item.product.stock,
+    hasVariants: item.product.hasVariants,
+    variants: item.variant ? [{ stock: item.variant.stock }] : [{ stock: item.product.stock }],
+    lowStockThreshold: item.product.lowStockThreshold,
+    supplier: item.product.supplierProduct
+      ? {
+          inStock: item.product.supplierProduct.inStock,
+          stockQty: item.product.supplierProduct.stockQty,
+          lastSyncedAt: item.product.supplierProduct.lastSyncedAt,
+        }
+      : null,
+  });
+
+  if (!availability.purchasable) return { available: false, maxQuantity: 0 };
+  const cap =
+    availability.maxQuantity == null
+      ? MAX_QTY_PER_LINE
+      : Math.min(availability.maxQuantity, MAX_QTY_PER_LINE);
+  return { available: true, maxQuantity: Math.max(1, cap) };
 }
 
 export async function addToCart(params: {
@@ -204,7 +227,10 @@ export async function addToCart(params: {
   const cart = await getOrCreateCart(params.userId);
   const product = await prisma.product.findUnique({
     where: { id: params.productId },
-    include: { variants: true },
+    include: {
+      variants: true,
+      supplierProduct: { select: { inStock: true, stockQty: true, lastSyncedAt: true } },
+    },
   });
   if (!product || product.status !== 'ACTIVE') throw notFound('Product not available');
 
@@ -221,13 +247,27 @@ export async function addToCart(params: {
   });
   const newQty = Math.min((existing?.quantity ?? 0) + params.quantity, MAX_QTY_PER_LINE);
 
-  if (product.stockMode === 'LOCAL') {
-    const stock = variant ? variant.stock : product.stock;
-    if (newQty > stock) {
-      throw badRequest(
-        stock <= 0 ? 'This product is out of stock' : `Only ${stock} unit(s) available`
-      );
-    }
+  // Same availability model as the storefront/PDP/checkout: supplier-synced
+  // products are gated on the supplier's own (fresh) stock report, never on the
+  // merchant counter.
+  const availability = resolveAvailability({
+    isActive: true,
+    stockMode: product.stockMode,
+    stock: product.stock,
+    hasVariants: product.hasVariants,
+    variants: variant ? [{ stock: variant.stock }] : [{ stock: product.stock }],
+    lowStockThreshold: product.lowStockThreshold,
+    supplier: product.supplierProduct
+      ? {
+          inStock: product.supplierProduct.inStock,
+          stockQty: product.supplierProduct.stockQty,
+          lastSyncedAt: product.supplierProduct.lastSyncedAt,
+        }
+      : null,
+  });
+  if (!availability.purchasable) throw badRequest('This product is out of stock');
+  if (availability.maxQuantity != null && newQty > availability.maxQuantity) {
+    throw badRequest(`Only ${availability.maxQuantity} unit(s) available`);
   }
 
   const unitPrice =
@@ -259,13 +299,35 @@ export async function updateCartItemQuantity(params: {
   const cart = await getOrCreateCart(params.userId);
   const item = await prisma.cartItem.findFirst({
     where: { id: params.itemId, cartId: cart.id },
-    include: { product: true, variant: true },
+    include: {
+      product: {
+        include: {
+          supplierProduct: { select: { inStock: true, stockQty: true, lastSyncedAt: true } },
+        },
+      },
+      variant: true,
+    },
   });
   if (!item) throw notFound('Cart item not found');
 
-  if (item.product.stockMode === 'LOCAL') {
-    const stock = item.variant ? item.variant.stock : item.product.stock;
-    if (params.quantity > stock) throw badRequest(`Only ${stock} unit(s) available`);
+  const availability = resolveAvailability({
+    isActive: item.product.status === 'ACTIVE',
+    stockMode: item.product.stockMode,
+    stock: item.product.stock,
+    hasVariants: item.product.hasVariants,
+    variants: item.variant ? [{ stock: item.variant.stock }] : [{ stock: item.product.stock }],
+    lowStockThreshold: item.product.lowStockThreshold,
+    supplier: item.product.supplierProduct
+      ? {
+          inStock: item.product.supplierProduct.inStock,
+          stockQty: item.product.supplierProduct.stockQty,
+          lastSyncedAt: item.product.supplierProduct.lastSyncedAt,
+        }
+      : null,
+  });
+  if (!availability.purchasable) throw badRequest('This product is out of stock');
+  if (availability.maxQuantity != null && params.quantity > availability.maxQuantity) {
+    throw badRequest(`Only ${availability.maxQuantity} unit(s) available`);
   }
   await prisma.cartItem.update({
     where: { id: item.id },

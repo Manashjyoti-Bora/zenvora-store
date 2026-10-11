@@ -7,6 +7,7 @@ import { productInputSchema } from '../validation/schemas';
 import { resolvePricing } from '../pricing/resolve';
 import { minSafePricePaise } from '../pricing/calculations';
 import { getSettings } from '../settings';
+import { revalidateCatalog } from './revalidate';
 import type { Actor } from './types';
 
 /**
@@ -77,6 +78,25 @@ export async function saveProduct(
     categoryId: productData.categoryId,
     id: input.id,
   });
+
+  // --- Publication price guards ---------------------------------------------
+  // The engine derives the selling price from cost + strategy, so its result is
+  // the only trustworthy number. Refuse to publish anything that would put a
+  // zero/negative price (or a "discount" that is not a discount) in front of a
+  // customer.
+  if (input.status === 'ACTIVE' && breakdown.sellingPricePaise <= 0) {
+    throw badRequest(
+      'This product cannot be published with a selling price of ₹0 — set a supplier cost above zero or a fixed price, then try again.'
+    );
+  }
+  if (
+    productData.compareAtPrice != null &&
+    Number(productData.compareAtPrice) * 100 <= breakdown.sellingPricePaise
+  ) {
+    throw badRequest(
+      `Compare-at price must be above the selling price (${(breakdown.sellingPricePaise / 100).toFixed(2)}). A "was" price that is not higher is a misleading discount.`
+    );
+  }
 
   let product;
   if (input.id) {
@@ -179,6 +199,9 @@ export async function saveProduct(
     },
   });
 
+  // Invalidate the storefront surfaces this product appears on.
+  revalidateCatalog({ productSlugs: [product.slug] });
+
   return { id: product.id, slug: product.slug, sellingPricePaise: breakdown.sellingPricePaise };
 }
 
@@ -206,8 +229,20 @@ export async function applyEnginePricingToProduct(productId: string): Promise<{
   if (!product) throw notFound('Product not found');
   const oldPricePaise = Math.round(Number(product.sellingPrice) * 100);
   const { breakdown, rule } = await resolvePricing(product);
-  const applied = breakdown.sellingPricePaise !== oldPricePaise;
-  if (applied) {
+  const warnings = [...breakdown.warnings];
+  // Never reprice from a missing/zero cost. The engine derives the price FROM
+  // the cost, and with a zero cost it falls back to its ₹1 floor — so without
+  // this guard a supplier entry with an unknown cost would silently reprice a
+  // live product (e.g. ₹520 → ₹1). The previous price is kept and the admin is
+  // told why.
+  let applied = breakdown.sellingPricePaise !== oldPricePaise;
+  const costBasisMissing = breakdown.totalCostPaise <= 0;
+  if (costBasisMissing || breakdown.sellingPricePaise <= 0) {
+    applied = false;
+    warnings.push(
+      'The pricing engine could not derive a price because the landed supplier cost is zero or missing. The existing price was kept — set a real supplier cost and reprice again.'
+    );
+  } else if (applied) {
     await prisma.product.update({
       where: { id: productId },
       data: { sellingPrice: (breakdown.sellingPricePaise / 100).toFixed(2) },
@@ -225,7 +260,7 @@ export async function applyEnginePricingToProduct(productId: string): Promise<{
     estimatedNetProfitPaise: breakdown.estimatedNetProfitPaise,
     ruleName: rule?.name ?? null,
     ruleScope: rule?.scope ?? null,
-    warnings: breakdown.warnings,
+    warnings,
   };
 }
 
@@ -234,11 +269,17 @@ export async function archiveProduct(productId: string, actor: Actor): Promise<v
   if (!product) throw notFound('Product not found');
   await prisma.product.update({ where: { id: productId }, data: { status: 'ARCHIVED' } });
   await auditLog({ actor, action: 'product.archived', entityType: 'Product', entityId: productId });
+  // An archived product must disappear from listings/metadata immediately.
+  revalidateCatalog({ productSlugs: [product.slug] });
 }
 
 export async function deleteProduct(productId: string, actor: Actor): Promise<void> {
   // Hard delete is refused when orders reference the product (history must be
   // preserved); archive instead. Order items keep their snapshots.
+  const existing = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { slug: true },
+  });
   const orderItemCount = await prisma.orderItem.count({ where: { productId } });
   if (orderItemCount > 0) {
     throw conflict(
@@ -247,6 +288,7 @@ export async function deleteProduct(productId: string, actor: Actor): Promise<vo
   }
   await prisma.product.delete({ where: { id: productId } });
   await auditLog({ actor, action: 'product.deleted', entityType: 'Product', entityId: productId });
+  revalidateCatalog({ productSlugs: existing ? [existing.slug] : [] });
 }
 
 // ---------------------------------------------------------------------------

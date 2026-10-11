@@ -19,12 +19,13 @@ function BagGlyph({ className = 'h-8 w-8' }: { className?: string }) {
  * Portrait imagery + layered hover/tap states; no fabricated social proof.
  */
 export function ProductCard({ product }: { product: ProductCardData }) {
-  const soldOut = product.stock === 0;
-  const lowStock =
-    !soldOut &&
-    product.stock > 0 &&
-    product.lowStockThreshold > 0 &&
-    product.stock <= product.lowStockThreshold;
+  // Availability comes from the shared model: LOCAL counters for local stock,
+  // FRESH supplier reports for supplier-synced products, and an honest
+  // "unverified" state instead of a fabricated stock claim.
+  const availability = product.availability;
+  const soldOut = availability.state === 'OUT_OF_STOCK';
+  const lowStock = availability.state === 'LOW_STOCK';
+  const lowStockQty = lowStock ? availability.maxQuantity : null;
   const discount = formatDiscountPercent(product.pricePaise, product.compareAtPricePaise);
   const onSale = product.compareAtPricePaise != null && product.compareAtPricePaise > product.pricePaise;
 
@@ -83,7 +84,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
           )}
           {lowStock && (
             <span className="rounded-full bg-ink-950/85 px-2 py-0.5 text-[10px] font-semibold leading-4 text-brass-200 backdrop-blur-sm sm:text-[11px]">
-              Only {product.stock} left
+              {lowStockQty != null ? `Only ${lowStockQty} left` : 'Low stock'}
             </span>
           )}
         </div>

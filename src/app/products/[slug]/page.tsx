@@ -4,7 +4,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { env } from '@/lib/env';
 import { getSettings } from '@/lib/settings';
-import { getStorefrontProduct, getRelatedProducts } from '@/lib/catalog/storefront';
+import { getStorefrontProduct, getRelatedProducts, availabilityOf } from '@/lib/catalog/storefront';
+import { schemaAvailability } from '@/lib/catalog/availability';
+import { toPublicProductDto } from '@/lib/catalog/public-dto';
 import { toPaise, formatINR } from '@/lib/money';
 import { ProductGallery } from '@/components/store/product-gallery';
 import { ProductBuyBox, type BuyBoxVariant } from '@/components/store/product-buy-box';
@@ -63,6 +65,9 @@ export default async function ProductPage({ params }: Ctx) {
 
   const activeVariants = product.variants.filter((v) => v.isActive);
   const basePricePaise = toPaise(product.sellingPrice);
+  // Availability is server-computed from the shared model (LOCAL counters or a
+  // FRESH supplier report) - never assumed from the merchant counter.
+  const availability = availabilityOf(product);
   const baseStock = product.hasVariants
     ? activeVariants.reduce((a, v) => a + v.stock, 0)
     : product.stock;
@@ -75,21 +80,34 @@ export default async function ProductPage({ params }: Ctx) {
         compareAtPricePaise: v.compareAtPrice != null ? toPaise(v.compareAtPrice) : null,
         stock: v.stock,
         isActive: v.isActive,
+        // Supplier-synced products hold no per-variant merchant stock: their
+        // purchasability follows the fresh supplier report, not a zero counter.
+        purchasable:
+          product.stockMode === 'LOCAL' ? v.stock > 0 : availability.purchasable,
       }))
     : [];
 
   const images = product.images.map((i) => ({ url: i.url, alt: i.alt }));
 
-  // Structured data (schema.org Product). Prices mirror what is displayed.
+  // Public DTO boundary: everything below that leaves the server (structured
+  // data, cached metadata) is derived from the whitelist mapper, so supplier
+  // costs, margins and pricing-rule internals cannot leak by accident.
+  const publicProduct = toPublicProductDto(product, basePricePaise, availability);
+
+  // Structured data (schema.org Product). Prices mirror what is displayed, and
+  // availability is omitted entirely when it is not verified - a search engine
+  // must never be told "InStock" on the strength of an unverifiable counter.
   const variantPrices = buyBoxVariants.map((v) => v.pricePaise / 100);
+  const ldAvailability = schemaAvailability(availability);
   const jsonLd: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Product',
-    name: product.name,
-    description: product.shortDescription || product.description.slice(0, 300),
-    sku: product.sku ?? undefined,
-    brand: product.brand ? { '@type': 'Brand', name: product.brand } : undefined,
+    name: publicProduct.name,
+    description: publicProduct.shortDescription || publicProduct.description.slice(0, 300),
+    sku: publicProduct.sku ?? undefined,
+    brand: publicProduct.brand ? { '@type': 'Brand', name: publicProduct.brand } : undefined,
     image: images.map((i) => (i.url.startsWith('http') ? i.url : `${env.APP_URL}${i.url}`)),
+    url: `${env.APP_URL}/products/${publicProduct.slug}`,
     offers:
       variantPrices.length > 1
         ? {
@@ -98,16 +116,14 @@ export default async function ProductPage({ params }: Ctx) {
             lowPrice: Math.min(...variantPrices, basePricePaise / 100),
             highPrice: Math.max(...variantPrices),
             offerCount: buyBoxVariants.length,
-            availability:
-              baseStock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+            ...(ldAvailability ? { availability: ldAvailability } : {}),
             url: `${env.APP_URL}/products/${product.slug}`,
           }
         : {
             '@type': 'Offer',
             priceCurrency: 'INR',
             price: basePricePaise / 100,
-            availability:
-              baseStock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+            ...(ldAvailability ? { availability: ldAvailability } : {}),
             url: `${env.APP_URL}/products/${product.slug}`,
           },
   };
@@ -174,6 +190,7 @@ export default async function ProductPage({ params }: Ctx) {
               }
               baseStock={baseStock}
               variants={buyBoxVariants}
+              availability={availability}
               lowStockThreshold={product.lowStockThreshold}
             />
           </div>

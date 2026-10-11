@@ -267,6 +267,60 @@ export const productInputSchema = z
         message: 'Markup percent is required',
       });
     }
+
+    // --- Publication guards -------------------------------------------------
+    // Publishing (status ACTIVE) is what puts a product in front of customers,
+    // so it is the point where a missing cost or a zero price must be refused.
+    // Rationale: the pricing engine derives the selling price FROM the cost, so
+    // a zero/absent supplier cost would produce a ₹0.00 product on the live
+    // storefront (and a fake "deal" if compare-at is present).
+    if (data.status === 'ACTIVE') {
+      if (data.stockMode === 'SUPPLIER_SYNC' && !(data.supplierCost > 0)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['supplierCost'],
+          message:
+            'A supplier-synced product needs a supplier cost above zero before it can be published',
+        });
+      }
+      if (data.pricingMode === 'FIXED_PRICE' && (data.fixedPrice ?? 0) <= 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['fixedPrice'],
+          message: 'A published product needs a selling price above zero',
+        });
+      }
+      if (data.compareAtPrice != null && data.compareAtPrice <= 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['compareAtPrice'],
+          message: 'Compare-at price must be above zero',
+        });
+      }
+      if (
+        data.supplierCost > 0 &&
+        data.compareAtPrice != null &&
+        data.compareAtPrice <= data.supplierCost
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['compareAtPrice'],
+          message:
+            'Compare-at price must exceed the landed supplier cost (it is the "was" price shown to customers)',
+        });
+      }
+    }
+
+    // A "discount" that is not a discount is a fabricated deal.
+    for (const [idx, v] of data.variants.entries()) {
+      if (v.compareAtPrice != null && v.sellingPrice != null && v.compareAtPrice <= v.sellingPrice) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['variants', idx, 'compareAtPrice'],
+          message: 'Variant compare-at price must be above the variant selling price',
+        });
+      }
+    }
   });
 
 export const categoryInputSchema = z.object({

@@ -85,6 +85,116 @@ describe('productInputSchema (pricing-mode refinement)', () => {
   });
 });
 
+/**
+ * Publication guards. The pricing engine derives the selling price FROM the
+ * supplier cost, so publishing a supplier-synced product without a real cost
+ * would put a ₹0.00 product (or a fabricated discount) in front of customers.
+ */
+describe('productInputSchema (publication guards)', () => {
+  const draft = {
+    name: 'Guarded Product',
+    description: 'A sufficiently long description for validation.',
+  };
+
+  it('allows an unpriced DRAFT (drafts are never shown to customers)', () => {
+    const res = productInputSchema.safeParse({
+      ...draft,
+      status: 'DRAFT',
+      stockMode: 'SUPPLIER_SYNC',
+      supplierCost: 0,
+      pricingMode: 'PERCENT_MARKUP',
+      percentMarkup: 30,
+    });
+    expect(res.success).toBe(true);
+  });
+
+  it('refuses to publish a supplier-synced product without a supplier cost', () => {
+    const res = productInputSchema.safeParse({
+      ...draft,
+      status: 'ACTIVE',
+      stockMode: 'SUPPLIER_SYNC',
+      supplierCost: 0,
+      pricingMode: 'PERCENT_MARKUP',
+      percentMarkup: 30,
+    });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.issues.map((i) => i.path.join('.'))).toContain('supplierCost');
+    }
+  });
+
+  it('publishes a supplier-synced product once a real cost is present', () => {
+    const res = productInputSchema.safeParse({
+      ...draft,
+      status: 'ACTIVE',
+      stockMode: 'SUPPLIER_SYNC',
+      supplierCost: 250,
+      pricingMode: 'PERCENT_MARKUP',
+      percentMarkup: 30,
+    });
+    expect(res.success).toBe(true);
+  });
+
+  it('refuses a published fixed price of zero', () => {
+    const res = productInputSchema.safeParse({
+      ...draft,
+      status: 'ACTIVE',
+      stockMode: 'LOCAL',
+      supplierCost: 100,
+      pricingMode: 'FIXED_PRICE',
+      fixedPrice: 0,
+    });
+    expect(res.success).toBe(false);
+  });
+
+  it('refuses a compare-at price that is not above the supplier cost', () => {
+    const res = productInputSchema.safeParse({
+      ...draft,
+      status: 'ACTIVE',
+      stockMode: 'SUPPLIER_SYNC',
+      supplierCost: 500,
+      pricingMode: 'PERCENT_MARKUP',
+      percentMarkup: 30,
+      compareAtPrice: 400,
+    });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.issues.map((i) => i.path.join('.'))).toContain('compareAtPrice');
+    }
+  });
+
+  it('refuses a variant "discount" that is not a discount', () => {
+    const res = productInputSchema.safeParse({
+      ...draft,
+      status: 'ACTIVE',
+      stockMode: 'LOCAL',
+      supplierCost: 100,
+      pricingMode: 'PERCENT_MARKUP',
+      percentMarkup: 30,
+      variants: [{ name: 'Black', sellingPrice: 599, compareAtPrice: 599, stock: 5 }],
+    });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.issues.map((i) => i.path.join('.'))).toContain(
+        'variants.0.compareAtPrice'
+      );
+    }
+  });
+
+  it('accepts a genuine variant discount', () => {
+    const res = productInputSchema.safeParse({
+      ...draft,
+      status: 'ACTIVE',
+      stockMode: 'LOCAL',
+      supplierCost: 100,
+      pricingMode: 'PERCENT_MARKUP',
+      percentMarkup: 30,
+      variants: [{ name: 'Black', sellingPrice: 599, compareAtPrice: 799, stock: 5 }],
+    });
+    expect(res.success).toBe(true);
+  });
+});
+
 describe('couponBaseSchema', () => {
   it('normalises codes to uppercase and requires positive value', () => {
     const c = couponBaseSchema.parse({ code: 'save10', type: 'PERCENT', value: 10 });

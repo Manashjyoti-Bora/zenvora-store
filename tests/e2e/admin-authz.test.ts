@@ -90,6 +90,17 @@ describe('logged-in CUSTOMER must never reach admin APIs', () => {
     expect(res.status).toBe(403);
   });
 
+  // Publication writes to the live catalog, so it must be as tightly guarded as
+  // product creation itself.
+  it('POST /api/admin/supplier-products/:id/publish → 403 (cannot publish to the catalog)', async () => {
+    const sp = await prisma.supplierProduct.findFirst({ select: { id: true } });
+    if (!sp) return; // nothing synced in this environment
+    const res = await customer.post(`/api/admin/supplier-products/${sp.id}/publish`, {
+      status: 'ACTIVE',
+    });
+    expect(res.status).toBe(403);
+  });
+
   it('GET /admin page turns a customer away toward /account (role gate in layout)', async () => {
     const res = await customer.get('/admin');
     // Production SSR answers 307; the dev server may stream a 200 shell whose

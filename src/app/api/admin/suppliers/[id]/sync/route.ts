@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { prisma } from '@/lib/db';
 import { diagnoseSupplierAdapter, getSupplierAdapter } from '@/lib/suppliers/registry';
 import { auditLog } from '@/lib/audit';
+import { revalidateCatalog } from '@/lib/catalog/revalidate';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -41,6 +42,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     let created = 0;
     let updated = 0;
     let skippedNoCost = 0;
+    let skippedInvalidCost = 0;
     let skippedNoSku = 0;
     const seenSkus = new Set<string>();
     const seenExternalIds = new Set<string>();
@@ -63,6 +65,13 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       // poison auto-pricing (price suggested from cost 0) and margin floors.
       if (p.costPaise == null || !Number.isFinite(p.costPaise)) {
         skippedNoCost += 1;
+        continue;
+      }
+      // A zero (or negative) price is equally unusable: CJ returns 0 for items
+      // that are not actually buyable, and storing it would let the pricing
+      // engine derive a ₹0.00 selling price.
+      if (!(p.costPaise > 0)) {
+        skippedInvalidCost += 1;
         continue;
       }
 
@@ -102,7 +111,14 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       action: 'supplier.catalog_synced',
       entityType: 'Supplier',
       entityId: supplier.id,
-      data: { total: products.length, created, updated, skippedNoCost, skippedNoSku },
+      data: {
+        total: products.length,
+        created,
+        updated,
+        skippedNoCost,
+        skippedInvalidCost,
+        skippedNoSku,
+      },
       req,
     });
     const hints: string[] = [];
@@ -116,15 +132,35 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
         `${skippedNoCost} item(s) skipped: CJ did not return a buyable cost for them, and importing a product with an unknown cost would corrupt pricing.`
       );
     }
+    if (skippedInvalidCost > 0) {
+      hints.push(
+        `${skippedInvalidCost} item(s) skipped: CJ reported a price of zero, which is not a buyable cost and would produce a ₹0.00 selling price.`
+      );
+    }
     if (skippedNoSku > 0) {
       hints.push(`${skippedNoSku} item(s) skipped: missing supplier SKU/productId.`);
     }
+    // Synced stock/availability feeds the public catalog: refresh the pages of
+    // products mapped to this supplier so the storefront never keeps serving a
+    // stale availability claim. (Revalidating by product slug, not supplier SKU.)
+    if (created + updated > 0) {
+      const mapped = await prisma.supplierProduct.findMany({
+        where: { supplierId: supplier.id, productId: { not: null } },
+        select: { product: { select: { slug: true } } },
+        take: 500,
+      });
+      revalidateCatalog({
+        productSlugs: mapped.map((m) => m.product?.slug).filter((s): s is string => Boolean(s)),
+      });
+    }
+
     return jsonOk({
       synced: created + updated > 0,
       created,
       updated,
       total: products.length,
       skippedNoCost,
+      skippedInvalidCost,
       skippedNoSku,
       message: hints.length > 0 ? hints.join(' ') : undefined,
     });
