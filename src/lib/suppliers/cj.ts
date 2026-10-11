@@ -829,16 +829,28 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     if (token) headers['CJ-Access-Token'] = token;
 
     if (token) {
-      // Compare outgoing vs cached length+fingerprint: any divergence here
-      // means something between cache store and header construction
-      // transformed the credential (the old 500-char cap did, on the way IN
-      // to the cache — compare the two forensic lines to locate it).
-      logger.warn(`CJ forensic token sent length=${token.length}`, {
+      // Per-request forensic line. Steady state is a quiet info log; it
+      // escalates to WARN when the length carries a truncation signature
+      // (exactly 500 — the production 1600001 incident value — or outside
+      // the plausible range), so a regression stands out in prod logs.
+      // Comparing outgoing vs cached (matchesCache) localises any
+      // transformation between cache store and header construction.
+      const len = token.length;
+      const suspicious = len === 500 || len < 100 || len > 10_000;
+      const context = {
         supplier: this.supplier.slug,
-        credentialLength: token.length,
+        credentialLength: len,
         credentialFingerprint: tokenFingerprint(token),
         matchesCache: token === tokenCache.get(this.supplier.id)?.token,
-      });
+      };
+      if (suspicious) {
+        logger.warn(
+          `CJ forensic token sent length=${len} (SUSPICIOUS — 500 is the known truncation signature)`,
+          context
+        );
+      } else {
+        logger.info(`CJ forensic token sent length=${len}`, context);
+      }
     }
     if (this.config.platformToken) headers.platformToken = this.config.platformToken;
     if (body !== undefined) headers['Content-Type'] = 'application/json';

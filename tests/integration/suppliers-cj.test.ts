@@ -940,7 +940,10 @@ describe('CJ token integrity (REGRESSION: 593-char tokens must survive untruncat
   });
 
   it('forensic log fields survive credential-key redaction (lengths are visible, not [REDACTED])', async () => {
+    // "received" logs at warn; "sent" logs at info in steady state (warn only
+    // when the length carries a truncation signature). Spy on both.
     const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const infoSpy = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
     try {
       const full = makeToken(CJ_REAL_TOKEN_LENGTH, 'CJAKie');
       stubFetch(
@@ -952,10 +955,11 @@ describe('CJ token integrity (REGRESSION: 593-char tokens must survive untruncat
       );
       const adapter = new CJDropshippingAdapter(makeSupplier());
       await adapter.getProducts();
-      const received = warnSpy.mock.calls.find((c) =>
+      const allCalls = [...warnSpy.mock.calls, ...infoSpy.mock.calls];
+      const received = allCalls.find((c) =>
         String(c[0]).startsWith('CJ forensic token received')
       );
-      const sent = warnSpy.mock.calls.find((c) =>
+      const sent = allCalls.find((c) =>
         String(c[0]).startsWith('CJ forensic token sent')
       );
       expect(received).toBeTruthy();
@@ -972,8 +976,41 @@ describe('CJ token integrity (REGRESSION: 593-char tokens must survive untruncat
       // the raw value, pre-processing).
       expect(String(received![0])).toContain(`length=${CJ_REAL_TOKEN_LENGTH}`);
       expect(String(sent![0])).toContain(`length=${CJ_REAL_TOKEN_LENGTH}`);
+      // A normal-length token must NOT be flagged suspicious in the message.
+      expect(String(sent![0])).not.toContain('SUSPICIOUS');
     } finally {
       warnSpy.mockRestore();
+      infoSpy.mockRestore();
+    }
+  });
+
+  it('escalates the "sent" forensic line to WARN when the token is exactly 500 chars', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const infoSpy = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    try {
+      const truncated = makeToken(500, 'CJAKif');
+      stubFetch(
+        [
+          { match: 'getAccessToken', body: tokenBody(truncated) },
+          { match: 'myProduct/query', body: { success: true, result: true, data: [] } },
+        ],
+        []
+      );
+      const adapter = new CJDropshippingAdapter(makeSupplier());
+      await adapter.getProducts();
+      const sent = warnSpy.mock.calls.find((c) =>
+        String(c[0]).startsWith('CJ forensic token sent')
+      );
+      expect(sent).toBeTruthy();
+      expect(String(sent![0])).toContain('SUSPICIOUS');
+      expect(String(sent![0])).toContain('length=500');
+      // …and the same line must NOT also be quietly emitted at info level.
+      expect(
+        infoSpy.mock.calls.find((c) => String(c[0]).startsWith('CJ forensic token sent'))
+      ).toBeUndefined();
+    } finally {
+      warnSpy.mockRestore();
+      infoSpy.mockRestore();
     }
   });
 });
