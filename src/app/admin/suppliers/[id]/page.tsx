@@ -10,6 +10,7 @@ import {
   type SupplierProductRow,
 } from '@/components/admin/supplier-product-mapper';
 import { SupplierSyncButton } from '@/components/admin/supplier-sync-button';
+import { CjForensicProbePanel } from '@/components/admin/cj-forensic-probe-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -180,6 +181,8 @@ export default async function SupplierDetailPage({ params }: Ctx) {
           <p className="mt-1 text-xl font-bold tabular-nums">{supplier.leadTimeDays}d</p>
         </Card>
       </div>
+
+      {supplier.type === 'CJ' && <CjForensicProbePanel supplierId={supplier.id} />}
 
       <section aria-labelledby="catalog-mapping">
         <h2 id="catalog-mapping" className="mb-3 text-lg font-semibold text-ink-900">

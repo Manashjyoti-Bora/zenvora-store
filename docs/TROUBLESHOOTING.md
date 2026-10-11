@@ -33,6 +33,29 @@ Symptom → cause → fix. Everything here was hit and solved during development
 - **Upload rejected** — file must be a genuine JPEG/PNG/WEBP/GIF/AVIF (magic bytes checked) ≤ 5 MB.
   Renamed extensions of other files are rejected on purpose.
 
+## CJ Dropshipping
+- **`getAccessToken` succeeds but `setting/get` / `product/myProduct/query` return 401
+  (CJ code `1600001`)** — *confirmed root cause, fixed 2026-10-11.* The token was passed
+  through the display helper `str()` (500-char cap) on its way into the in-memory cache:
+  CJ's 593-char access token was stored and sent truncated to exactly 500 chars, so every
+  authenticated call was rejected. Fix: `src/lib/suppliers/cj.ts` now extracts credential
+  material with `credentialString()` (verbatim, no cap); access + refresh tokens and the
+  forensic probe all use it. Regression tests:
+  `tests/integration/suppliers-cj.test.ts` → "CJ token integrity".
+  If a 1600001 ever returns, open **Admin → Suppliers → (CJ supplier) → Run CJ forensic
+  probe** and read the three steps: the probe reports the token LENGTH CJ returned
+  (`tokenLength`) plus sha256 fingerprints and requestIds — safe to send to CJ support.
+  `tokenLength: 500` = truncation signature; `593` = intact.
+- **Probe says `NETWORK_FAILURE`** — the runtime cannot reach
+  `developers.cjdropshipping.com` (sandboxed/offline environment). Not a Zenvora bug: the
+  probe reports transport failures honestly instead of faking success. Re-run from a
+  network-connected runtime (Vercel).
+- **Log line `CJ forensic token received/sent length=…` looks redacted** — the logger
+  redacts context fields whose KEY matches credential patterns (`/token/i` → `[REDACTED]`
+  by design). The forensic lines therefore carry their values under non-redacted keys
+  (`credentialLength`, `credentialFingerprint`) and in the message text. Do not rename
+  them back to `token*` keys.
+
 ## Orders / suppliers
 - **Order stuck at `SENT_TO_SUPPLIER`** — CJ push failed (wallet empty, SKU unmapped, key missing).
   Check Admin → Logs (ErrorLog/ApiLog) for the CJ envelope message; fix mapping/balance; the retry

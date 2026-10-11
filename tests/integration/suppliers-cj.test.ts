@@ -3,9 +3,11 @@ import type { Supplier } from '@prisma/client';
 import {
   CJDropshippingAdapter,
   classifyCjFailure,
+  isUncertainTransportFailure,
   mapCjOrderStatus,
   mapCjTrackingStatus,
 } from '@/lib/suppliers/cj';
+import { logger } from '@/lib/logger';
 import { diagnoseSupplierAdapter } from '@/lib/suppliers/registry';
 import {
   SupplierRejectedError,
@@ -796,6 +798,395 @@ describe('CJ single-flight token recovery (serverless concurrency)', () => {
     // second logout would invalidate the first caller's fresh token.
     expect(calls.filter((c) => c.url.includes('authentication/logout'))).toHaveLength(1);
     expect(calls.filter((c) => c.url.includes('getAccessToken'))).toHaveLength(2);
+  });
+});
+
+describe('CJ token integrity (REGRESSION: 593-char tokens must survive untruncated)', () => {
+  /** Deterministic token-like string of exactly n chars (base64url alphabet). */
+  function makeToken(n: number, tag: string): string {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    let s = tag;
+    let i = 1;
+    while (s.length < n) {
+      s += alphabet[(i * 7 + (i % 13) + (i % 29)) % alphabet.length];
+      i += 1;
+    }
+    return s.slice(0, n);
+  }
+
+  const CJ_REAL_TOKEN_LENGTH = 593; // CJ support-confirmed length of a current access token
+
+  it('stores and sends the FULL 593-char access token byte-for-byte (no 500-char cap)', async () => {
+    const full = makeToken(CJ_REAL_TOKEN_LENGTH, 'CJAKia');
+    const { calls } = stubFetchSequence([
+      { match: 'getAccessToken', bodies: [tokenBody(full)] },
+      { match: 'myProduct/query', bodies: [{ success: true, result: true, data: [] }] },
+    ]);
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    await adapter.getProducts();
+    const listCall = calls.find((c) => c.url.includes('myProduct/query'));
+    expect(listCall).toBeTruthy();
+    const sent = (listCall!.init!.headers as Record<string, string>)['CJ-Access-Token'];
+    // Byte-for-byte equality: the old str() cap produced full.slice(0, 500).
+    expect(sent).toBe(full);
+    expect(sent).toHaveLength(CJ_REAL_TOKEN_LENGTH);
+  });
+
+  it('sends a >500-char refresh token untruncated to refreshAccessToken', async () => {
+    const longRefresh = makeToken(640, 'CJRRT');
+    const next = makeToken(CJ_REAL_TOKEN_LENGTH, 'CJAKib');
+    const calls: CapturedCall[] = [];
+    stubFetch(
+      [
+        {
+          match: 'getAccessToken',
+          body: {
+            success: true,
+            result: true,
+            data: {
+              accessToken: 'tok-short',
+              // < 60s left → the second call must take the refresh path
+              accessTokenExpiryDate: new Date(Date.now() + 10_000).toISOString(),
+              refreshToken: longRefresh,
+            },
+          },
+        },
+        {
+          match: 'refreshAccessToken',
+          body: {
+            success: true,
+            result: true,
+            data: {
+              accessToken: next,
+              accessTokenExpiryDate: new Date(Date.now() + 3_600_000).toISOString(),
+              refreshToken: 'rt-next',
+            },
+          },
+        },
+        { match: 'myProduct/query', body: { success: true, result: true, data: [] } },
+      ],
+      calls
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    await adapter.getProducts(); // fresh exchange
+    await adapter.getProducts(); // near-expiry cache → refresh path
+    const refreshCall = calls.find((c) => c.url.includes('refreshAccessToken'));
+    expect(refreshCall).toBeTruthy();
+    const body = JSON.parse(String(refreshCall!.init?.body)) as Record<string, unknown>;
+    expect(body.refreshToken).toBe(longRefresh);
+    expect(String(body.refreshToken)).toHaveLength(640);
+    const listCalls = calls.filter((c) => c.url.includes('myProduct/query'));
+    expect((listCalls[1].init!.headers as Record<string, string>)['CJ-Access-Token']).toBe(next);
+    expect((listCalls[1].init!.headers as Record<string, string>)['CJ-Access-Token']).toHaveLength(
+      CJ_REAL_TOKEN_LENGTH
+    );
+  });
+
+  it('probe reports the true received token length and authenticates with the full token', async () => {
+    const full = makeToken(CJ_REAL_TOKEN_LENGTH, 'CJAKic');
+    const calls: CapturedCall[] = [];
+    stubFetch(
+      [
+        { match: 'getAccessToken', body: tokenBody(full) },
+        {
+          match: 'setting/get',
+          body: { code: 200, success: true, result: true, data: { root: 'GENERAL', isSandbox: false } },
+        },
+        {
+          match: 'myProduct/query',
+          body: { code: 200, success: true, result: true, data: { total: 1, list: [{ pid: 'P1', sku: 'CJSPK1' }] } },
+        },
+      ],
+      calls
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const probe = await adapter.probe();
+    expect(probe.getAccessToken.tokenLength).toBe(CJ_REAL_TOKEN_LENGTH);
+    expect(probe.getAccessToken.tokenPresent).toBe(true);
+    expect(probe.classification).toBeNull();
+    expect(probe.conclusion).toMatch(/no CJ-side blocker/);
+    // The probe's authenticated steps must carry the FULL token: the old
+    // str() path made even the diagnostic fail with 1600001.
+    const settingCall = calls.find((c) => c.url.includes('setting/get'));
+    const queryCall = calls.find((c) => c.url.includes('myProduct/query'));
+    expect(settingCall).toBeTruthy();
+    expect(queryCall).toBeTruthy();
+    expect((settingCall!.init!.headers as Record<string, string>)['CJ-Access-Token']).toBe(full);
+    expect((queryCall!.init!.headers as Record<string, string>)['CJ-Access-Token']).toBe(full);
+    // Still no secret material in the serialized result.
+    expect(JSON.stringify(probe)).not.toContain(full);
+  });
+
+  it('logs a truncation-signature warning when a token arrives at exactly 500 chars', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    try {
+      const truncated = makeToken(500, 'CJAKid');
+      stubFetch(
+        [
+          { match: 'getAccessToken', body: tokenBody(truncated) },
+          { match: 'myProduct/query', body: { success: true, result: true, data: [] } },
+        ],
+        []
+      );
+      const adapter = new CJDropshippingAdapter(makeSupplier());
+      await adapter.getProducts();
+      const truncationWarnings = warnSpy.mock.calls.filter((c) =>
+        String(c[0]).includes('exactly 500 chars')
+      );
+      expect(truncationWarnings).toHaveLength(1);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('forensic log fields survive credential-key redaction (lengths are visible, not [REDACTED])', async () => {
+    // "received" logs at warn; "sent" logs at info in steady state (warn only
+    // when the length carries a truncation signature). Spy on both.
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const infoSpy = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    try {
+      const full = makeToken(CJ_REAL_TOKEN_LENGTH, 'CJAKie');
+      stubFetch(
+        [
+          { match: 'getAccessToken', body: tokenBody(full) },
+          { match: 'myProduct/query', body: { success: true, result: true, data: [] } },
+        ],
+        []
+      );
+      const adapter = new CJDropshippingAdapter(makeSupplier());
+      await adapter.getProducts();
+      const allCalls = [...warnSpy.mock.calls, ...infoSpy.mock.calls];
+      const received = allCalls.find((c) =>
+        String(c[0]).startsWith('CJ forensic token received')
+      );
+      const sent = allCalls.find((c) =>
+        String(c[0]).startsWith('CJ forensic token sent')
+      );
+      expect(received).toBeTruthy();
+      expect(sent).toBeTruthy();
+      const receivedCtx = received![1] as Record<string, unknown>;
+      const sentCtx = sent![1] as Record<string, unknown>;
+      // The logger redacts context keys matching /token/i — the forensic
+      // values must be under non-redacted keys or they become [REDACTED].
+      expect(receivedCtx.credentialLength).toBe(CJ_REAL_TOKEN_LENGTH);
+      expect(sentCtx.credentialLength).toBe(CJ_REAL_TOKEN_LENGTH);
+      expect(sentCtx.matchesCache).toBe(true);
+      expect(JSON.stringify([receivedCtx, sentCtx])).not.toContain('[REDACTED]');
+      // And the message text itself carries the true length (measured on
+      // the raw value, pre-processing).
+      expect(String(received![0])).toContain(`length=${CJ_REAL_TOKEN_LENGTH}`);
+      expect(String(sent![0])).toContain(`length=${CJ_REAL_TOKEN_LENGTH}`);
+      // A normal-length token must NOT be flagged suspicious in the message.
+      expect(String(sent![0])).not.toContain('SUSPICIOUS');
+    } finally {
+      warnSpy.mockRestore();
+      infoSpy.mockRestore();
+    }
+  });
+
+  it('escalates the "sent" forensic line to WARN when the token is exactly 500 chars', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const infoSpy = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    try {
+      const truncated = makeToken(500, 'CJAKif');
+      stubFetch(
+        [
+          { match: 'getAccessToken', body: tokenBody(truncated) },
+          { match: 'myProduct/query', body: { success: true, result: true, data: [] } },
+        ],
+        []
+      );
+      const adapter = new CJDropshippingAdapter(makeSupplier());
+      await adapter.getProducts();
+      const sent = warnSpy.mock.calls.find((c) =>
+        String(c[0]).startsWith('CJ forensic token sent')
+      );
+      expect(sent).toBeTruthy();
+      expect(String(sent![0])).toContain('SUSPICIOUS');
+      expect(String(sent![0])).toContain('length=500');
+      // …and the same line must NOT also be quietly emitted at info level.
+      expect(
+        infoSpy.mock.calls.find((c) => String(c[0]).startsWith('CJ forensic token sent'))
+      ).toBeUndefined();
+    } finally {
+      warnSpy.mockRestore();
+      infoSpy.mockRestore();
+    }
+  });
+
+  it('treats success envelopes without a usable accessToken as auth failures (missing, empty, non-string — fail fast, nothing cached or sent)', async () => {
+    const expiry = new Date(Date.now() + 3_600_000).toISOString();
+    const brokenBodies: Array<{ data: Record<string, unknown>; note: string }> = [
+      { data: { accessTokenExpiryDate: expiry }, note: 'missing' },
+      { data: { accessToken: '', accessTokenExpiryDate: expiry }, note: 'empty string' },
+      { data: { accessToken: 1234567890, accessTokenExpiryDate: expiry }, note: 'non-string' },
+    ];
+    for (const { data } of brokenBodies) {
+      const calls: CapturedCall[] = [];
+      stubFetch(
+        [
+          {
+            match: 'getAccessToken',
+            body: { code: 200, success: true, result: true, message: 'Success', data },
+          },
+          { match: 'myProduct/query', body: { success: true, result: true, data: [] } },
+        ],
+        calls
+      );
+      const adapter = new CJDropshippingAdapter(makeSupplier());
+      // A success envelope with no usable token must fail loudly — never be
+      // cached, never trimmed into a partial credential, never retried.
+      await expect(adapter.getProducts()).rejects.toThrow(/returned no accessToken/);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].url).toContain('getAccessToken');
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('CJ createOrder uncertain-outcome reconciliation (no duplicate fulfilment)', () => {
+  const timeoutEnvelope = {
+    success: false,
+    code: 0,
+    message: 'CJ request timed out after 15000ms',
+  };
+  const listEmptyBody = { success: true, result: true, data: { total: 0, list: [] } };
+  const listFoundBody = {
+    success: true,
+    result: true,
+    data: { total: 1, list: [{ orderNumber: 'CJORD-T', cjOrderId: 777 }] },
+  };
+
+  it('classifies transport envelopes (0 and 5xx uncertain; CJ business codes definite)', () => {
+    expect(isUncertainTransportFailure({ code: 0 })).toBe(true); // timeout/network/non-JSON
+    expect(isUncertainTransportFailure({ code: 503 })).toBe(true); // CDN 5xx
+    expect(isUncertainTransportFailure({ code: 500 })).toBe(true);
+    expect(isUncertainTransportFailure({ code: 599 })).toBe(true);
+    expect(isUncertainTransportFailure({ code: 1600001 })).toBe(false); // CJ auth code
+    expect(isUncertainTransportFailure({ code: 1801003 })).toBe(false); // CJ business code
+    expect(isUncertainTransportFailure({ code: 400 })).toBe(false); // definite client error
+    expect(isUncertainTransportFailure({})).toBe(true); // missing code = unknown envelope
+  });
+
+  it('timeout + order EXISTS at CJ → adopts it (ONE createOrderV2 call, no duplicate, wallet pay)', async () => {
+    const { calls } = stubFetchSequence([
+      { match: 'getAccessToken', bodies: [tokenBody('tok-1')] },
+      { match: 'stock/queryBySku', bodies: [{ success: true, data: { sku: 'CJW1', vid: 'V1' } }] },
+      { match: 'createOrderV2', bodies: [timeoutEnvelope] },
+      { match: 'shopping/order/list', bodies: [listFoundBody] },
+      { match: 'payBalanceV2', bodies: [{ success: true, result: true, data: true }] },
+    ]);
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const result = await adapter.createOrder(orderInput());
+    expect(result.accepted).toBe(true);
+    expect(result.supplierOrderId).toBe('CJORD-T');
+    expect(result.status).toBe('ACCEPTED');
+    // The reconciliation path must NOT re-create: exactly one createOrderV2.
+    expect(calls.filter((c) => c.url.includes('createOrderV2'))).toHaveLength(1);
+    expect(calls.filter((c) => c.url.includes('shopping/order/list'))).toHaveLength(1);
+    const payCall = calls.find((c) => c.url.includes('payBalanceV2'));
+    expect(payCall).toBeTruthy();
+    expect(JSON.parse(String(payCall!.init?.body))).toEqual({ orderNumber: 'CJORD-T' });
+  });
+
+  it('timeout + reconciliation proves the order does NOT exist → transient error (safe retry)', async () => {
+    const { calls } = stubFetchSequence([
+      { match: 'getAccessToken', bodies: [tokenBody('tok-1')] },
+      { match: 'stock/queryBySku', bodies: [{ success: true, data: { sku: 'CJW1', vid: 'V1' } }] },
+      { match: 'createOrderV2', bodies: [timeoutEnvelope] },
+      { match: 'shopping/order/list', bodies: [listEmptyBody] },
+      { match: 'payBalanceV2', bodies: [{ success: true, data: true }] },
+    ]);
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    await expect(adapter.createOrder(orderInput())).rejects.toThrow(/reconciliation confirmed no order exists — retry is safe/);
+    // Not settled: no wallet payment was attempted.
+    expect(calls.some((c) => c.url.includes('payBalanceV2'))).toBe(false);
+    expect(calls.filter((c) => c.url.includes('createOrderV2'))).toHaveLength(1);
+  });
+
+  it('timeout + reconciliation UNREACHABLE → UNCERTAIN result with admin instructions (no silent retry, no silent failure)', async () => {
+    stubFetch(
+      [
+        { match: 'getAccessToken', body: tokenBody('tok-1') },
+        { match: 'stock/queryBySku', body: { success: true, data: { sku: 'CJW1', vid: 'V1' } } },
+        { match: 'createOrderV2', body: timeoutEnvelope },
+        // The lookup itself times out: CJ unreachable → outcome unknown.
+        { match: 'shopping/order/list', body: { success: false, code: 0, message: 'CJ request timed out after 15000ms' } },
+      ],
+      []
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const result = await adapter.createOrder(orderInput());
+    expect(result.accepted).toBe(false);
+    expect(result.failureClass).toBe('UNCERTAIN');
+    expect(result.message).toMatch(/UNKNOWN whether order RX-260905-CJ01 exists at CJ/);
+    expect(result.message).toMatch(/CJ dashboard/);
+    expect(result.message).toMatch(/Retry/);
+  });
+
+  it('HTTP 5xx (non-JSON CDN error) is treated as uncertain and reconciled, not as a business rejection', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const json = (payload: unknown, status = 200) =>
+          new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } });
+        if (url.includes('createOrderV2')) {
+          return new Response('<html>503 Service Unavailable</html>', { status: 503 });
+        }
+        if (url.includes('shopping/order/list')) {
+          return json({ success: true, result: true, data: { total: 0, list: [] } });
+        }
+        if (url.includes('stock/queryBySku')) {
+          return json({ success: true, data: { sku: 'CJW1', vid: 'V1' } });
+        }
+        return json(tokenBody('tok-1'));
+      })
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    // 503 + empty authoritative list → transient, safe to retry.
+    await expect(adapter.createOrder(orderInput())).rejects.toThrow(
+      /retry is safe/
+    );
+  });
+
+  it('explicit CJ business rejection → BUSINESS_REJECTION, and no reconciliation/resubmission is attempted', async () => {
+    const { calls } = stubFetchSequence([
+      { match: 'getAccessToken', bodies: [tokenBody('tok-1')] },
+      { match: 'stock/queryBySku', bodies: [{ success: true, data: { sku: 'CJW1', vid: 'V1' } }] },
+      {
+        match: 'createOrderV2',
+        bodies: [{ success: false, result: false, code: 1802001, message: 'Invalid shipping address' }],
+      },
+      { match: 'shopping/order/list', bodies: [listEmptyBody] },
+    ]);
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const result = await adapter.createOrder(orderInput());
+    expect(result.accepted).toBe(false);
+    expect(result.failureClass).toBe('BUSINESS_REJECTION');
+    expect(result.message).toMatch(/Invalid shipping address/);
+    // A business rejection is definite: the lookup (and therefore any
+    // resubmission path) must not be touched.
+    expect(calls.some((c) => c.url.includes('shopping/order/list'))).toBe(false);
+    expect(calls.filter((c) => c.url.includes('createOrderV2'))).toHaveLength(1);
+  });
+
+  it('“already exists” with an EMPTY authoritative lookup parks as UNCERTAIN (does not guess)', async () => {
+    const { calls } = stubFetchSequence([
+      { match: 'getAccessToken', bodies: [tokenBody('tok-1')] },
+      { match: 'stock/queryBySku', bodies: [{ success: true, data: { sku: 'CJW1', vid: 'V1' } }] },
+      {
+        match: 'createOrderV2',
+        bodies: [{ success: false, result: false, code: 1801002, message: 'order already exists' }],
+      },
+      { match: 'shopping/order/list', bodies: [listEmptyBody] },
+    ]);
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const result = await adapter.createOrder(orderInput());
+    expect(result.accepted).toBe(false);
+    expect(result.failureClass).toBe('UNCERTAIN');
+    expect(result.message).toMatch(/no rows/);
+    expect(calls.some((c) => c.url.includes('payBalanceV2'))).toBe(false);
   });
 });
 

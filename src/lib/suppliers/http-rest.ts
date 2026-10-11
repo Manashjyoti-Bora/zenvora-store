@@ -448,6 +448,13 @@ function pick(body: unknown, path: string): unknown {
   return cur;
 }
 
+/**
+ * Display/log helper: trimmed string capped at 500 chars, or null.
+ * For display fields ONLY (names, SKUs, tracking numbers). Never pass
+ * credential material through this — the 500-char cap corrupted CJ's
+ * 593-char access token in production (see src/lib/suppliers/cj.ts,
+ * credentialString()).
+ */
 function str(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
