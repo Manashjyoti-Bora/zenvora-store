@@ -1013,6 +1013,35 @@ describe('CJ token integrity (REGRESSION: 593-char tokens must survive untruncat
       infoSpy.mockRestore();
     }
   });
+
+  it('treats success envelopes without a usable accessToken as auth failures (missing, empty, non-string — fail fast, nothing cached or sent)', async () => {
+    const expiry = new Date(Date.now() + 3_600_000).toISOString();
+    const brokenBodies: Array<{ data: Record<string, unknown>; note: string }> = [
+      { data: { accessTokenExpiryDate: expiry }, note: 'missing' },
+      { data: { accessToken: '', accessTokenExpiryDate: expiry }, note: 'empty string' },
+      { data: { accessToken: 1234567890, accessTokenExpiryDate: expiry }, note: 'non-string' },
+    ];
+    for (const { data } of brokenBodies) {
+      const calls: CapturedCall[] = [];
+      stubFetch(
+        [
+          {
+            match: 'getAccessToken',
+            body: { code: 200, success: true, result: true, message: 'Success', data },
+          },
+          { match: 'myProduct/query', body: { success: true, result: true, data: [] } },
+        ],
+        calls
+      );
+      const adapter = new CJDropshippingAdapter(makeSupplier());
+      // A success envelope with no usable token must fail loudly — never be
+      // cached, never trimmed into a partial credential, never retried.
+      await expect(adapter.getProducts()).rejects.toThrow(/returned no accessToken/);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].url).toContain('getAccessToken');
+      vi.unstubAllGlobals();
+    }
+  });
 });
 
 describe('CJ createOrder uncertain-outcome reconciliation (no duplicate fulfilment)', () => {
