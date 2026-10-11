@@ -101,6 +101,18 @@ describe('logged-in CUSTOMER must never reach admin APIs', () => {
     expect(res.status).toBe(403);
   });
 
+  it('POST /api/admin/supplier-products/bulk → 403 (cannot trigger bulk pipeline)', async () => {
+    const res = await customer.post('/api/admin/supplier-products/bulk', {
+      mode: 'EVALUATE_ONLY',
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('GET /api/admin/fulfilment-readiness → 403 (customer cannot read fulfilment readiness)', async () => {
+    const res = await customer.get('/api/admin/fulfilment-readiness');
+    expect(res.status).toBe(403);
+  });
+
   it('GET /admin page turns a customer away toward /account (role gate in layout)', async () => {
     const res = await customer.get('/admin');
     // Production SSR answers 307; the dev server may stream a 200 shell whose
@@ -137,6 +149,20 @@ describe('ADMIN access works with seeded admin credentials from .env', () => {
   it('GET /admin page renders for admin (no redirect)', async () => {
     const res = await admin.get('/admin');
     expect(res.status).toBe(200);
+  });
+
+  it('GET /admin/supplier-products and GET /api/admin/fulfilment-readiness render for admin', async () => {
+    const pageRes = await admin.get('/admin/supplier-products');
+    expect(pageRes.status).toBe(200);
+    expect(pageRes.body).toMatch(/Supplier product discovery/i);
+
+    const readyRes = await admin.get('/api/admin/fulfilment-readiness?includeDrafts=true');
+    expect(readyRes.status).toBe(200);
+    const report = okData<{ summary?: { totalEvaluated?: number; sellableReady?: number } }>(
+      readyRes
+    );
+    expect(report?.summary?.totalEvaluated).toBeGreaterThan(0);
+    expect(report?.summary?.sellableReady).toBeGreaterThan(0);
   });
 
   it('PATCH /api/admin/settings accepts an admin update and persists it', async () => {

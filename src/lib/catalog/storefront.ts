@@ -130,9 +130,18 @@ export async function listStorefrontProducts(params: ListParams): Promise<ListRe
   const page = Math.max(1, params.page ?? 1);
   const perPage = clampInt(params.perPage ?? 12, 1, 48);
 
-  const where: Prisma.ProductWhereInput = { status: 'ACTIVE' };
+  const where: Prisma.ProductWhereInput = {
+    status: 'ACTIVE',
+    sellingPrice: { gt: '0' },
+  };
   if (params.categorySlug) {
-    where.category = { slug: params.categorySlug, isActive: true };
+    where.category = {
+      isActive: true,
+      OR: [
+        { slug: params.categorySlug },
+        { parent: { slug: params.categorySlug, isActive: true } },
+      ],
+    };
   }
   if (params.q && params.q.trim()) {
     const term = params.q.trim();
@@ -146,11 +155,17 @@ export async function listStorefrontProducts(params: ListParams): Promise<ListRe
     ];
   }
   if (params.minPricePaise != null || params.maxPricePaise != null) {
-    where.sellingPrice = {};
-    if (params.minPricePaise != null)
-      where.sellingPrice.gte = paiseToDecimalString(params.minPricePaise);
-    if (params.maxPricePaise != null)
-      where.sellingPrice.lte = paiseToDecimalString(params.maxPricePaise);
+    const minBound =
+      params.minPricePaise != null && params.minPricePaise > 0
+        ? paiseToDecimalString(params.minPricePaise)
+        : undefined;
+    const maxBound =
+      params.maxPricePaise != null ? paiseToDecimalString(params.maxPricePaise) : undefined;
+    where.sellingPrice = {
+      gt: '0',
+      ...(minBound ? { gte: minBound } : {}),
+      ...(maxBound ? { lte: maxBound } : {}),
+    };
   }
   if (params.inStockOnly) {
     // Availability must never fall back to the LOCAL counter for supplier-synced
@@ -250,7 +265,7 @@ export function availabilityOf(p: StorefrontProduct): Availability {
 
 export async function getStorefrontProduct(slug: string): Promise<StorefrontProduct | null> {
   const product = await prisma.product.findFirst({
-    where: { slug, status: 'ACTIVE' },
+    where: { slug, status: 'ACTIVE', sellingPrice: { gt: '0' } },
     include: detailInclude,
   });
   if (!product) return null;
@@ -267,6 +282,7 @@ export async function getRelatedProducts(
 ): Promise<ProductCardData[]> {
   const where: Prisma.ProductWhereInput = {
     status: 'ACTIVE',
+    sellingPrice: { gt: '0' },
     id: { not: product.id },
     ...(product.categoryId ? { categoryId: product.categoryId } : {}),
   };
@@ -278,7 +294,11 @@ export async function getRelatedProducts(
   });
   if (rows.length < limit) {
     const extra = await prisma.product.findMany({
-      where: { status: 'ACTIVE', id: { notIn: [product.id, ...rows.map((r) => r.id)] } },
+      where: {
+        status: 'ACTIVE',
+        sellingPrice: { gt: '0' },
+        id: { notIn: [product.id, ...rows.map((r) => r.id)] },
+      },
       include: cardInclude,
       take: limit - rows.length,
       orderBy: [{ createdAt: 'desc' }],
@@ -297,6 +317,7 @@ export interface CategoryTile {
   name: string;
   slug: string;
   description: string | null;
+  parentId?: string | null;
   productCount: number;
 }
 
@@ -304,25 +325,50 @@ export async function listActiveCategories(): Promise<CategoryTile[]> {
   const cats = await prisma.category.findMany({
     where: { isActive: true },
     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-    include: { _count: { select: { products: { where: { status: 'ACTIVE' } } } } },
+    include: {
+      _count: {
+        select: { products: { where: { status: 'ACTIVE', sellingPrice: { gt: '0' } } } },
+      },
+      children: {
+        where: { isActive: true },
+        include: {
+          _count: {
+            select: { products: { where: { status: 'ACTIVE', sellingPrice: { gt: '0' } } } },
+          },
+        },
+      },
+    },
   });
   return cats.map((c) => ({
     id: c.id,
     name: c.name,
     slug: c.slug,
     description: c.description,
-    productCount: c._count.products,
+    parentId: c.parentId,
+    productCount:
+      c._count.products +
+      c.children.reduce((sum, child) => sum + child._count.products, 0),
   }));
 }
 
 export async function getCategoryBySlug(slug: string) {
-  return prisma.category.findFirst({ where: { slug, isActive: true } });
+  return prisma.category.findFirst({
+    where: { slug, isActive: true },
+    include: {
+      parent: { select: { id: true, name: true, slug: true } },
+      children: {
+        where: { isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        select: { id: true, name: true, slug: true },
+      },
+    },
+  });
 }
 
 /** Home page sections. */
 export async function getFeaturedProducts(limit = 8): Promise<ProductCardData[]> {
   const rows = await prisma.product.findMany({
-    where: { status: 'ACTIVE' },
+    where: { status: 'ACTIVE', sellingPrice: { gt: '0' } },
     include: cardInclude,
     orderBy: [{ sortOrder: 'desc' }, { viewCount: 'desc' }],
     take: limit,
@@ -339,7 +385,7 @@ export async function getFeaturedProducts(limit = 8): Promise<ProductCardData[]>
  */
 export async function getSaleProducts(limit = 8): Promise<ProductCardData[]> {
   const candidates = await prisma.product.findMany({
-    where: { status: 'ACTIVE', compareAtPrice: { not: null } },
+    where: { status: 'ACTIVE', sellingPrice: { gt: '0' }, compareAtPrice: { not: null } },
     include: cardInclude,
     orderBy: { updatedAt: 'desc' },
     take: 60,
@@ -357,7 +403,7 @@ export async function getSaleProducts(limit = 8): Promise<ProductCardData[]> {
 
 export async function getNewArrivals(limit = 8): Promise<ProductCardData[]> {
   const rows = await prisma.product.findMany({
-    where: { status: 'ACTIVE' },
+    where: { status: 'ACTIVE', sellingPrice: { gt: '0' } },
     include: cardInclude,
     orderBy: [{ createdAt: 'desc' }],
     take: limit,

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { formatINR, formatDiscountPercent } from '@/lib/money';
 import { QuantityStepper } from './quantity-stepper';
 import { AddToCartButton } from './add-to-cart-button';
+import { WishlistButton } from './wishlist-button';
 import { Badge } from '@/components/ui/badge';
 import type { Availability, AvailabilityState } from '@/lib/catalog/availability';
 
@@ -117,33 +118,45 @@ export function ProductBuyBox({
             )}
           </legend>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Product options">
-            {activeVariants.map((v) => (
-              <button
-                key={v.id ?? 'default'}
-                type="button"
-                role="radio"
-                aria-checked={selectedVariantId === v.id}
-                onClick={() => setSelectedVariantId(v.id)}
-                disabled={v.stock === 0}
-                className={`btn-press rounded-lg border px-3.5 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
-                  selectedVariantId === v.id
-                    ? 'border-brand-600 bg-brand-50 text-brand-800 shadow-hair'
-                    : 'border-ink-900/20 bg-white text-ink-700 hover:border-brand-400'
-                }`}
-              >
-                {v.label}
-                {v.stock === 0 && <span className="ml-1 text-xs text-ink-400">(sold out)</span>}
-              </button>
-            ))}
+            {activeVariants.map((v) => {
+              const variantSoldOut =
+                v.purchasable !== undefined ? !v.purchasable : v.stock === 0;
+              return (
+                <button
+                  key={v.id ?? 'default'}
+                  type="button"
+                  role="radio"
+                  aria-checked={selectedVariantId === v.id}
+                  onClick={() => setSelectedVariantId(v.id)}
+                  disabled={variantSoldOut}
+                  className={`btn-press rounded-lg border px-3.5 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
+                    selectedVariantId === v.id
+                      ? 'border-brand-600 bg-brand-50 text-brand-800 shadow-hair'
+                      : 'border-ink-900/20 bg-white text-ink-700 hover:border-brand-400'
+                  }`}
+                >
+                  {v.label}
+                  {variantSoldOut && (
+                    <span className="ml-1 text-xs text-ink-400">(sold out)</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </fieldset>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <QuantityStepper
           value={qty}
           min={1}
-          max={Math.min(maxPerOrder, Math.max(stock, 1))}
+          max={
+            availability?.maxQuantity != null
+              ? Math.min(maxPerOrder, Math.max(availability.maxQuantity, 1))
+              : stock > 0
+                ? Math.min(maxPerOrder, stock)
+                : maxPerOrder
+          }
           onChange={setQty}
         />
         <AddToCartButton
@@ -165,6 +178,7 @@ export function ProductBuyBox({
             label="Buy now"
           />
         )}
+        <WishlistButton productId={productId} />
       </div>
     </div>
   );

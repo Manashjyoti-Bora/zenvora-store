@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth/guards';
 import { getCartItemCount } from '@/lib/cart/service';
+import { getWishlistViewReadOnly } from '@/lib/wishlist/service';
 import { getSettings } from '@/lib/settings';
 import { MobileMenu } from './mobile-menu';
 import { AccountMenu } from './account-menu';
@@ -21,8 +22,9 @@ export async function Header() {
   const isTrack = pathname === '/track' || pathname.startsWith('/track/');
   const catActive = (slug: string) =>
     pathname === `/categories/${slug}` || pathname.startsWith(`/categories/${slug}/`);
-  const [cartCount, settings, categories] = await Promise.all([
+  const [cartCount, wishlist, settings, categories] = await Promise.all([
     getCartItemCount(user?.id ?? null),
+    getWishlistViewReadOnly(user?.id ?? null),
     getSettings(),
     prisma.category.findMany({
       where: { isActive: true },
@@ -87,6 +89,32 @@ export async function Header() {
 
           <div className="ml-auto flex shrink-0 items-center gap-1 md:ml-2">
             <AccountMenu user={user} />
+
+            <Link
+              href="/wishlist"
+              className="btn-press relative flex h-10 w-10 items-center justify-center rounded-lg text-ink-800 transition-colors hover:bg-ink-900/5 hover:text-ink-950"
+              aria-label={`Wishlist, ${wishlist.count} saved item${wishlist.count === 1 ? '' : 's'}`}
+            >
+              <svg
+                className="h-5 w-5 sm:h-6 sm:w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.75}
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+                />
+              </svg>
+              {wishlist.count > 0 && (
+                <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ink-900 px-1 text-[10px] font-bold text-cream-50 shadow-soft">
+                  {wishlist.count > 99 ? '99+' : wishlist.count}
+                </span>
+              )}
+            </Link>
 
             <Link
               href="/cart"

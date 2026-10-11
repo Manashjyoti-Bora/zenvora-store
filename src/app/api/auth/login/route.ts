@@ -2,6 +2,7 @@ import { apiRoute, jsonOk, badRequest } from '@/lib/errors';
 import { loginSchema } from '@/lib/validation/schemas';
 import { loginUser } from '@/lib/auth/service';
 import { attachGuestCartToUser } from '@/lib/cart/service';
+import { attachGuestWishlistToUser } from '@/lib/wishlist/service';
 import { assertRateLimit, rateLimit } from '@/lib/rate-limit';
 import { clientIp, readJson } from '@/lib/http';
 
@@ -27,5 +28,6 @@ export const POST = apiRoute(async (req: Request) => {
 
   const result = await loginUser({ email: body.email, password: body.password, req });
   await attachGuestCartToUser(result.user.id);
+  await attachGuestWishlistToUser(result.user.id);
   return jsonOk(result);
 });

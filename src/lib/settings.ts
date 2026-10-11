@@ -54,6 +54,11 @@ export const settingsSchema = z.object({
       // store must never silently go below. Discount/coupon engine caps
       // discounts at this floor unless a coupon explicitly bypasses it.
       minMarginPercent: z.number().min(0).max(90).default(10),
+      minProfitPaise: z.number().int().min(0).max(5_000_000).default(5000),
+      minSellingPricePaise: z.number().int().min(0).max(50_000_000).default(9900),
+      maxSellingPricePaise: z.number().int().min(0).max(100_000_000).default(5_000_000),
+      defaultMarkupPercent: z.number().min(0).max(500).default(40),
+      defaultRoundingRule: z.enum(['NONE', 'ROUND_UP_10', 'NEAREST_9', 'NEAREST_99']).default('NEAREST_99'),
       marginProtectionEnabled: z.boolean().default(true),
       // Expected return / RTO reserve, packaging and operational overheads
       // added to landed cost before margin is applied (paise / percent).
@@ -65,11 +70,77 @@ export const settingsSchema = z.object({
     })
     .default({
       minMarginPercent: 10,
+      minProfitPaise: 5000,
+      minSellingPricePaise: 9900,
+      maxSellingPricePaise: 5_000_000,
+      defaultMarkupPercent: 40,
+      defaultRoundingRule: 'NEAREST_99',
       marginProtectionEnabled: true,
       returnReservePercent: 0,
       packagingPaise: 0,
       operationalPaise: 0,
       maxDiscountPercent: 90,
+    }),
+
+  autoImport: z
+    .object({
+      enabled: z.boolean().default(true),
+      autoPublishEligible: z.boolean().default(false),
+      minMarginPercent: z.number().min(0).max(90).default(15),
+      minProfitPaise: z.number().int().min(0).max(5_000_000).default(5000),
+      maxLandedCostPaise: z.number().int().min(0).max(50_000_000).default(1_500_000),
+      minSellingPricePaise: z.number().int().min(0).max(50_000_000).default(9900),
+      maxSellingPricePaise: z.number().int().min(0).max(100_000_000).default(2_500_000),
+      dailyImportLimit: z.number().int().min(1).max(2000).default(100),
+      allowedCategories: z.array(z.string()).default([]),
+      excludedCategories: z.array(z.string()).default([]),
+      requireVerifiedStock: z.boolean().default(true),
+      requireValidImages: z.boolean().default(true),
+      minDescriptionLength: z.number().int().min(10).max(2000).default(20),
+      codMaxPricePaise: z.number().int().min(0).max(50_000_000).default(500_000),
+      supplierLiveOrderingEnabled: z.boolean().default(false),
+      rankingWeights: z
+        .object({
+          costAndMargin: z.number().min(0).max(100).default(25),
+          shippingAndFulfilment: z.number().min(0).max(100).default(20),
+          stockReliability: z.number().min(0).max(100).default(15),
+          contentAndImagery: z.number().min(0).max(100).default(15),
+          lowReturnRiskAndCompliance: z.number().min(0).max(100).default(15),
+          codAndMarketFit: z.number().min(0).max(100).default(10),
+        })
+        .default({
+          costAndMargin: 25,
+          shippingAndFulfilment: 20,
+          stockReliability: 15,
+          contentAndImagery: 15,
+          lowReturnRiskAndCompliance: 15,
+          codAndMarketFit: 10,
+        }),
+    })
+    .default({
+      enabled: true,
+      autoPublishEligible: false,
+      minMarginPercent: 15,
+      minProfitPaise: 5000,
+      maxLandedCostPaise: 1_500_000,
+      minSellingPricePaise: 9900,
+      maxSellingPricePaise: 2_500_000,
+      dailyImportLimit: 100,
+      allowedCategories: [],
+      excludedCategories: [],
+      requireVerifiedStock: true,
+      requireValidImages: true,
+      minDescriptionLength: 20,
+      codMaxPricePaise: 500_000,
+      supplierLiveOrderingEnabled: false,
+      rankingWeights: {
+        costAndMargin: 25,
+        shippingAndFulfilment: 20,
+        stockReliability: 15,
+        contentAndImagery: 15,
+        lowReturnRiskAndCompliance: 15,
+        codAndMarketFit: 10,
+      },
     }),
 
   shipping: z

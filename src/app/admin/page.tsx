@@ -16,6 +16,9 @@ import { LinkButton } from '@/components/ui/button';
 import { ReceiptIcon } from '@/components/ui/icons';
 import { getSettings } from '@/lib/settings';
 import { describePaymentProvider } from '@/lib/payments';
+import { prisma } from '@/lib/db';
+import { evaluateSupplierProductCandidate } from '@/lib/catalog/auto-import';
+import { getFulfilmentReadinessReport } from '@/lib/catalog/fulfilment-readiness';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +33,19 @@ export default async function AdminDashboard({
   const days = Math.min(Math.max(parseInt(sp.days ?? '30', 10) || 30, 1), 90);
   const range = parseRange({ days: String(days) });
 
-  const [totals, series, top, alerts, recent, settings, payments] = await Promise.all([
+  const [
+    totals,
+    series,
+    top,
+    alerts,
+    recent,
+    settings,
+    payments,
+    readiness,
+    productCounts,
+    supplierCandidates,
+    activeRules,
+  ] = await Promise.all([
     computeFinancialTotals(range),
     dailySeries(range),
     topProducts(range),
@@ -38,7 +53,36 @@ export default async function AdminDashboard({
     recentOrdersForAdmin(8),
     getSettings(),
     Promise.resolve(describePaymentProvider()),
+    getFulfilmentReadinessReport({ includeDrafts: true }),
+    prisma.product.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    }),
+    prisma.supplierProduct.findMany({
+      include: {
+        supplier: true,
+        product: { select: { id: true, status: true } },
+      },
+      take: 300,
+    }),
+    prisma.pricingRule.findMany({ where: { isActive: true } }),
   ]);
+
+  const publishedCount =
+    productCounts.find((c) => c.status === 'ACTIVE')?._count._all ?? 0;
+  const draftCount =
+    productCounts.find((c) => c.status === 'DRAFT')?._count._all ?? 0;
+  let needsReviewCount = 0;
+  let rejectedCount = 0;
+  for (const sp of supplierCandidates) {
+    const { evaluation } = evaluateSupplierProductCandidate({
+      sp,
+      settings,
+      activeRules,
+    });
+    if (evaluation.tier === 'NEEDS_REVIEW') needsReviewCount += 1;
+    else if (evaluation.tier === 'NOT_ELIGIBLE') rejectedCount += 1;
+  }
 
   const profitTone =
     totals.actualProfitPaise > 0
@@ -275,6 +319,71 @@ export default async function AdminDashboard({
       </div>
 
       {/* Setup quick links for fresh installs */}
+      <Card
+        title="Automated Catalog Pipeline & Fulfilment Readiness"
+        action={
+          <Link href="/admin/supplier-products" className="text-xs font-semibold text-brand-700 hover:underline">
+            Manage discovery &amp; ranking →
+          </Link>
+        }
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="rounded-lg border border-ink-900/10 bg-cream-50/70 p-3">
+            <p className="text-[11px] font-semibold uppercase text-ink-400">Supplier Imported</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-ink-900">
+              {supplierCandidates.length}
+            </p>
+          </div>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+            <p className="text-[11px] font-semibold uppercase text-emerald-800">Published Live</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-emerald-900">
+              {publishedCount}
+            </p>
+          </div>
+          <div className="rounded-lg border border-ink-900/10 bg-cream-50/70 p-3">
+            <p className="text-[11px] font-semibold uppercase text-ink-400">Drafts</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-ink-900">{draftCount}</p>
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+            <p className="text-[11px] font-semibold uppercase text-amber-800">Needs Review</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-amber-900">
+              {needsReviewCount}
+            </p>
+          </div>
+          <div className="rounded-lg border border-red-200 bg-red-50/50 p-3">
+            <p className="text-[11px] font-semibold uppercase text-red-800">Rejected</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-red-900">{rejectedCount}</p>
+          </div>
+          <div className="rounded-lg border border-ink-900/10 bg-cream-50/70 p-3">
+            <p className="text-[11px] font-semibold uppercase text-ink-400">Fulfilment Ready</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-ink-900">
+              {readiness.summary.sellableReady}/{readiness.summary.totalSellable}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-3 text-xs text-ink-600">
+          <span>
+            Missing cost: <strong>{readiness.summary.missingCostCount}</strong>
+          </span>
+          <span>·</span>
+          <span>
+            Unverified shipping: <strong>{readiness.summary.missingShippingCount}</strong>
+          </span>
+          <span>·</span>
+          <span>
+            Missing images: <strong>{readiness.summary.missingImagesCount}</strong>
+          </span>
+          <span>·</span>
+          <span>
+            Margin alerts: <strong>{readiness.summary.marginAlertCount}</strong>
+          </span>
+          <span>·</span>
+          <span>
+            Ordering safety: <strong>{readiness.safetyMode.statusLabel}</strong>
+          </span>
+        </div>
+      </Card>
+
       {(payments.kind === 'NONE' || settings.demoMode || alerts.length === 0) && (
         <Card title="Setup & operations">
           <div className="flex flex-wrap gap-2 text-sm">

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { formatINR, formatDiscountPercent } from '@/lib/money';
 import { AddToCartButton } from './add-to-cart-button';
+import { WishlistButton } from './wishlist-button';
 import type { ProductCardData } from '@/lib/catalog/storefront';
 
 function BagGlyph({ className = 'h-8 w-8' }: { className?: string }) {
@@ -87,6 +88,9 @@ export function ProductCard({ product }: { product: ProductCardData }) {
               {lowStockQty != null ? `Only ${lowStockQty} left` : 'Low stock'}
             </span>
           )}
+        </div>
+        <div className="absolute right-2 top-2 z-10 sm:right-2.5 sm:top-2.5">
+          <WishlistButton productId={product.id} compact />
         </div>
       </div>
 

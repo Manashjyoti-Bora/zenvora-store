@@ -148,16 +148,63 @@ export async function sendToSupplier(supplierOrderRowId: string): Promise<void> 
 
   const adapter = getSupplierAdapter(so.supplier);
   const items = so.orderItems.map((item) => ({
-    supplierSku: item.supplierSku ?? item.product?.sku ?? item.sku ?? '',
+    supplierSku:
+      item.supplierSku ??
+      item.variant?.sku ??
+      item.product?.supplierSku ??
+      item.product?.sku ??
+      item.sku ??
+      '',
     name: item.product?.name ?? 'Item',
     quantity: item.quantity,
     unitCostPaise: toPaise(item.unitSupplierCost),
   }));
-  const missingSku = so.orderItems.some((i) => !(i.supplierSku ?? i.product?.sku ?? i.sku));
+  const missingSku = so.orderItems.some(
+    (i) =>
+      !(
+        i.supplierSku ??
+        i.variant?.sku ??
+        i.product?.supplierSku ??
+        i.product?.sku ??
+        i.sku
+      )
+  );
   if (missingSku && so.supplier.type !== 'MANUAL') {
     throw new PermanentJobError(
       'One or more order items are missing a supplier SKU - map the product to a supplier SKU first'
     );
+  }
+
+  const address = (so.order.shippingAddress ?? {}) as unknown as Record<string, string | null>;
+  if (so.supplier.type !== 'MANUAL') {
+    const missingAddrField = ['fullName', 'phone', 'line1', 'city', 'state', 'postalCode'].find(
+      (f) => !address[f] || String(address[f]).trim().length === 0
+    );
+    if (missingAddrField) {
+      throw new PermanentJobError(
+        `Pre-order validation failed: shipping address is missing required field "${missingAddrField}"`
+      );
+    }
+  }
+
+  // Dry-run safety gate for CJ live ordering when dryRun is explicitly enabled on supplier config
+  const supplierConfig = (so.supplier.config ?? {}) as Record<string, unknown>;
+  if (so.supplier.type === 'CJ' && supplierConfig.dryRun === true) {
+    await prisma.supplierOrder.update({
+      where: { id: so.id },
+      data: {
+        status: 'QUEUED',
+        lastError:
+          '[DRY-RUN SAFETY GATE] CJ supplier has dryRun=true. Pre-order validation passed; live order creation and wallet debit skipped.',
+      },
+    });
+    await recordOrderEvent({
+      orderId: so.orderId,
+      type: 'FULFILMENT_QUEUED',
+      message:
+        'Pre-order validation passed (DRY-RUN mode — live CJ wallet debit is disabled until authorized).',
+    });
+    return;
   }
 
   // Stock check (only when the supplier API can actually verify it).
@@ -176,7 +223,6 @@ export async function sendToSupplier(supplierOrderRowId: string): Promise<void> 
     }
   }
 
-  const address = so.order.shippingAddress as unknown as Record<string, string | null>;
   let result;
   try {
     result = await adapter.createOrder({
