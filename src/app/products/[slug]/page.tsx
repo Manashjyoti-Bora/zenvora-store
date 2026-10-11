@@ -134,7 +134,7 @@ export default async function ProductPage({ params }: Ctx) {
   };
 
   return (
-    <div className="container-store pb-28 pt-6 sm:py-8 lg:pb-8">
+    <div className="container-store pb-28 pt-6 sm:pt-8 lg:pb-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
