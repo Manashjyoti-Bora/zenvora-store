@@ -128,15 +128,69 @@ export interface SupplierActionResult {
   raw?: Record<string, unknown>;
 }
 
+export interface SupplierVariantDto {
+  vid: string;
+  sku: string;
+  name: string;
+  color?: string | null;
+  size?: string | null;
+  costPaise?: number | null;
+  shippingPaise?: number | null;
+  stockQty?: number | null;
+  inStock?: boolean | null;
+  imageUrl?: string | null;
+  weightGrams?: number | null;
+}
+
+export interface SupplierCategoryDto {
+  id: string;
+  name: string;
+  parentId?: string | null;
+  level: 1 | 2 | 3;
+}
+
 export interface SupplierProductDto {
   externalId?: string | null;
   sku: string;
+  variantId?: string | null;
   name?: string | null;
+  description?: string | null;
+  shortDescription?: string | null;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  brand?: string | null;
+  images?: string[];
   costPaise?: number | null;
   shippingPaise?: number | null;
   inStock?: boolean | null;
   qty?: number | null;
+  weightGrams?: number | null;
+  lengthCm?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  listedNum?: number | null;
+  deliveryEstimateDays?: { min: number; max: number } | null;
+  shippingSupportedToIndia?: boolean | null;
+  variants?: SupplierVariantDto[];
+  specifications?: Record<string, string>;
+  fieldSources?: Record<string, string>;
   raw?: Record<string, unknown>;
+}
+
+export interface SupplierDiscoveryOptions {
+  limit?: number;
+  cursor?: string;
+  includeGeneralCatalog?: boolean;
+  categoryId?: string;
+  keyword?: string;
+  enrichDetails?: boolean;
+  verifyIndiaFreight?: boolean;
+  onPageProgress?: (progress: {
+    source: string;
+    pageNum: number;
+    fetchedCount: number;
+    cursor: string;
+  }) => Promise<void> | void;
 }
 
 export interface SupplierCapabilities {
@@ -157,6 +211,8 @@ export interface SupplierAdapter {
   readonly capabilities: SupplierCapabilities;
 
   getProducts?(opts?: { limit?: number; cursor?: string }): Promise<SupplierProductDto[]>;
+  getCategories?(): Promise<SupplierCategoryDto[]>;
+  discoverCatalog?(opts?: SupplierDiscoveryOptions): Promise<SupplierProductDto[]>;
   getProduct?(supplierSku: string): Promise<SupplierProductDto | null>;
   checkStock(supplierSku: string, quantity: number): Promise<SupplierStockResult>;
   createOrder(input: SupplierCreateOrderInput): Promise<SupplierCreateOrderResult>;

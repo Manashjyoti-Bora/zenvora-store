@@ -76,11 +76,14 @@ export default async function CategoryPage({
         items={[
           { label: 'Home', href: '/' },
           { label: 'Shop', href: '/shop' },
+          ...(category.parent
+            ? [{ label: category.parent.name, href: `/categories/${category.parent.slug}` }]
+            : []),
           { label: category.name },
         ]}
       />
       <header className="mb-6 rounded-2xl border border-ink-900/10 bg-gradient-to-br from-cream-100/80 via-white to-cream-50 p-5 shadow-hair sm:p-6">
-        <p className="eyebrow">Category</p>
+        <p className="eyebrow">{category.parent ? 'Subcategory' : 'Category'}</p>
         <h1 className="display mt-1.5">{category.name}</h1>
         {category.description && (
           <p className="mt-1 max-w-2xl text-sm text-ink-500">{category.description}</p>
@@ -88,6 +91,22 @@ export default async function CategoryPage({
         <p className="mt-1 text-sm tabular-nums text-ink-400">
           {result.total} product{result.total === 1 ? '' : 's'}
         </p>
+        {category.children && category.children.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink-900/10 pt-3">
+            <span className="text-xs font-semibold uppercase tracking-wider text-ink-400">
+              Subcategories:
+            </span>
+            {category.children.map((sub) => (
+              <Link
+                key={sub.id}
+                href={`/categories/${sub.slug}`}
+                className="rounded-full border border-ink-900/15 bg-white px-3 py-1 text-xs font-medium text-ink-700 hover:border-brand-500 hover:text-brand-700"
+              >
+                {sub.name}
+              </Link>
+            ))}
+          </div>
+        )}
       </header>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[220px_1fr]">

@@ -48,20 +48,22 @@ export interface VariantPricingFields {
 
 const SCOPE_WEIGHT: Record<string, number> = { PRODUCT: 4, CATEGORY: 3, SUPPLIER: 2, GLOBAL: 1 };
 
-export async function findApplicablePricingRule(product: {
-  id?: string;
-  supplierId?: string | null;
-  categoryId?: string | null;
-}): Promise<PricingRule | null> {
-  const rules = await prisma.pricingRule.findMany({ where: { isActive: true } });
+export function pickWinningRule(
+  rules: PricingRule[],
+  product: {
+    id?: string | null;
+    supplierId?: string | null;
+    categoryId?: string | null;
+  }
+): PricingRule | null {
   const matching = rules.filter((r) => {
     switch (r.scope) {
       case 'PRODUCT':
-        return r.productId !== null && r.productId === product.id;
+        return Boolean(r.productId && product.id && r.productId === product.id);
       case 'CATEGORY':
-        return r.categoryId !== null && r.categoryId === product.categoryId;
+        return Boolean(r.categoryId && product.categoryId && r.categoryId === product.categoryId);
       case 'SUPPLIER':
-        return r.supplierId !== null && r.supplierId === product.supplierId;
+        return Boolean(r.supplierId && product.supplierId && r.supplierId === product.supplierId);
       case 'GLOBAL':
         return true;
       default:
@@ -76,6 +78,15 @@ export async function findApplicablePricingRule(product: {
       a.createdAt.getTime() - b.createdAt.getTime()
   );
   return matching[0];
+}
+
+export async function findApplicablePricingRule(product: {
+  id?: string;
+  supplierId?: string | null;
+  categoryId?: string | null;
+}): Promise<PricingRule | null> {
+  const rules = await prisma.pricingRule.findMany({ where: { isActive: true } });
+  return pickWinningRule(rules, product);
 }
 
 export interface ResolvePricingResult {

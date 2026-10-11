@@ -348,7 +348,7 @@ export default async function ProductPage({ params }: Ctx) {
             </a>
           ) : (
             <span className="flex-none">
-              <AddToCartButton productId={product.id} disabled={baseStock <= 0} compact />
+              <AddToCartButton productId={product.id} disabled={!availability.purchasable} compact />
             </span>
           )}
         </div>

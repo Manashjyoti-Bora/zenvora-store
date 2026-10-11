@@ -91,6 +91,7 @@ export function kickJobRunner(): void {
   if (runnerInFlight) return;
   const run = (async () => {
     try {
+      await new Promise((resolve) => setTimeout(resolve, 25));
       const { processDueJobs } = await import('./runner');
       await processDueJobs({ limit: 10 });
     } catch (err) {

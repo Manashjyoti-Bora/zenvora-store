@@ -2,8 +2,7 @@ import { apiRoute, jsonOk, notFound, badRequest } from '@/lib/errors';
 import { requireAdmin } from '@/lib/auth/guards';
 import { prisma } from '@/lib/db';
 import { diagnoseSupplierAdapter, getSupplierAdapter } from '@/lib/suppliers/registry';
-import { auditLog } from '@/lib/audit';
-import { revalidateCatalog } from '@/lib/catalog/revalidate';
+import { syncAndAutoProcessSupplier } from '@/lib/catalog/auto-import';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -11,14 +10,9 @@ export const maxDuration = 60;
 type Ctx = { params: Promise<{ id: string }> };
 
 /**
- * Pull the supplier catalog (HTTP_REST suppliers with a products endpoint)
- * into supplier_products for mapping. Demo/manual suppliers honestly report
- * that catalog sync is unavailable.
- *
- * Misconfigured automated suppliers (e.g. CJ with a missing API-key env var)
- * fail HERE with the precise, secret-free reason instead of silently degrading
- * to the manual adapter, whose generic "no catalog sync" error would hide the
- * real problem.
+ * Pull the supplier catalog into supplier_products, run Indian reselling
+ * eligibility & ranking evaluation, and optionally auto-import / auto-publish
+ * eligible products through quality gates.
  */
 export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   return apiRoute(async () => {
@@ -32,136 +26,61 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     if (!diag.ok) throw badRequest(`Supplier is misconfigured: ${diag.error}`);
 
     const adapter = getSupplierAdapter(supplier);
-    if (!adapter.capabilities.catalogSync || !adapter.getProducts) {
+    if (!adapter.capabilities.catalogSync || (!adapter.getProducts && !adapter.discoverCatalog)) {
       throw badRequest(
         `Supplier type ${supplier.type} (${adapter.label}) does not support catalog sync. Add products manually or map supplier SKUs on the product form.`
       );
     }
 
-    const products = await adapter.getProducts({ limit: 200 });
-    let created = 0;
-    let updated = 0;
-    let skippedNoCost = 0;
-    let skippedInvalidCost = 0;
-    let skippedNoSku = 0;
-    const seenSkus = new Set<string>();
-    const seenExternalIds = new Set<string>();
-
-    for (const p of products) {
-      const sku = typeof p.sku === 'string' ? p.sku.trim() : '';
-      if (!sku) {
-        skippedNoSku += 1;
-        continue;
-      }
-      const skuKey = sku.toLowerCase();
-      const extKey = p.externalId ? p.externalId.trim().toLowerCase() : '';
-      if (seenSkus.has(skuKey) || (extKey && seenExternalIds.has(extKey))) {
-        continue;
-      }
-      seenSkus.add(skuKey);
-      if (extKey) seenExternalIds.add(extKey);
-
-      // Never record a fabricated 0.00 cost: an unknown supplier cost would
-      // poison auto-pricing (price suggested from cost 0) and margin floors.
-      if (p.costPaise == null || !Number.isFinite(p.costPaise)) {
-        skippedNoCost += 1;
-        continue;
-      }
-      // A zero (or negative) price is equally unusable: CJ returns 0 for items
-      // that are not actually buyable, and storing it would let the pricing
-      // engine derive a ₹0.00 selling price.
-      if (!(p.costPaise > 0)) {
-        skippedInvalidCost += 1;
-        continue;
-      }
-
-      const existing =
-        (await prisma.supplierProduct.findUnique({
-          where: { supplierId_supplierSku: { supplierId: supplier.id, supplierSku: sku } },
-        })) ??
-        (p.externalId
-          ? await prisma.supplierProduct.findFirst({
-              where: { supplierId: supplier.id, externalId: p.externalId },
-            })
-          : null);
-
-      const data = {
-        supplierSku: sku,
-        externalId: p.externalId ?? null,
-        supplierCost: ((p.costPaise ?? 0) / 100).toFixed(2),
-        supplierShippingCost: p.shippingPaise != null ? (p.shippingPaise / 100).toFixed(2) : null,
-        inStock: p.inStock ?? null,
-        stockQty: p.qty ?? null,
-        raw: (p.raw ?? {}) as object,
-        lastSyncedAt: new Date(),
-      };
-      if (existing) {
-        await prisma.supplierProduct.update({ where: { id: existing.id }, data });
-        updated += 1;
-      } else {
-        await prisma.supplierProduct.create({
-          data: { supplierId: supplier.id, ...data },
-        });
-        created += 1;
-      }
+    let body: Record<string, unknown> = {};
+    try {
+      const text = await req.text();
+      if (text.trim()) body = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      body = {};
     }
 
-    await auditLog({
+    const report = await syncAndAutoProcessSupplier({
+      supplierId: supplier.id,
+      limit: typeof body.limit === 'number' ? body.limit : 200,
+      includeGeneralCatalog: Boolean(body.includeGeneralCatalog),
+      categoryId: typeof body.categoryId === 'string' ? body.categoryId : undefined,
+      keyword: typeof body.keyword === 'string' ? body.keyword : undefined,
+      enrichDetails: Boolean(body.enrichDetails),
+      verifyIndiaFreight: Boolean(body.verifyIndiaFreight),
+      autoImport: typeof body.autoImport === 'boolean' ? body.autoImport : false,
+      autoPublishEligible:
+        typeof body.autoPublishEligible === 'boolean' ? body.autoPublishEligible : false,
+      resumeFromCheckpoint: Boolean(body.resumeFromCheckpoint),
       actor: { id: admin.id, email: admin.email },
-      action: 'supplier.catalog_synced',
-      entityType: 'Supplier',
-      entityId: supplier.id,
-      data: {
-        total: products.length,
-        created,
-        updated,
-        skippedNoCost,
-        skippedInvalidCost,
-        skippedNoSku,
-      },
-      req,
     });
+
     const hints: string[] = [];
-    if (products.length === 0) {
+    if (report.totals.discovered === 0) {
       hints.push(
-        'CJ returned no My Products — add products in the CJ dashboard (My Products) first, then sync again.'
+        'Supplier returned 0 products — add products in the CJ dashboard (My Products) or enable General Catalog discovery, then sync again.'
       );
     }
-    if (skippedNoCost > 0) {
+    if (report.totals.skippedNoCost > 0) {
       hints.push(
-        `${skippedNoCost} item(s) skipped: CJ did not return a buyable cost for them, and importing a product with an unknown cost would corrupt pricing.`
+        `${report.totals.skippedNoCost} item(s) skipped: supplier did not return a buyable cost.`
       );
     }
-    if (skippedInvalidCost > 0) {
+    if (report.totals.autoImported > 0) {
       hints.push(
-        `${skippedInvalidCost} item(s) skipped: CJ reported a price of zero, which is not a buyable cost and would produce a ₹0.00 selling price.`
+        `Auto-imported ${report.totals.autoImported} product(s) (${report.totals.autoPublished} published, ${report.totals.savedAsDraft} saved as draft/needs review).`
       );
-    }
-    if (skippedNoSku > 0) {
-      hints.push(`${skippedNoSku} item(s) skipped: missing supplier SKU/productId.`);
-    }
-    // Synced stock/availability feeds the public catalog: refresh the pages of
-    // products mapped to this supplier so the storefront never keeps serving a
-    // stale availability claim. (Revalidating by product slug, not supplier SKU.)
-    if (created + updated > 0) {
-      const mapped = await prisma.supplierProduct.findMany({
-        where: { supplierId: supplier.id, productId: { not: null } },
-        select: { product: { select: { slug: true } } },
-        take: 500,
-      });
-      revalidateCatalog({
-        productSlugs: mapped.map((m) => m.product?.slug).filter((s): s is string => Boolean(s)),
-      });
     }
 
     return jsonOk({
-      synced: created + updated > 0,
-      created,
-      updated,
-      total: products.length,
-      skippedNoCost,
-      skippedInvalidCost,
-      skippedNoSku,
+      synced: report.totals.created + report.totals.updated > 0,
+      created: report.totals.created,
+      updated: report.totals.updated,
+      total: report.totals.discovered,
+      skippedNoCost: report.totals.skippedNoCost,
+      skippedInvalidCost: 0,
+      skippedNoSku: report.totals.skippedNoSku,
+      report,
       message: hints.length > 0 ? hints.join(' ') : undefined,
     });
   })(req, ctx);

@@ -33,6 +33,12 @@ export interface PricingInput {
   percentMarkup?: number | null;
   /** Minimum gross margin floor (selling - total cost). Price is raised if needed. */
   minProfitPaise?: number | null;
+  /** Minimum effective gross margin % ((selling - totalCost) / selling * 100). */
+  minMarginPercent?: number | null;
+  /** Optional minimum selling price floor in paise (e.g. ₹99 = 9900). */
+  minSellingPricePaise?: number | null;
+  /** Optional maximum selling price ceiling in paise (warnings emitted if exceeded). */
+  maxSellingPricePaise?: number | null;
   roundingRule?: RoundingRule;
   /** Estimated gateway fee used for profit forecasts (settings.payments). */
   paymentFeePercent?: number;
@@ -128,6 +134,53 @@ export function computePricing(input: PricingInput): PricingBreakdown {
       minProfitApplied = true;
       warnings.push('Price was raised to meet the configured minimum profit floor.');
     }
+  }
+
+  // Enforce minimum effective gross margin % when requested on non-fixed-price modes
+  if (
+    input.minMarginPercent != null &&
+    input.minMarginPercent > 0 &&
+    input.minMarginPercent < 95 &&
+    totalCostPaise > 0
+  ) {
+    const minMarginPrice = Math.ceil(totalCostPaise / (1 - input.minMarginPercent / 100));
+    if (mode !== 'FIXED_PRICE' && sellingPricePaise < minMarginPrice) {
+      sellingPricePaise = Math.max(minMarginPrice, applyRounding(minMarginPrice, roundingRule));
+      minProfitApplied = true;
+      warnings.push(
+        `Price was raised to meet the configured minimum gross margin (${input.minMarginPercent}%).`
+      );
+    } else if (mode === 'FIXED_PRICE' && sellingPricePaise < minMarginPrice) {
+      warnings.push(
+        `Fixed selling price yields gross margin below the configured minimum (${input.minMarginPercent}%).`
+      );
+    }
+  }
+
+  // Enforce minimum selling price floor when requested
+  if (input.minSellingPricePaise != null && input.minSellingPricePaise > 0) {
+    if (mode !== 'FIXED_PRICE' && sellingPricePaise < input.minSellingPricePaise) {
+      sellingPricePaise = Math.max(
+        input.minSellingPricePaise,
+        applyRounding(input.minSellingPricePaise, roundingRule)
+      );
+      warnings.push('Price was raised to meet the minimum selling price floor.');
+    } else if (mode === 'FIXED_PRICE' && sellingPricePaise < input.minSellingPricePaise) {
+      warnings.push('Fixed selling price is below the configured minimum selling price floor.');
+    }
+  }
+
+  // Warn if selling price exceeds configured maximum selling price ceiling
+  if (
+    input.maxSellingPricePaise != null &&
+    input.maxSellingPricePaise > 0 &&
+    sellingPricePaise > input.maxSellingPricePaise
+  ) {
+    warnings.push(
+      `Calculated selling price exceeds the configured maximum selling price (₹${(
+        input.maxSellingPricePaise / 100
+      ).toFixed(2)}).`
+    );
   }
 
   const grossMarginPaise = sellingPricePaise - totalCostPaise;

@@ -6,11 +6,14 @@ import {
   type SupplierAdapter,
   type SupplierCapabilities,
   type SupplierActionResult,
+  type SupplierCategoryDto,
   type SupplierCreateOrderInput,
   type SupplierCreateOrderResult,
+  type SupplierDiscoveryOptions,
   type SupplierOrderStatusResult,
   type SupplierProductDto,
   type SupplierStockResult,
+  type SupplierVariantDto,
 } from './types';
 import type { Supplier } from '@prisma/client';
 
@@ -286,68 +289,229 @@ export class CJDropshippingAdapter implements SupplierAdapter {
 
   // --- Catalogue ------------------------------------------------------------
 
-  async getProducts(opts?: { limit?: number }): Promise<SupplierProductDto[]> {
-    // Bounded pagination over CJ My Products: at most 5 pages of ≤100 items
-    // (≤500 products per sync). The sync endpoint passes limit:200, which
-    // needs two pages; short pages end the loop early so a small catalogue
-    // costs exactly one request.
-    const cap = Math.max(1, Math.min(opts?.limit ?? 50, 500));
+  async getCategories(): Promise<SupplierCategoryDto[]> {
+    const res = await this.getWithRetry('product/getCategory', {});
+    const data = this.unwrap<unknown>(res, 'product/getCategory');
+    return extractCjCategories(data);
+  }
+
+  async discoverCatalog(opts?: SupplierDiscoveryOptions): Promise<SupplierProductDto[]> {
+    const cap = Math.max(1, Math.min(opts?.limit ?? 100, 500));
     const pageSize = Math.min(cap, 100);
     const maxPages = 5;
     const out: SupplierProductDto[] = [];
     const seenSkus = new Set<string>();
     const seenExternalIds = new Set<string>();
 
-    for (let pageNum = 1; pageNum <= maxPages && out.length < cap; pageNum += 1) {
-      const res = await this.get('product/myProduct/query', {
-        pageNum: String(pageNum),
-        pageNumber: String(pageNum),
-        pageSize: String(pageSize),
-      });
-      const data = this.unwrap<unknown>(res, 'product/myProduct/query');
-      const page = extractCjProductPage(data);
+    const parsedCursor = parseDiscoveryCursor(opts?.cursor);
+    const startSource = parsedCursor.source;
+    const startPage = parsedCursor.pageNum;
 
-      // Safe structural log: status/code/envelope keys/counts only, never
-      // credentials or raw payload values.
-      logger.info('CJ myProduct/query page received', {
-        supplier: this.supplier.slug,
-        pageNum,
-        code: res.code ?? null,
-        requestId: res.requestId ?? null,
-        dataType: page.dataType,
-        dataKeys: page.dataKeys,
-        listKey: page.listKey,
-        firstItemKeys: page.firstItemKeys,
-        totalReported: page.total,
-        itemCount: page.items.length,
-      });
+    const addUnique = (dto: SupplierProductDto) => {
+      if (out.length >= cap) return false;
+      const skuKey = dto.sku ? dto.sku.toLowerCase() : '';
+      const extKey = dto.externalId ? dto.externalId.toLowerCase() : '';
+      if (skuKey && seenSkus.has(skuKey)) return false;
+      if (extKey && seenExternalIds.has(extKey)) return false;
+      if (skuKey) seenSkus.add(skuKey);
+      if (extKey) seenExternalIds.add(extKey);
+      out.push(dto);
+      return true;
+    };
 
-      for (const item of page.items) {
-        if (out.length >= cap) break;
-        const dto = this.mapProduct(item);
-        const skuKey = dto.sku ? dto.sku.toLowerCase() : '';
-        const extKey = dto.externalId ? dto.externalId.toLowerCase() : '';
-        if (skuKey && seenSkus.has(skuKey)) continue;
-        if (extKey && seenExternalIds.has(extKey)) continue;
-        if (skuKey) seenSkus.add(skuKey);
-        if (extKey) seenExternalIds.add(extKey);
-        out.push(dto);
+    // Phase 1: Connected account products (`product/myProduct/query`)
+    if (startSource === 'myProduct') {
+      for (let pageNum = startPage; pageNum <= maxPages && out.length < cap; pageNum += 1) {
+        const res = await this.getWithRetry('product/myProduct/query', {
+          pageNum: String(pageNum),
+          pageNumber: String(pageNum),
+          pageSize: String(pageSize),
+          ...(opts?.keyword ? { keyword: opts.keyword } : {}),
+          ...(opts?.categoryId ? { categoryId: opts.categoryId } : {}),
+        });
+        const data = this.unwrap<unknown>(res, 'product/myProduct/query');
+        const page = extractCjProductPage(data);
+
+        logger.info('CJ myProduct/query page received', {
+          supplier: this.supplier.slug,
+          pageNum,
+          code: res.code ?? null,
+          requestId: res.requestId ?? null,
+          dataType: page.dataType,
+          dataKeys: page.dataKeys,
+          listKey: page.listKey,
+          firstItemKeys: page.firstItemKeys,
+          totalReported: page.total,
+          itemCount: page.items.length,
+        });
+
+        for (const item of page.items) {
+          if (out.length >= cap) break;
+          addUnique(this.mapProduct(item, 'cj:myProduct'));
+        }
+
+        if (opts?.onPageProgress) {
+          await opts.onPageProgress({
+            source: 'myProduct',
+            pageNum,
+            fetchedCount: out.length,
+            cursor: `myProduct:${pageNum + 1}`,
+          });
+        }
+
+        if (page.items.length === 0) break;
+        if (page.totalPages !== null && page.totalPages > 0 && pageNum >= page.totalPages) break;
+        if (page.total !== null && page.total >= 0 && out.length >= page.total) break;
+        const effectivePageSize =
+          page.pageSize !== null && page.pageSize > 0
+            ? Math.min(pageSize, page.pageSize)
+            : pageSize;
+        if (page.items.length < effectivePageSize) break;
+
+        if (out.length < cap && pageNum < maxPages) await sleep(CJ_QPS_DELAY_MS);
       }
-
-      if (page.items.length === 0) break;
-      if (page.totalPages !== null && page.totalPages > 0 && pageNum >= page.totalPages) break;
-      if (page.total !== null && page.total >= 0 && out.length >= page.total) break;
-      const effectivePageSize =
-        page.pageSize !== null && page.pageSize > 0
-          ? Math.min(pageSize, page.pageSize)
-          : pageSize;
-      if (page.items.length < effectivePageSize) break;
-
-      // CJ documents QPS = 1 ("consistent with other API endpoints"): pace
-      // multi-page syncs instead of bursting and tripping 1600200.
-      if (out.length < cap && pageNum < maxPages) await sleep(CJ_QPS_DELAY_MS);
     }
+
+    // Phase 2: General CJ catalog (`product/listV2` with fallback to `product/list`)
+    // when requested via includeGeneralCatalog (or when resuming from listV2 cursor)
+    if ((opts?.includeGeneralCatalog || startSource === 'listV2') && out.length < cap) {
+      const listStartPage = startSource === 'listV2' ? startPage : 1;
+      for (let pageNum = listStartPage; pageNum <= maxPages && out.length < cap; pageNum += 1) {
+        const params: Record<string, string> = {
+          page: String(pageNum),
+          pageNum: String(pageNum),
+          size: String(pageSize),
+          pageSize: String(pageSize),
+        };
+        if (opts?.categoryId) params.categoryId = opts.categoryId;
+        if (opts?.keyword) {
+          params.keyWord = opts.keyword;
+          params.productNameEn = opts.keyword;
+        }
+        if (this.config.fromCountryCode) params.countryCode = this.config.fromCountryCode;
+
+        let res = await this.getWithRetry('product/listV2', params);
+        let endpointUsed = 'cj:listV2';
+        if (!this.ok(res)) {
+          res = await this.getWithRetry('product/list', params);
+          endpointUsed = 'cj:list';
+        }
+        if (!this.ok(res)) {
+          logger.warn('CJ general catalog discovery page unavailable', {
+            supplier: this.supplier.slug,
+            pageNum,
+            code: res.code ?? null,
+            message: res.message ?? null,
+          });
+          break;
+        }
+
+        const page = extractCjProductPage(res.data);
+        for (const item of page.items) {
+          if (out.length >= cap) break;
+          addUnique(this.mapProduct(item, endpointUsed));
+        }
+
+        if (opts?.onPageProgress) {
+          await opts.onPageProgress({
+            source: 'listV2',
+            pageNum,
+            fetchedCount: out.length,
+            cursor: `listV2:${pageNum + 1}`,
+          });
+        }
+
+        if (page.items.length === 0) break;
+        if (page.totalPages !== null && page.totalPages > 0 && pageNum >= page.totalPages) break;
+        const effectivePageSize =
+          page.pageSize !== null && page.pageSize > 0
+            ? Math.min(pageSize, page.pageSize)
+            : pageSize;
+        if (page.items.length < effectivePageSize) break;
+
+        if (out.length < cap && pageNum < maxPages) await sleep(CJ_QPS_DELAY_MS);
+      }
+    }
+
+    // Optional Phase 3: Detail & Variant Enrichment (`product/query`)
+    if (opts?.enrichDetails) {
+      let enrichedCount = 0;
+      for (let i = 0; i < out.length && enrichedCount < 15; i += 1) {
+        const item = out[i];
+        const needsDetail =
+          Boolean(item.externalId) &&
+          (!item.description || !item.images || item.images.length === 0 || !item.variants?.length);
+        if (!needsDetail || !item.externalId) continue;
+        try {
+          const detailRes = await this.getWithRetry('product/query', { pid: item.externalId });
+          if (this.ok(detailRes) && detailRes.data && typeof detailRes.data === 'object') {
+            const detailed = this.mapProduct(
+              detailRes.data as Record<string, unknown>,
+              'cj:product.query'
+            );
+            out[i] = mergeProductDtos(item, detailed);
+            enrichedCount += 1;
+          }
+        } catch {
+          // Best-effort enrichment; keep original mapped fields
+        }
+      }
+    }
+
+    // Optional Phase 4: India Freight Calculation (`logistic/freightCalculate`)
+    if (opts?.verifyIndiaFreight) {
+      let freightChecked = 0;
+      for (let i = 0; i < out.length && freightChecked < 15; i += 1) {
+        const item = out[i];
+        if (item.shippingPaise != null && item.shippingPaise > 0) continue;
+        const vid = item.variantId ?? item.variants?.[0]?.vid ?? null;
+        if (!vid) continue;
+        try {
+          const freightPaise = await this.estimateIndiaFreightPaise(vid);
+          freightChecked += 1;
+          if (freightPaise !== null) {
+            item.shippingPaise = freightPaise;
+            item.shippingSupportedToIndia = true;
+            item.fieldSources = {
+              ...(item.fieldSources ?? {}),
+              shipping: 'cj:logistic.freightCalculate',
+            };
+          }
+        } catch {
+          // Best-effort freight check
+        }
+      }
+    }
+
     return out;
+  }
+
+  async estimateIndiaFreightPaise(vid: string, quantity = 1): Promise<number | null> {
+    const res = await this.postWithRetry('logistic/freightCalculate', {
+      startCountryCode: this.config.fromCountryCode ?? 'CN',
+      endCountryCode: 'IN',
+      products: [{ quantity, vid }],
+    });
+    if (!this.ok(res) || !res.data) return null;
+    const options = Array.isArray(res.data)
+      ? (res.data as Array<Record<string, unknown>>)
+      : [];
+    let bestUsd: number | null = null;
+    for (const opt of options) {
+      const priceUsd = firstUsd(opt, ['logisticPrice', 'totalPostageFee', 'price', 'postage']);
+      if (priceUsd !== null && priceUsd >= 0) {
+        if (bestUsd === null || priceUsd < bestUsd) bestUsd = priceUsd;
+      }
+    }
+    return bestUsd !== null ? this.usdToPaise(bestUsd) : null;
+  }
+
+  async getProducts(opts?: { limit?: number; cursor?: string }): Promise<SupplierProductDto[]> {
+    // Bounded pagination over CJ My Products: at most 5 pages of ≤100 items
+    // (≤500 products per sync). The sync endpoint passes limit:200, which
+    // needs two pages; short pages end the loop early so a small catalogue
+    // costs exactly one request.
+    return this.discoverCatalog({ limit: opts?.limit ?? 50, cursor: opts?.cursor });
   }
 
   async getProduct(supplierSku: string): Promise<SupplierProductDto | null> {
@@ -658,14 +822,18 @@ export class CJDropshippingAdapter implements SupplierAdapter {
 
   // --- Infrastructure ----------------------------------------------------------
 
-  private mapProduct(p: Record<string, unknown>): SupplierProductDto {
-    const variants = Array.isArray(p.variantList)
+  private mapProduct(
+    p: Record<string, unknown>,
+    sourceEndpoint = 'cj:myProduct'
+  ): SupplierProductDto {
+    const variantsRaw = Array.isArray(p.variantList)
       ? (p.variantList as Array<Record<string, unknown>>)
       : Array.isArray(p.variants)
         ? (p.variants as Array<Record<string, unknown>>)
         : [];
-    const first = variants[0] ?? {};
+    const first = variantsRaw[0] ?? {};
     const externalId = str(p.productId ?? p.pid ?? p.cjProductId ?? p.id);
+    const variantId = str(p.vid ?? p.variantId ?? first.vid ?? first.variantId);
     const sku =
       str(p.sku) ??
       str(p.productSku) ??
@@ -685,12 +853,18 @@ export class CJDropshippingAdapter implements SupplierAdapter {
       str(p.title) ??
       nameFromSet;
 
+    const fieldSources: Record<string, string> = {};
+    if (name) fieldSources.name = `${sourceEndpoint}.nameEn`;
+
     let unitUsd =
       firstUsd(p, ['buyPrice', 'sellPrice', 'discountPrice', 'nowPrice', 'price']) ??
       firstUsd(first, ['variantBuyPrice', 'variantSellPrice', 'buyPrice', 'sellPrice', 'price']);
+    if (unitUsd !== null) fieldSources.cost = `${sourceEndpoint}.sellPrice`;
+
     let shippingUsd =
       firstUsd(p, ['freightTrial', 'shippingCost', 'postage', 'logisticPrice']) ??
       firstUsd(first, ['freightTrial', 'shippingCost', 'postage']);
+    if (shippingUsd !== null) fieldSources.shipping = `${sourceEndpoint}.freightTrial`;
 
     // In CJ product/myProduct/query, totalPrice = sellPrice + freightTrial.
     // Fall back to totalPrice if sellPrice/buyPrice is absent, subtracting
@@ -700,9 +874,11 @@ export class CJDropshippingAdapter implements SupplierAdapter {
       if (totalUsd !== null) {
         if (shippingUsd !== null && totalUsd >= shippingUsd) {
           unitUsd = Number((totalUsd - shippingUsd).toFixed(4));
+          fieldSources.cost = `${sourceEndpoint}.totalPriceMinusFreight`;
         } else {
           unitUsd = totalUsd;
           shippingUsd = null;
+          fieldSources.cost = `${sourceEndpoint}.totalPrice`;
         }
       }
     }
@@ -717,15 +893,119 @@ export class CJDropshippingAdapter implements SupplierAdapter {
         : qty !== undefined
           ? qty > 0
           : undefined;
+    if (qty !== undefined || inStock !== undefined) {
+      fieldSources.stock = `${sourceEndpoint}.stock`;
+    }
+
+    const images = extractCjImages(p, variantsRaw);
+    if (images.length > 0) fieldSources.images = `${sourceEndpoint}.images`;
+
+    const description = cleanCjDescription(
+      p.description ?? p.productDescription ?? p.entryNameEn ?? p.remark
+    );
+    if (description) fieldSources.description = `${sourceEndpoint}.description`;
+
+    const categoryId = str(p.categoryId ?? p.threeCategoryId ?? p.twoCategoryId ?? p.oneCategoryId);
+    const categoryName = str(
+      p.categoryName ?? p.threeCategoryName ?? p.twoCategoryName ?? p.oneCategoryName
+    );
+    if (categoryName) fieldSources.category = `${sourceEndpoint}.categoryName`;
+
+    const weightRaw = num(
+      p.productWeight ?? p.packingWeight ?? p.weight ?? first.variantWeight ?? first.weight
+    );
+    const weightGrams =
+      weightRaw !== null && weightRaw > 0 ? Math.round(weightRaw) : undefined;
+    if (weightGrams !== undefined) fieldSources.weight = `${sourceEndpoint}.productWeight`;
+
+    const lengthCm = num(p.packLength ?? first.variantLength) ?? undefined;
+    const widthCm = num(p.packWidth ?? first.variantWidth) ?? undefined;
+    const heightCm = num(p.packHeight ?? first.variantHeight) ?? undefined;
+
+    const listedNumRaw = num(p.listedNum);
+    const listedNum =
+      listedNumRaw !== null && listedNumRaw >= 0 ? Math.trunc(listedNumRaw) : undefined;
+    if (listedNum !== undefined) fieldSources.listedNum = `${sourceEndpoint}.listedNum`;
+
+    const mappedVariants: SupplierVariantDto[] = [];
+    for (const v of variantsRaw) {
+      const vid = str(v.vid ?? v.variantId ?? v.id);
+      const vSku = str(v.variantSku ?? v.sku ?? vid);
+      if (!vid && !vSku) continue;
+      const vUsd = firstUsd(v, [
+        'variantSellPrice',
+        'variantBuyPrice',
+        'sellPrice',
+        'buyPrice',
+        'price',
+      ]);
+      const vShipUsd = firstUsd(v, ['freightTrial', 'shippingCost', 'postage']);
+      const vStock = num(v.stock ?? v.storageNum ?? v.inventoryNum);
+      const variantKey = str(v.variantKey ?? v.variantNameEn ?? v.variantName);
+      const keyParts = variantKey ? variantKey.split(/[-/]/).map((s) => s.trim()) : [];
+      mappedVariants.push({
+        vid: vid ?? vSku!,
+        sku: vSku ?? vid!,
+        name:
+          variantKey ??
+          str(v.variantNameEn ?? v.variantName ?? v.variantStandard) ??
+          vSku ??
+          vid!,
+        color: str(v.color) ?? keyParts[0] ?? null,
+        size: str(v.size) ?? keyParts[1] ?? null,
+        costPaise: this.usdToPaise(vUsd) ?? this.usdToPaise(unitUsd),
+        shippingPaise: vShipUsd !== null ? this.usdToPaise(vShipUsd) : undefined,
+        stockQty: vStock !== null ? Math.max(0, Math.trunc(vStock)) : undefined,
+        inStock:
+          typeof v.inStock === 'boolean'
+            ? v.inStock
+            : vStock !== null
+              ? vStock > 0
+              : undefined,
+        imageUrl: extractCjImages(v, [])[0] ?? null,
+        weightGrams:
+          num(v.variantWeight ?? v.weight) !== null
+            ? Math.round(num(v.variantWeight ?? v.weight)!)
+            : undefined,
+      });
+    }
+    if (mappedVariants.length > 0) fieldSources.variants = `${sourceEndpoint}.variantList`;
+
+    const specifications: Record<string, string> = {};
+    const material = str(p.materialNameEn ?? p.material);
+    if (material) specifications.Material = material;
+    const packing = str(p.packingNameEn ?? p.packing);
+    if (packing) specifications.Packaging = packing;
+    const productType = str(p.productType);
+    if (productType) specifications['Product Type'] = productType;
+    if (weightGrams) specifications.Weight = `${weightGrams} g`;
+
+    const shippingMethod = str(p.shopMethod ?? p.logisticName);
+    const shippingSupportedToIndia =
+      shippingUsd !== null || Boolean(shippingMethod) ? true : undefined;
 
     return {
       externalId,
       sku,
+      ...(variantId ? { variantId } : {}),
       name,
+      ...(description ? { description } : {}),
+      ...(categoryId ? { categoryId } : {}),
+      ...(categoryName ? { categoryName } : {}),
+      ...(images.length > 0 ? { images } : {}),
       costPaise: this.usdToPaise(unitUsd),
       shippingPaise: shippingUsd !== null ? this.usdToPaise(shippingUsd) : undefined,
       inStock,
       qty,
+      ...(weightGrams !== undefined ? { weightGrams } : {}),
+      ...(lengthCm !== undefined ? { lengthCm } : {}),
+      ...(widthCm !== undefined ? { widthCm } : {}),
+      ...(heightCm !== undefined ? { heightCm } : {}),
+      ...(listedNum !== undefined ? { listedNum } : {}),
+      ...(shippingSupportedToIndia !== undefined ? { shippingSupportedToIndia } : {}),
+      ...(mappedVariants.length > 0 ? { variants: mappedVariants } : {}),
+      ...(Object.keys(specifications).length > 0 ? { specifications } : {}),
+      fieldSources,
       raw: p,
     };
   }
@@ -880,6 +1160,55 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     return this.withTokenRetry(this.request(target, 'POST', body), () =>
       this.request(target, 'POST', body)
     );
+  }
+
+  private async getWithRetry(
+    path: string,
+    params: Record<string, string>,
+    maxRetries = 1
+  ): Promise<CjEnvelope> {
+    let res = await this.get(path, params);
+    let attempt = 0;
+    while (
+      attempt < maxRetries &&
+      !this.ok(res) &&
+      typeof res.code === 'number' &&
+      (res.code === 1600200 || res.code === 1600201 || res.code === 429)
+    ) {
+      attempt += 1;
+      const delayMs = process.env.NODE_ENV === 'test' ? 25 * attempt : CJ_QPS_DELAY_MS * attempt;
+      logger.warn('CJ rate limit encountered — backing off and retrying', {
+        supplier: this.supplier.slug,
+        path,
+        code: res.code,
+        attempt,
+        delayMs,
+      });
+      await sleep(delayMs);
+      res = await this.get(path, params);
+    }
+    return res;
+  }
+
+  private async postWithRetry(
+    path: string,
+    body: unknown,
+    maxRetries = 1
+  ): Promise<CjEnvelope> {
+    let res = await this.post(path, body);
+    let attempt = 0;
+    while (
+      attempt < maxRetries &&
+      !this.ok(res) &&
+      typeof res.code === 'number' &&
+      (res.code === 1600200 || res.code === 1600201 || res.code === 429)
+    ) {
+      attempt += 1;
+      const delayMs = process.env.NODE_ENV === 'test' ? 25 * attempt : CJ_QPS_DELAY_MS * attempt;
+      await sleep(delayMs);
+      res = await this.post(path, body);
+    }
+    return res;
   }
 
   /**
@@ -1511,3 +1840,142 @@ function warnIfImplausibleToken(token: string, supplier: string): void {
     );
   }
 }
+
+function parseDiscoveryCursor(cursor?: string): { source: 'myProduct' | 'listV2'; pageNum: number } {
+  if (!cursor) return { source: 'myProduct', pageNum: 1 };
+  const [sourcePart, pagePart] = cursor.split(':');
+  const pageNum = Math.max(1, parseInt(pagePart ?? '1', 10) || 1);
+  if (sourcePart === 'listV2') return { source: 'listV2', pageNum };
+  return { source: 'myProduct', pageNum };
+}
+
+function extractCjImages(
+  p: Record<string, unknown>,
+  variants: Array<Record<string, unknown>>
+): string[] {
+  const seen = new Set<string>();
+  const addUrl = (val: unknown) => {
+    if (typeof val !== 'string') return;
+    const trimmed = val.trim();
+    if (!trimmed) return;
+    // CJ sometimes returns JSON-encoded arrays or comma/semicolon-separated image URLs
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) addUrl(item);
+          return;
+        }
+      } catch {
+        // fall through
+      }
+    }
+    for (const part of trimmed.split(/[;,]/)) {
+      const url = part.trim();
+      if (/^https?:\/\/\S+/i.test(url) && !seen.has(url)) {
+        seen.add(url);
+      }
+    }
+  };
+
+  for (const key of ['bigImage', 'productImage', 'image', 'variantImage', 'img']) {
+    addUrl(p[key]);
+  }
+  if (Array.isArray(p.productImageSet)) {
+    for (const img of p.productImageSet) addUrl(img);
+  }
+  for (const v of variants) {
+    addUrl(v.variantImage ?? v.image ?? v.bigImage);
+  }
+  return Array.from(seen).slice(0, 10);
+}
+
+function cleanCjDescription(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const stripped = raw
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>|<\/li>|<\/div>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return stripped.length > 0 ? stripped.slice(0, 4000) : null;
+}
+
+function mergeProductDtos(
+  base: SupplierProductDto,
+  detail: SupplierProductDto
+): SupplierProductDto {
+  return {
+    ...base,
+    variantId: base.variantId ?? detail.variantId,
+    description: base.description ?? detail.description,
+    categoryId: base.categoryId ?? detail.categoryId,
+    categoryName: base.categoryName ?? detail.categoryName,
+    images: base.images && base.images.length > 0 ? base.images : detail.images,
+    costPaise: base.costPaise ?? detail.costPaise,
+    shippingPaise: base.shippingPaise ?? detail.shippingPaise,
+    inStock: base.inStock ?? detail.inStock,
+    qty: base.qty ?? detail.qty,
+    weightGrams: base.weightGrams ?? detail.weightGrams,
+    lengthCm: base.lengthCm ?? detail.lengthCm,
+    widthCm: base.widthCm ?? detail.widthCm,
+    heightCm: base.heightCm ?? detail.heightCm,
+    listedNum: base.listedNum ?? detail.listedNum,
+    shippingSupportedToIndia: base.shippingSupportedToIndia ?? detail.shippingSupportedToIndia,
+    variants: base.variants && base.variants.length > 0 ? base.variants : detail.variants,
+    specifications: { ...(detail.specifications ?? {}), ...(base.specifications ?? {}) },
+    fieldSources: { ...(detail.fieldSources ?? {}), ...(base.fieldSources ?? {}) },
+    raw: { ...(detail.raw ?? {}), ...(base.raw ?? {}) },
+  };
+}
+
+export function extractCjCategories(data: unknown): SupplierCategoryDto[] {
+  if (!Array.isArray(data)) return [];
+  const out: SupplierCategoryDto[] = [];
+  for (const l1 of data) {
+    if (!l1 || typeof l1 !== 'object') continue;
+    const r1 = l1 as Record<string, unknown>;
+    const id1 = str(r1.categoryFirstId ?? r1.categoryId ?? r1.id) ?? str(r1.categoryFirstName);
+    const name1 = str(r1.categoryFirstName ?? r1.categoryName ?? r1.name);
+    if (id1 && name1) {
+      out.push({ id: id1, name: name1, parentId: null, level: 1 });
+    }
+    const secondList = Array.isArray(r1.categoryFirstList)
+      ? (r1.categoryFirstList as unknown[])
+      : Array.isArray(r1.children)
+        ? (r1.children as unknown[])
+        : [];
+    for (const l2 of secondList) {
+      if (!l2 || typeof l2 !== 'object') continue;
+      const r2 = l2 as Record<string, unknown>;
+      const id2 = str(r2.categorySecondId ?? r2.categoryId ?? r2.id) ?? str(r2.categorySecondName);
+      const name2 = str(r2.categorySecondName ?? r2.categoryName ?? r2.name);
+      if (id2 && name2) {
+        out.push({ id: id2, name: name2, parentId: id1 ?? null, level: 2 });
+      }
+      const thirdList = Array.isArray(r2.categorySecondList)
+        ? (r2.categorySecondList as unknown[])
+        : Array.isArray(r2.children)
+          ? (r2.children as unknown[])
+          : [];
+      for (const l3 of thirdList) {
+        if (!l3 || typeof l3 !== 'object') continue;
+        const r3 = l3 as Record<string, unknown>;
+        const id3 = str(r3.categoryId ?? r3.categoryThirdId ?? r3.id);
+        const name3 = str(r3.categoryName ?? r3.categoryThirdName ?? r3.name);
+        if (id3 && name3) {
+          out.push({ id: id3, name: name3, parentId: id2 ?? id1 ?? null, level: 3 });
+        }
+      }
+    }
+  }
+  return out;
+}
+

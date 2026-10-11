@@ -97,6 +97,29 @@ describe('storefront pages (real HTTP, real dev DB)', () => {
     const res = await agent.get('/cart');
     expect(res.status).toBe(200);
   });
+
+  it('serves the wishlist page and supports adding/removing wishlist items over HTTP', async () => {
+    const pageRes = await agent.get('/wishlist');
+    expect(pageRes.status).toBe(200);
+    expect(pageRes.body).toContain('Your Wishlist');
+
+    const p = await prisma.product.findFirst({
+      where: { status: 'ACTIVE' },
+      select: { id: true, name: true },
+    });
+    expect(p).toBeTruthy();
+
+    const addRes = await agent.post('/api/wishlist', { productId: p!.id });
+    expect(addRes.status).toBe(200);
+    const added = addRes.json<{ data?: { count?: number; productIds?: string[] } }>();
+    expect(added?.data?.count).toBe(1);
+    expect(added?.data?.productIds).toContain(p!.id);
+
+    const delRes = await agent.del(`/api/wishlist?productId=${encodeURIComponent(p!.id)}`);
+    expect(delRes.status).toBe(200);
+    const afterDel = delRes.json<{ data?: { count?: number } }>();
+    expect(afterDel?.data?.count).toBe(0);
+  });
 });
 
 describe('API + SEO endpoints', () => {

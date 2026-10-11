@@ -66,6 +66,9 @@ export async function saveProduct(
     compareAtPrice: input.compareAtPrice != null ? dec(input.compareAtPrice) : null,
     taxRatePercent: input.taxRatePercent,
     weightGrams: input.weightGrams ?? null,
+    lengthCm: input.lengthCm != null ? dec(input.lengthCm) : null,
+    widthCm: input.widthCm != null ? dec(input.widthCm) : null,
+    heightCm: input.heightCm != null ? dec(input.heightCm) : null,
     seoTitle: input.seoTitle || null,
     seoDescription: input.seoDescription || null,
     hasVariants: input.variants.length > 0,
@@ -140,6 +143,22 @@ export async function saveProduct(
     where: { productId: product.id, id: { notIn: keepIds.length > 0 ? keepIds : ['__none__'] } },
   });
   for (const [idx, v] of input.variants.entries()) {
+    let resolvedVariantSellingPaise = v.sellingPrice ?? null;
+    if (
+      resolvedVariantSellingPaise == null &&
+      v.supplierCost != null &&
+      v.supplierCost > 0
+    ) {
+      const { breakdown: vBreakdown } = await resolvePricing(product, {
+        supplierCost: dec(v.supplierCost),
+        supplierShippingCost: null,
+        sellingPrice: null,
+        taxRatePercent: v.taxRatePercent ?? null,
+      });
+      if (vBreakdown.sellingPricePaise > 0) {
+        resolvedVariantSellingPaise = vBreakdown.sellingPricePaise;
+      }
+    }
     const variantData = {
       productId: product.id,
       name: v.name,
@@ -148,7 +167,8 @@ export async function saveProduct(
       color: v.color || null,
       supplierCost: v.supplierCost != null ? dec(v.supplierCost) : null,
       supplierShippingCost: null,
-      sellingPrice: v.sellingPrice != null ? dec(v.sellingPrice) : null,
+      sellingPrice:
+        resolvedVariantSellingPaise != null ? dec(resolvedVariantSellingPaise) : null,
       compareAtPrice: v.compareAtPrice != null ? dec(v.compareAtPrice) : null,
       taxRatePercent: v.taxRatePercent ?? null,
       stock: v.stock ?? 0,
@@ -250,6 +270,14 @@ export async function applyEnginePricingToProduct(productId: string): Promise<{
   }
   const settings = await getSettings();
   const floorPaise = minSafePricePaise(breakdown.totalCostPaise, settings);
+  if (
+    !costBasisMissing &&
+    breakdown.effectiveMarginPercent < settings.pricing.minMarginPercent
+  ) {
+    warnings.push(
+      `Margin alert: effective gross margin (${breakdown.effectiveMarginPercent}%) is below the store minimum (${settings.pricing.minMarginPercent}%).`
+    );
+  }
   return {
     oldPricePaise,
     newPricePaise: breakdown.sellingPricePaise,

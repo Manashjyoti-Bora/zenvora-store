@@ -63,6 +63,7 @@ export function MobileMenu({
   ];
 
   const supportLinks = [
+    { href: '/wishlist', label: 'Saved wishlist' },
     { href: '/track', label: 'Track an order' },
     { href: '/about', label: 'About the store' },
     { href: '/contact', label: 'Customer support' },
