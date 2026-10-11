@@ -12,6 +12,7 @@ export default tseslint.config(
       'test-results/**',
       'next-env.d.ts',
       'public/uploads/**',
+      'resellix/**',
     ],
   },
   js.configs.recommended,
