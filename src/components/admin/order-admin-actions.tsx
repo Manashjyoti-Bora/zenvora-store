@@ -235,7 +235,7 @@ export function OrderAdminActions({ order }: { order: OrderActionInfo }) {
       >
         <div className="space-y-3">
           {error && <Alert tone="error">{error}</Alert>}
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-600">
             Enter the <strong>actual</strong> courier/handling costs once known (from invoices or
             the supplier portal). Actual profit recalculates immediately. Supplier cost and gateway
             fees are recorded automatically and are not edited here.
@@ -306,7 +306,7 @@ export function OrderAdminActions({ order }: { order: OrderActionInfo }) {
       >
         <div className="space-y-3">
           {error && <Alert tone="error">{error}</Alert>}
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-600">
             Use this for manual fulfilment or to correct tracking data. SHIPPED and later statuses
             advance the customer-visible order state; DELIVERED completes the order.
           </p>

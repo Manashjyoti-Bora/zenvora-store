@@ -13,6 +13,7 @@ import { StatCard, Card, Alert, EmptyState } from '@/components/ui/feedback';
 import { LineChart, BarChart } from '@/components/ui/charts';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/badge';
 import { LinkButton } from '@/components/ui/button';
+import { ReceiptIcon } from '@/components/ui/icons';
 import { getSettings } from '@/lib/settings';
 import { describePaymentProvider } from '@/lib/payments';
 
@@ -51,7 +52,7 @@ export default async function AdminDashboard({
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1>Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-ink-400">
             Last {days} days (
             {new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(range.from)} →{' '}
             {new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(range.to)}) ·
@@ -66,8 +67,8 @@ export default async function AdminDashboard({
               aria-current={d === days ? 'true' : undefined}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
                 d === days
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
+                  ? 'bg-ink-900 text-white'
+                  : 'bg-white text-ink-600 ring-1 ring-ink-900/10 hover:bg-cream-50/70'
               }`}
             >
               {d}d
@@ -75,7 +76,7 @@ export default async function AdminDashboard({
           ))}
           <Link
             href="/admin/analytics"
-            className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-brand-700 ring-1 ring-gray-200 hover:bg-gray-50"
+            className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-brand-700 ring-1 ring-ink-900/10 hover:bg-cream-50/70"
           >
             Full report →
           </Link>
@@ -105,14 +106,14 @@ export default async function AdminDashboard({
       {/* Alerts needing action */}
       {alerts.length > 0 && (
         <Card title={`Needs attention (${alerts.length})`} padded={false}>
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-ink-900/5">
             {alerts.map((a) => (
               <li key={a.label}>
                 <Link
                   href={a.href}
-                  className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-gray-50"
+                  className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-cream-50/70"
                 >
-                  <span className="flex items-center gap-2 text-gray-700">
+                  <span className="flex items-center gap-2 text-ink-700">
                     <span
                       aria-hidden="true"
                       className={`h-2 w-2 shrink-0 rounded-full ${
@@ -125,7 +126,7 @@ export default async function AdminDashboard({
                     />
                     {a.label}
                   </span>
-                  <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-bold tabular-nums text-gray-700">
+                  <span className="shrink-0 rounded-full bg-cream-100 px-2.5 py-0.5 text-xs font-bold tabular-nums text-ink-700">
                     {a.count}
                   </span>
                 </Link>
@@ -199,7 +200,7 @@ export default async function AdminDashboard({
           }
         >
           {top.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-400">No sales in this period yet.</p>
+            <p className="py-6 text-center text-sm text-ink-400">No sales in this period yet.</p>
           ) : (
             <BarChart
               data={top.map((t) => ({
@@ -223,24 +224,24 @@ export default async function AdminDashboard({
           {recent.length === 0 ? (
             <div className="p-4">
               <EmptyState
-                icon="🧾"
+                icon={<ReceiptIcon className="h-6 w-6" />}
                 title="No orders yet"
                 description="Orders will appear here the moment customers check out."
               />
             </div>
           ) : (
-            <ul className="divide-y divide-gray-100">
+            <ul className="divide-y divide-ink-900/5">
               {recent.map((o) => (
                 <li key={o.id}>
                   <Link
                     href={`/admin/orders/${o.id}`}
-                    className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm hover:bg-gray-50"
+                    className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm hover:bg-cream-50/70"
                   >
                     <span className="min-w-0">
-                      <span className="font-mono text-xs font-semibold text-gray-900">
+                      <span className="font-mono text-xs font-semibold text-ink-900">
                         {o.orderNumber}
                       </span>
-                      <span className="ml-2 text-xs text-gray-400">
+                      <span className="ml-2 text-xs text-ink-400">
                         {new Intl.DateTimeFormat('en-IN', {
                           dateStyle: 'medium',
                           timeStyle: 'short',
@@ -252,7 +253,7 @@ export default async function AdminDashboard({
                       </span>
                     </span>
                     <span className="shrink-0 text-right">
-                      <span className="block text-sm font-bold tabular-nums text-gray-900">
+                      <span className="block text-sm font-bold tabular-nums text-ink-900">
                         {formatINR(toPaise(o.grandTotal))}
                       </span>
                       <span

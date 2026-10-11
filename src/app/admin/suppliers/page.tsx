@@ -23,7 +23,7 @@ export default async function AdminSuppliersPage() {
     <div className="space-y-5">
       <header>
         <h1>Suppliers</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Fulfilment sources for your catalog. Automated suppliers (HTTP REST) create supplier
           orders the moment payment is verified; manual suppliers appear on the order for you to
           fulfil. Secrets stay in server env vars — only variable <em>names</em> are stored here.

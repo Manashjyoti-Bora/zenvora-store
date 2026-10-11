@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/feedback';
 import { TableWrap, Th, Td } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { DownloadIcon, UploadIcon } from '@/components/ui/icons';
 
 interface RowResult {
   row: number;
@@ -104,7 +105,8 @@ export function CsvImport() {
             URL.revokeObjectURL(a.href);
           }}
         >
-          ⬇ Download CSV template
+          <DownloadIcon className="h-4 w-4" />
+          <span>Download CSV template</span>
         </Button>
         <input
           ref={fileRef}
@@ -119,7 +121,8 @@ export function CsvImport() {
           }}
         />
         <Button variant="outline" onClick={() => fileRef.current?.click()}>
-          📁 Load CSV file
+          <UploadIcon className="h-4 w-4" />
+          <span>Load CSV file</span>
         </Button>
       </div>
 
@@ -127,7 +130,7 @@ export function CsvImport() {
         <label htmlFor="csv-text" className="label-text mb-1">
           CSV content{' '}
           {csv && (
-            <span className="text-xs font-normal text-gray-400">
+            <span className="text-xs font-normal text-ink-400">
               ({csv.split('\n').filter(Boolean).length - 1} data rows loaded)
             </span>
           )}
@@ -151,7 +154,7 @@ export function CsvImport() {
         </Button>
         <Link
           href="/admin/products"
-          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="rounded-lg border border-ink-900/20 bg-white px-4 py-2 text-sm font-medium text-ink-700 hover:bg-cream-50/70"
         >
           Back to products
         </Link>
@@ -159,13 +162,13 @@ export function CsvImport() {
 
       {summary && (
         <section className="space-y-3" aria-labelledby="import-result">
-          <h2 id="import-result" className="text-base font-semibold text-gray-900">
+          <h2 id="import-result" className="text-base font-semibold text-ink-900">
             Result: {summary.created} created · {summary.updated} updated · {summary.failed} failed
             (of {summary.total})
           </h2>
           <TableWrap className="max-h-[420px] overflow-y-auto">
             <table className="table-base">
-              <thead className="sticky top-0 bg-gray-50">
+              <thead className="sticky top-0 bg-cream-50">
                 <tr>
                   <Th>Row</Th>
                   <Th>Product</Th>
@@ -173,13 +176,13 @@ export function CsvImport() {
                   <Th>Message</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-ink-900/5">
                 {summary.results.map((r, i) => (
                   <tr key={i}>
-                    <Td className="tabular-nums text-gray-400">{r.row}</Td>
+                    <Td className="tabular-nums text-ink-400">{r.row}</Td>
                     <Td>
                       {r.name ?? '—'}
-                      {r.sku ? <span className="ml-1 text-xs text-gray-400">({r.sku})</span> : null}
+                      {r.sku ? <span className="ml-1 text-xs text-ink-400">({r.sku})</span> : null}
                     </Td>
                     <Td>
                       <Badge
@@ -190,7 +193,7 @@ export function CsvImport() {
                         {r.status}
                       </Badge>
                     </Td>
-                    <Td className="max-w-xs text-xs text-gray-500">{r.message ?? ''}</Td>
+                    <Td className="max-w-xs text-xs text-ink-400">{r.message ?? ''}</Td>
                   </tr>
                 ))}
               </tbody>

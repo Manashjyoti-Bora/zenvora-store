@@ -103,7 +103,7 @@ export function AdminNav() {
               type="button"
               onClick={() => setOpenGroups((g) => ({ ...g, [group.title]: !g[group.title] }))}
               aria-expanded={open}
-              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-400 hover:text-gray-600"
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-400 hover:text-ink-600"
             >
               {group.title}
               <span aria-hidden="true" className={cn('transition-transform', open && 'rotate-90')}>
@@ -124,7 +124,7 @@ export function AdminNav() {
                           'block rounded-lg px-3 py-1.5 text-sm transition-colors',
                           active
                             ? 'bg-brand-600 font-semibold text-white'
-                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                            : 'text-ink-600 hover:bg-cream-100 hover:text-ink-900'
                         )}
                       >
                         {item.label}
@@ -137,10 +137,10 @@ export function AdminNav() {
           </div>
         );
       })}
-      <div className="border-t border-gray-200 pt-2">
+      <div className="border-t border-ink-900/10 pt-2">
         <Link
           href="/"
-          className="block rounded-lg px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+          className="block rounded-lg px-3 py-1.5 text-sm text-ink-600 hover:bg-cream-100"
         >
           ← View store
         </Link>

@@ -35,7 +35,7 @@ export default async function AdminMessagesPage({
     <div className="space-y-5">
       <header>
         <h1>Contact messages</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Submissions from the contact form. Reply from your configured support mailbox — the
           sender&apos;s email address is shown on each message.
         </p>
@@ -53,8 +53,8 @@ export default async function AdminMessagesPage({
             href={t.key ? `/admin/messages?status=${t.key}` : '/admin/messages'}
             className={`rounded-full px-3 py-1.5 text-xs font-medium ${
               (status ?? '') === t.key
-                ? 'bg-gray-900 text-white'
-                : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
+                ? 'bg-ink-900 text-white'
+                : 'bg-white text-ink-600 ring-1 ring-ink-900/10 hover:bg-cream-50/70'
             }`}
           >
             {t.label}
@@ -73,11 +73,11 @@ export default async function AdminMessagesPage({
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-2">
                       <Badge tone={tone(m.status) as 'amber' | 'blue' | 'green'}>{m.status}</Badge>
-                      <span className="text-sm font-semibold text-gray-900">
+                      <span className="text-sm font-semibold text-ink-900">
                         {m.subject || '(no subject)'}
                       </span>
                     </p>
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="mt-1 text-xs text-ink-400">
                       {m.name} ·{' '}
                       <a
                         href={`mailto:${m.email}`}
@@ -91,7 +91,7 @@ export default async function AdminMessagesPage({
                   </div>
                   <MessageStatusActions id={m.id} status={m.status} />
                 </div>
-                <p className="mt-3 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
+                <p className="mt-3 whitespace-pre-wrap rounded-lg bg-cream-50 p-3 text-sm text-ink-700">
                   {m.message}
                 </p>
               </Card>
@@ -100,7 +100,7 @@ export default async function AdminMessagesPage({
         </ul>
       )}
       {messages.length === 100 && (
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-ink-400">
           Showing the 100 most relevant messages — filter by status to see more.
         </p>
       )}

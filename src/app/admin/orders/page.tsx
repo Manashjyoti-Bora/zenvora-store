@@ -5,6 +5,7 @@ import { toPaise, formatINR } from '@/lib/money';
 import { TableWrap, Th, Td, Pagination } from '@/components/ui/table';
 import { OrderStatusBadge, PaymentStatusBadge, FulfilmentStatusBadge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/feedback';
+import { ReceiptIcon } from '@/components/ui/icons';
 import type { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -102,7 +103,7 @@ export default async function AdminOrdersPage({
     <div className="space-y-5">
       <header>
         <h1>Orders</h1>
-        <p className="mt-1 text-sm tabular-nums text-gray-500">
+        <p className="mt-1 text-sm tabular-nums text-ink-400">
           {total} order{total === 1 ? '' : 's'}
         </p>
       </header>
@@ -185,7 +186,7 @@ export default async function AdminOrdersPage({
         </select>
         <button
           type="submit"
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          className="rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800"
         >
           Filter
         </button>
@@ -198,14 +199,14 @@ export default async function AdminOrdersPage({
 
       {orders.length === 0 ? (
         <EmptyState
-          icon="🧾"
+          icon={<ReceiptIcon className="h-6 w-6" />}
           title="No orders match"
           description="Adjust the filters — new orders appear here the moment checkout succeeds."
         />
       ) : (
         <TableWrap>
           <table className="table-base">
-            <thead className="bg-gray-50">
+            <thead className="bg-cream-50">
               <tr>
                 <Th>Order</Th>
                 <Th className="hidden md:table-cell">Customer</Th>
@@ -217,17 +218,17 @@ export default async function AdminOrdersPage({
                 <Th className="text-right">View</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-ink-900/5">
               {orders.map((o) => (
-                <tr key={o.id} className="hover:bg-gray-50/60">
+                <tr key={o.id} className="hover:bg-cream-50/70">
                   <Td>
                     <Link
                       href={`/admin/orders/${o.id}`}
-                      className="font-mono text-xs font-semibold text-gray-900 hover:text-brand-700"
+                      className="font-mono text-xs font-semibold text-ink-900 hover:text-brand-700"
                     >
                       {o.orderNumber}
                     </Link>
-                    <p className="text-[11px] text-gray-400">
+                    <p className="text-[11px] text-ink-400">
                       {new Intl.DateTimeFormat('en-IN', {
                         dateStyle: 'medium',
                         timeStyle: 'short',
@@ -238,10 +239,10 @@ export default async function AdminOrdersPage({
                     </p>
                   </Td>
                   <Td className="hidden max-w-[160px] md:table-cell">
-                    <p className="truncate text-gray-700">
+                    <p className="truncate text-ink-700">
                       {o.user?.name ?? o.guestName ?? 'Guest'}
                     </p>
-                    <p className="truncate text-[11px] text-gray-400">
+                    <p className="truncate text-[11px] text-ink-400">
                       {o.user?.email ?? o.guestEmail ?? ''}
                     </p>
                   </Td>
@@ -263,7 +264,7 @@ export default async function AdminOrdersPage({
                     </span>
                     {!o.profitFinalizedAt &&
                       !['DELIVERED', 'REFUNDED', 'CANCELLED'].includes(o.status) && (
-                        <span className="block text-[10px] text-gray-400">estimate</span>
+                        <span className="block text-[10px] text-ink-400">estimate</span>
                       )}
                   </Td>
                   <Td className="text-right">

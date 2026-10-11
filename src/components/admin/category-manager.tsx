@@ -117,7 +117,7 @@ export function CategoryManager({ initial }: { initial: CategoryRow[] }) {
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>Name</Th>
               <Th className="hidden sm:table-cell">Slug</Th>
@@ -127,27 +127,27 @@ export function CategoryManager({ initial }: { initial: CategoryRow[] }) {
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {rows.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">
+                <Td className="py-8 text-center text-ink-400">
                   No categories yet — create your first one.
                 </Td>
               </tr>
             )}
             {rows.map((c) => (
-              <tr key={c.id} className="hover:bg-gray-50/60">
+              <tr key={c.id} className="hover:bg-cream-50/70">
                 <Td>
-                  <p className="font-medium text-gray-900">{c.name}</p>
+                  <p className="font-medium text-ink-900">{c.name}</p>
                   {c.description && (
-                    <p className="max-w-[240px] truncate text-[11px] text-gray-400">
+                    <p className="max-w-[240px] truncate text-[11px] text-ink-400">
                       {c.description}
                     </p>
                   )}
                 </Td>
-                <Td className="hidden font-mono text-xs text-gray-500 sm:table-cell">/{c.slug}</Td>
+                <Td className="hidden font-mono text-xs text-ink-400 sm:table-cell">/{c.slug}</Td>
                 <Td className="tabular-nums">{c.productCount}</Td>
-                <Td className="hidden tabular-nums text-gray-500 md:table-cell">{c.sortOrder}</Td>
+                <Td className="hidden tabular-nums text-ink-400 md:table-cell">{c.sortOrder}</Td>
                 <Td>
                   <Badge tone={c.isActive ? 'green' : 'gray'}>
                     {c.isActive ? 'Active' : 'Hidden'}
@@ -292,7 +292,7 @@ export function CategoryManager({ initial }: { initial: CategoryRow[] }) {
           </div>
         }
       >
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-ink-600">
           {deleting && deleting.productCount > 0
             ? `This category has ${deleting.productCount} product(s). Deletion is blocked while products are assigned — move them to another category first, or just deactivate the category by editing it.`
             : 'This will permanently remove the category. This cannot be undone.'}

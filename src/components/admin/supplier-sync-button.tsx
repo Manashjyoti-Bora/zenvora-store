@@ -41,7 +41,7 @@ export function SupplierSyncButton({
   if (!supportsSync) {
     return (
       <span
-        className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-gray-400"
+        className="rounded-lg bg-cream-100 px-3 py-1.5 text-xs text-ink-400"
         title={`${type} suppliers manage their catalog manually`}
       >
         Catalog sync n/a for {type}

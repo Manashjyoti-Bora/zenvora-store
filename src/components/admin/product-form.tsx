@@ -360,7 +360,7 @@ export function ProductForm({
         <div className="space-y-6">
           {/* Basics */}
           <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="sec-basics">
-            <h2 id="sec-basics" className="text-base font-semibold text-gray-900">
+            <h2 id="sec-basics" className="text-base font-semibold text-ink-900">
               Basics
             </h2>
             <Field label="Product name" required error={fieldErrors.name}>
@@ -467,7 +467,7 @@ export function ProductForm({
 
           {/* Cost & pricing */}
           <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="sec-pricing">
-            <h2 id="sec-pricing" className="text-base font-semibold text-gray-900">
+            <h2 id="sec-pricing" className="text-base font-semibold text-ink-900">
               Cost &amp; pricing
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -645,7 +645,7 @@ export function ProductForm({
 
           {/* Supplier & stock */}
           <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="sec-supply">
-            <h2 id="sec-supply" className="text-base font-semibold text-gray-900">
+            <h2 id="sec-supply" className="text-base font-semibold text-ink-900">
               Supplier &amp; stock
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -717,7 +717,7 @@ export function ProductForm({
           {/* Variants */}
           <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="sec-variants">
             <div className="flex items-center justify-between gap-3">
-              <h2 id="sec-variants" className="text-base font-semibold text-gray-900">
+              <h2 id="sec-variants" className="text-base font-semibold text-ink-900">
                 Variants ({form.variants.length})
               </h2>
               <Button type="button" variant="outline" size="sm" onClick={addVariant}>
@@ -725,16 +725,16 @@ export function ProductForm({
               </Button>
             </div>
             {form.variants.length === 0 ? (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-ink-400">
                 No variants — this product sells as a single option. Add variants for sizes/colours;
                 each can override cost, price, tax and stock.
               </p>
             ) : (
               <ul className="space-y-3">
                 {form.variants.map((v, i) => (
-                  <li key={v.id ?? i} className="rounded-xl border border-gray-200 p-3">
+                  <li key={v.id ?? i} className="rounded-xl border border-ink-900/10 p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+                      <p className="text-xs font-bold uppercase tracking-wide text-ink-400">
                         Variant {i + 1}
                       </p>
                       <div className="flex items-center gap-3">
@@ -857,7 +857,7 @@ export function ProductForm({
           {/* Images */}
           <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="sec-images">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 id="sec-images" className="text-base font-semibold text-gray-900">
+              <h2 id="sec-images" className="text-base font-semibold text-ink-900">
                 Images ({form.images.length}/12)
               </h2>
               <div className="flex gap-2">
@@ -885,14 +885,14 @@ export function ProductForm({
                 </Button>
               </div>
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ink-400">
               Uploaded files are stored on this server&apos;s disk. On serverless hosts (for
               example Vercel) the disk is ephemeral: uploads can disappear on the next deploy. For
               permanent production images, prefer an external image URL (CDN/object storage) or
               re-upload after deploys — see SETUP_CHECKLIST.md.
             </p>
             {form.images.length === 0 ? (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-ink-400">
                 No images yet. Upload (JPEG/PNG/WEBP/GIF/AVIF, max 5 MB) or paste a URL below. The
                 first image is the primary one.
               </p>
@@ -901,9 +901,9 @@ export function ProductForm({
                 {form.images.map((img, i) => (
                   <li
                     key={img.url + i}
-                    className="space-y-1.5 rounded-lg border border-gray-200 p-2"
+                    className="space-y-1.5 rounded-lg border border-ink-900/10 p-2"
                   >
-                    <div className="relative aspect-square overflow-hidden rounded bg-gray-100">
+                    <div className="relative aspect-square overflow-hidden rounded bg-cream-100">
                       {img.url && (
                         <Image
                           src={img.url}
@@ -941,7 +941,7 @@ export function ProductForm({
                           type="button"
                           aria-label={`Move image ${i + 1} earlier`}
                           disabled={i === 0}
-                          className="rounded px-1.5 py-0.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30"
+                          className="rounded px-1.5 py-0.5 text-ink-400 hover:bg-cream-100 disabled:opacity-30"
                           onClick={() =>
                             setForm((f) => {
                               const arr = [...f.images];
@@ -956,7 +956,7 @@ export function ProductForm({
                           type="button"
                           aria-label={`Move image ${i + 1} later`}
                           disabled={i === form.images.length - 1}
-                          className="rounded px-1.5 py-0.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30"
+                          className="rounded px-1.5 py-0.5 text-ink-400 hover:bg-cream-100 disabled:opacity-30"
                           onClick={() =>
                             setForm((f) => {
                               const arr = [...f.images];
@@ -983,7 +983,7 @@ export function ProductForm({
               </ul>
             )}
             <details className="text-sm">
-              <summary className="cursor-pointer font-medium text-gray-600">
+              <summary className="cursor-pointer font-medium text-ink-600">
                 Add image by URL
               </summary>
               <UrlImageAdd
@@ -995,7 +995,7 @@ export function ProductForm({
 
           {/* SEO & shipping dims */}
           <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="sec-seo">
-            <h2 id="sec-seo" className="text-base font-semibold text-gray-900">
+            <h2 id="sec-seo" className="text-base font-semibold text-ink-900">
               SEO &amp; logistics
             </h2>
             <Field
@@ -1084,15 +1084,15 @@ export function ProductForm({
         {/* Sticky preview + actions */}
         <aside className="space-y-4 xl:sticky xl:top-4 xl:h-fit">
           <div className="card p-4">
-            <h2 className="text-sm font-semibold text-gray-900">Pricing engine preview</h2>
+            <h2 className="text-sm font-semibold text-ink-900">Pricing engine preview</h2>
             {previewLoading && !preview ? (
-              <p className="mt-3 flex items-center gap-2 text-xs text-gray-400">
+              <p className="mt-3 flex items-center gap-2 text-xs text-ink-400">
                 <Spinner className="h-3.5 w-3.5" /> Calculating…
               </p>
             ) : preview ? (
               <dl className="mt-3 space-y-1.5 text-sm">
                 <div className="flex justify-between gap-2">
-                  <dt className="text-gray-500">Landed cost</dt>
+                  <dt className="text-ink-400">Landed cost</dt>
                   <dd className="font-medium tabular-nums">{formatINR(preview.totalCostPaise)}</dd>
                 </div>
                 <div className="flex justify-between gap-2 rounded-lg bg-brand-50 px-2 py-1.5">
@@ -1102,12 +1102,12 @@ export function ProductForm({
                   </dd>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <dt className="text-gray-500">Gross margin</dt>
+                  <dt className="text-ink-400">Gross margin</dt>
                   <dd className="tabular-nums">
                     {formatINR(preview.grossMarginPaise)} (
                     {preview.effectiveMarginPercent.toFixed(1)}%)
                     {preview.markupOnCostPercent != null && (
-                      <span className="block text-[11px] text-gray-400">
+                      <span className="block text-[11px] text-ink-400">
                         markup on cost: {preview.markupOnCostPercent.toFixed(1)}%
                       </span>
                     )}
@@ -1115,16 +1115,16 @@ export function ProductForm({
                 </div>
                 {preview.taxComponentPaise > 0 && (
                   <div className="flex justify-between gap-2">
-                    <dt className="text-gray-500">GST component (incl.)</dt>
+                    <dt className="text-ink-400">GST component (incl.)</dt>
                     <dd className="tabular-nums">{formatINR(preview.taxComponentPaise)}</dd>
                   </div>
                 )}
                 <div className="flex justify-between gap-2">
-                  <dt className="text-gray-500">Est. gateway fee</dt>
+                  <dt className="text-ink-400">Est. gateway fee</dt>
                   <dd className="tabular-nums">−{formatINR(preview.estimatedPaymentFeePaise)}</dd>
                 </div>
-                <div className="flex justify-between gap-2 border-t border-gray-100 pt-1.5">
-                  <dt className="font-medium text-gray-700">Est. net profit</dt>
+                <div className="flex justify-between gap-2 border-t border-ink-900/5 pt-1.5">
+                  <dt className="font-medium text-ink-700">Est. net profit</dt>
                   <dd
                     className={`font-bold tabular-nums ${preview.estimatedNetProfitPaise >= 0 ? 'text-emerald-700' : 'text-red-700'}`}
                   >
@@ -1133,7 +1133,7 @@ export function ProductForm({
                 </div>
               </dl>
             ) : (
-              <p className="mt-3 text-xs text-gray-400">
+              <p className="mt-3 text-xs text-ink-400">
                 Enter cost fields to see the computed price.
               </p>
             )}
@@ -1159,7 +1159,7 @@ export function ProductForm({
                 ⚠ {w}
               </p>
             ))}
-            <p className="mt-2 text-[11px] leading-relaxed text-gray-400">
+            <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
               Net profit here is an <em>estimate</em> (settings-based gateway fee). Actual profit is
               recorded per order from real fees, shipping and refunds.
             </p>
@@ -1188,7 +1188,7 @@ export function ProductForm({
                   Delete / archive…
                 </Button>
                 {initial && (
-                  <p className="text-center text-xs text-gray-400">
+                  <p className="text-center text-xs text-ink-400">
                     Current live price:{' '}
                     <span className="font-semibold tabular-nums">
                       {formatINR(initial.sellingPricePaise)}
@@ -1216,7 +1216,7 @@ export function ProductForm({
           </div>
         }
       >
-        <div className="space-y-3 text-sm text-gray-600">
+        <div className="space-y-3 text-sm text-ink-600">
           <p>
             <strong>Archive (recommended):</strong> hides the product from the store but keeps it —
             and all order history that references it — intact.

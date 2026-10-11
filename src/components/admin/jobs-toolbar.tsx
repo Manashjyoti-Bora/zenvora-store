@@ -37,7 +37,7 @@ export function JobsToolbar() {
       <Button size="sm" variant="outline" onClick={runDue} loading={busy}>
         Run due jobs now
       </Button>
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-ink-400">
         Jobs also run automatically after enqueue and via <code>/api/cron/jobs</code> (see
         SETUP_CHECKLIST for cron wiring).
       </p>

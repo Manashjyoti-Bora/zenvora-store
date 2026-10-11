@@ -16,7 +16,7 @@ export default async function AdminCategoriesPage() {
     <div className="space-y-5">
       <header>
         <h1>Categories</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Categories organise the storefront, power pricing rules and category-scoped coupons.
         </p>
       </header>

@@ -43,7 +43,7 @@ export default async function AdminPaymentsPage({
     <div className="space-y-5">
       <header>
         <h1>Payments</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Every gateway/TEST payment attempt with its verification state. Fees marked <em>est.</em>{' '}
           are settings-based estimates until the gateway reports the actual charge.
         </p>
@@ -75,7 +75,7 @@ export default async function AdminPaymentsPage({
         </select>
         <button
           type="submit"
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          className="rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800"
         >
           Filter
         </button>
@@ -88,7 +88,7 @@ export default async function AdminPaymentsPage({
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>Order</Th>
               <Th>Provider</Th>
@@ -100,18 +100,18 @@ export default async function AdminPaymentsPage({
               <Th className="hidden md:table-cell">When</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {payments.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">No payment attempts recorded.</Td>
+                <Td className="py-8 text-center text-ink-400">No payment attempts recorded.</Td>
               </tr>
             )}
             {payments.map((p) => (
-              <tr key={p.id} className="hover:bg-gray-50/60">
+              <tr key={p.id} className="hover:bg-cream-50/70">
                 <Td>
                   <Link
                     href={`/admin/orders/${p.order.id}`}
-                    className="font-mono text-xs font-semibold text-gray-900 hover:text-brand-700"
+                    className="font-mono text-xs font-semibold text-ink-900 hover:text-brand-700"
                   >
                     {p.order.orderNumber}
                   </Link>
@@ -124,16 +124,16 @@ export default async function AdminPaymentsPage({
                     </Badge>
                   )}
                 </Td>
-                <Td className="hidden max-w-[150px] truncate font-mono text-[11px] text-gray-500 md:table-cell">
+                <Td className="hidden max-w-[150px] truncate font-mono text-[11px] text-ink-400 md:table-cell">
                   {p.providerOrderId ?? '—'}
                 </Td>
-                <Td className="hidden max-w-[150px] truncate font-mono text-[11px] text-gray-500 lg:table-cell">
+                <Td className="hidden max-w-[150px] truncate font-mono text-[11px] text-ink-400 lg:table-cell">
                   {p.providerPaymentId ?? '—'}
                 </Td>
                 <Td className="font-medium tabular-nums">{formatINR(toPaise(p.amount))}</Td>
-                <Td className="text-xs tabular-nums text-gray-500">
+                <Td className="text-xs tabular-nums text-ink-400">
                   {formatINR(toPaise(p.feeAmount))}
-                  {p.feeIsEstimate && <span className="block text-[10px] text-gray-400">est.</span>}
+                  {p.feeIsEstimate && <span className="block text-[10px] text-ink-400">est.</span>}
                 </Td>
                 <Td>
                   <GatewayPaymentStatusBadge status={p.status} />
@@ -146,7 +146,7 @@ export default async function AdminPaymentsPage({
                     </span>
                   )}
                 </Td>
-                <Td className="hidden text-[11px] text-gray-400 md:table-cell">
+                <Td className="hidden text-[11px] text-ink-400 md:table-cell">
                   {fmt(p.createdAt)}
                 </Td>
               </tr>

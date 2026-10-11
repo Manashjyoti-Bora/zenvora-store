@@ -20,7 +20,7 @@ export default async function RepricePage() {
     <div className="space-y-5">
       <header>
         <h1>Bulk repricing</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Re-run the pricing engine across a scope after changing rules or costs. Always preview
           before applying.
         </p>

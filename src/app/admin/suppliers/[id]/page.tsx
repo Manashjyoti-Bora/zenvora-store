@@ -75,7 +75,7 @@ export default async function SupplierDetailPage({ params }: Ctx) {
             ← All suppliers
           </Link>
           <h1 className="mt-1">{supplier.name}</h1>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-400">
             <Badge
               tone={
                 supplier.type === 'HTTP_REST' || supplier.type === 'CJ'
@@ -101,7 +101,7 @@ export default async function SupplierDetailPage({ params }: Ctx) {
           />
           <Link
             href="/admin/suppliers"
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-ink-900/20 bg-white px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-cream-50/70"
           >
             Edit in list
           </Link>
@@ -158,15 +158,15 @@ export default async function SupplierDetailPage({ params }: Ctx) {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Mapped products</p>
+          <p className="text-xs uppercase tracking-wide text-ink-400">Mapped products</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{supplier._count.products}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Catalog entries</p>
+          <p className="text-xs uppercase tracking-wide text-ink-400">Catalog entries</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{supplier._count.supplierProducts}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Supplier orders</p>
+          <p className="text-xs uppercase tracking-wide text-ink-400">Supplier orders</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{supplier._count.supplierOrders}</p>
           <Link
             href={`/admin/supplier-orders?supplier=${supplier.id}`}
@@ -176,13 +176,13 @@ export default async function SupplierDetailPage({ params }: Ctx) {
           </Link>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Lead time</p>
+          <p className="text-xs uppercase tracking-wide text-ink-400">Lead time</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{supplier.leadTimeDays}d</p>
         </Card>
       </div>
 
       <section aria-labelledby="catalog-mapping">
-        <h2 id="catalog-mapping" className="mb-3 text-lg font-semibold text-gray-900">
+        <h2 id="catalog-mapping" className="mb-3 text-lg font-semibold text-ink-900">
           Catalog &amp; mapping
         </h2>
         <SupplierProductMapper initial={rows} products={products} />

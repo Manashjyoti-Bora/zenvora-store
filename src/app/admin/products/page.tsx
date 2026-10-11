@@ -7,6 +7,7 @@ import { TableWrap, Th, Td, Pagination } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/feedback';
 import { LinkButton } from '@/components/ui/button';
+import { BoxIcon, BagIcon } from '@/components/ui/icons';
 import type { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -72,7 +73,7 @@ export default async function AdminProductsPage({
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1>Products</h1>
-          <p className="mt-1 text-sm tabular-nums text-gray-500">
+          <p className="mt-1 text-sm tabular-nums text-ink-400">
             {total} product{total === 1 ? '' : 's'}
           </p>
         </div>
@@ -143,7 +144,7 @@ export default async function AdminProductsPage({
         </select>
         <button
           type="submit"
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          className="rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800"
         >
           Filter
         </button>
@@ -156,7 +157,7 @@ export default async function AdminProductsPage({
 
       {products.length === 0 ? (
         <EmptyState
-          icon="📦"
+          icon={<BoxIcon className="h-6 w-6" />}
           title="No products match"
           description="Adjust the filters, create a product, or import a CSV."
           action={<LinkButton href="/admin/products/new">+ New product</LinkButton>}
@@ -164,7 +165,7 @@ export default async function AdminProductsPage({
       ) : (
         <TableWrap>
           <table className="table-base">
-            <thead className="bg-gray-50">
+            <thead className="bg-cream-50">
               <tr>
                 <Th>Product</Th>
                 <Th className="hidden md:table-cell">Status</Th>
@@ -176,7 +177,7 @@ export default async function AdminProductsPage({
                 <Th className="text-right">Actions</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-ink-900/5">
               {products.map((p) => {
                 const price = toPaise(p.sellingPrice);
                 const cost =
@@ -184,10 +185,10 @@ export default async function AdminProductsPage({
                 const marginPct = price > 0 ? ((price - cost) / price) * 100 : 0;
                 const stock = p.hasVariants ? p.variants.reduce((a, v) => a + v.stock, 0) : p.stock;
                 return (
-                  <tr key={p.id} className="hover:bg-gray-50/60">
+                  <tr key={p.id} className="hover:bg-cream-50/70">
                     <Td>
                       <div className="flex items-center gap-2.5">
-                        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+                        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-cream-100">
                           {p.images[0] ? (
                             <Image
                               src={p.images[0].url}
@@ -199,21 +200,21 @@ export default async function AdminProductsPage({
                             />
                           ) : (
                             <span
-                              className="flex h-full items-center justify-center text-sm text-gray-300"
+                              className="flex h-full items-center justify-center text-sm text-ink-300"
                               aria-hidden="true"
                             >
-                              🛍️
+                              <BagIcon className="h-4 w-4" />
                             </span>
                           )}
                         </div>
                         <div className="min-w-0">
                           <Link
                             href={`/admin/products/${p.id}`}
-                            className="line-clamp-1 max-w-[220px] text-sm font-semibold text-gray-900 hover:text-brand-700"
+                            className="line-clamp-1 max-w-[220px] text-sm font-semibold text-ink-900 hover:text-brand-700"
                           >
                             {p.name}
                           </Link>
-                          <p className="text-[11px] text-gray-400">
+                          <p className="text-[11px] text-ink-400">
                             {p.sku ? `SKU ${p.sku}` : p.slug}
                             {p.category ? ` · ${p.category.name}` : ''}
                           </p>
@@ -230,7 +231,7 @@ export default async function AdminProductsPage({
                       </Badge>
                     </Td>
                     <Td className="font-medium tabular-nums">{formatINR(price)}</Td>
-                    <Td className="hidden tabular-nums text-gray-500 lg:table-cell">
+                    <Td className="hidden tabular-nums text-ink-400 lg:table-cell">
                       {formatINR(cost)}
                     </Td>
                     <Td className="hidden lg:table-cell">
@@ -238,12 +239,12 @@ export default async function AdminProductsPage({
                         className={
                           marginPct < 0
                             ? 'font-semibold tabular-nums text-red-600'
-                            : 'tabular-nums text-gray-600'
+                            : 'tabular-nums text-ink-600'
                         }
                       >
                         {marginPct.toFixed(1)}%
                       </span>
-                      <span className="block text-[10px] text-gray-300">gross, pre-fees</span>
+                      <span className="block text-[10px] text-ink-300">gross, pre-fees</span>
                     </Td>
                     <Td>
                       <span
@@ -252,17 +253,17 @@ export default async function AdminProductsPage({
                             ? 'font-semibold text-red-600'
                             : stock <= 5
                               ? 'font-medium text-amber-600'
-                              : 'text-gray-700'
+                              : 'text-ink-700'
                         }
                       >
                         {stock}
                       </span>
                       {p.hasVariants && (
-                        <span className="block text-[10px] text-gray-400">across variants</span>
+                        <span className="block text-[10px] text-ink-400">across variants</span>
                       )}
                     </Td>
-                    <Td className="hidden max-w-[140px] truncate text-gray-500 md:table-cell">
-                      {p.supplier?.name ?? <span className="text-gray-300">manual</span>}
+                    <Td className="hidden max-w-[140px] truncate text-ink-400 md:table-cell">
+                      {p.supplier?.name ?? <span className="text-ink-300">manual</span>}
                     </Td>
                     <Td className="text-right">
                       <div className="flex justify-end gap-2 text-xs">
@@ -276,7 +277,7 @@ export default async function AdminProductsPage({
                           <Link
                             href={`/products/${p.slug}`}
                             target="_blank"
-                            className="font-medium text-gray-500 hover:underline"
+                            className="font-medium text-ink-400 hover:underline"
                           >
                             View ↗
                           </Link>
@@ -297,7 +298,7 @@ export default async function AdminProductsPage({
         basePath="/admin/products"
         searchParams={{ q: sp.q, status: sp.status, category: sp.category, supplier: sp.supplier }}
       />
-      <p className="text-[11px] text-gray-400" aria-hidden="true">
+      <p className="text-[11px] text-ink-400" aria-hidden="true">
         “Margin” in this list is gross margin (price − supplier costs) ÷ price. Real profit per
         order deducts gateway fees, shipping and refunds — see Analytics.
       </p>

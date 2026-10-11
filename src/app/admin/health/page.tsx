@@ -38,13 +38,13 @@ function CheckRow({
   detail: React.ReactNode;
 }) {
   return (
-    <li className="flex items-start gap-3 border-b border-gray-100 py-2.5 last:border-0">
+    <li className="flex items-start gap-3 border-b border-ink-900/5 py-2.5 last:border-0">
       <span className="mt-1.5">
         <StatusDot state={state} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-gray-800">{label}</p>
-        <div className="mt-0.5 text-xs text-gray-500">{detail}</div>
+        <p className="text-sm font-medium text-ink-800">{label}</p>
+        <div className="mt-0.5 text-xs text-ink-400">{detail}</div>
       </div>
     </li>
   );
@@ -52,8 +52,8 @@ function CheckRow({
 
 function ConfigItem({ set, name, required }: { set: boolean; name: string; required?: boolean }) {
   return (
-    <li className="flex items-center justify-between gap-2 border-b border-gray-100 py-1.5 text-xs last:border-0">
-      <code className="font-mono text-gray-700">{name}</code>
+    <li className="flex items-center justify-between gap-2 border-b border-ink-900/5 py-1.5 text-xs last:border-0">
+      <code className="font-mono text-ink-700">{name}</code>
       {set ? (
         <Badge tone="green">set</Badge>
       ) : required ? (
@@ -139,7 +139,7 @@ export default async function AdminHealthPage() {
     <div className="space-y-5">
       <header>
         <h1>System health</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Live integration status. The public liveness probe is{' '}
           <Link href="/api/health" className="font-mono text-brand-700 hover:underline">
             /api/health
@@ -179,7 +179,7 @@ export default async function AdminHealthPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-4">
-          <h2 className="mb-2 text-sm font-semibold text-gray-900">Core systems</h2>
+          <h2 className="mb-2 text-sm font-semibold text-ink-900">Core systems</h2>
           <ul>
             <CheckRow
               state={dbOk ? (dbLatencyMs > 500 ? 'warn' : 'ok') : 'bad'}
@@ -270,7 +270,7 @@ export default async function AdminHealthPage() {
         </Card>
 
         <Card className="p-4">
-          <h2 className="mb-2 text-sm font-semibold text-gray-900">
+          <h2 className="mb-2 text-sm font-semibold text-ink-900">
             Suppliers &amp; notifications
           </h2>
           <ul>
@@ -343,8 +343,8 @@ export default async function AdminHealthPage() {
       </div>
 
       <Card className="p-4">
-        <h2 className="mb-1 text-sm font-semibold text-gray-900">Environment configuration</h2>
-        <p className="mb-3 text-xs text-gray-500">
+        <h2 className="mb-1 text-sm font-semibold text-ink-900">Environment configuration</h2>
+        <p className="mb-3 text-xs text-ink-400">
           Presence check only — values are never rendered here or sent to the browser. Full guidance
           in <code>.env.example</code> and SETUP_CHECKLIST.md.
         </p>

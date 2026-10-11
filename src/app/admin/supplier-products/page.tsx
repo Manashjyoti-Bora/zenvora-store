@@ -51,7 +51,7 @@ export default async function SupplierProductsPage() {
     <div className="space-y-5">
       <header>
         <h1>Supplier product mapping</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Every synced supplier catalog entry across all suppliers. Unmapped entries cannot be
           ordered automatically — map them to catalog products (costs sync on save).
         </p>

@@ -139,12 +139,12 @@ export function RepriceTool({
 
       {rows && (
         <section aria-labelledby="reprice-result">
-          <h2 id="reprice-result" className="mb-3 text-base font-semibold text-gray-900">
+          <h2 id="reprice-result" className="mb-3 text-base font-semibold text-ink-900">
             Preview: {rows.length} product(s), {changed.length} price change(s)
           </h2>
           <TableWrap className="max-h-[520px] overflow-y-auto">
             <table className="table-base">
-              <thead className="sticky top-0 bg-gray-50">
+              <thead className="sticky top-0 bg-cream-50">
                 <tr>
                   <Th>Product</Th>
                   <Th>Current</Th>
@@ -155,16 +155,16 @@ export function RepriceTool({
                   <Th className="hidden lg:table-cell">Warnings</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-ink-900/5">
                 {rows.map((r) => {
                   const diff = r.newPricePaise - r.currentPricePaise;
                   return (
                     <tr key={r.productId} className={diff !== 0 ? 'bg-amber-50/40' : undefined}>
-                      <Td className="max-w-[220px] truncate font-medium text-gray-900">{r.name}</Td>
+                      <Td className="max-w-[220px] truncate font-medium text-ink-900">{r.name}</Td>
                       <Td className="tabular-nums">{formatINR(r.currentPricePaise)}</Td>
                       <Td className="font-semibold tabular-nums">{formatINR(r.newPricePaise)}</Td>
                       <Td
-                        className={`tabular-nums ${diff > 0 ? 'text-emerald-700' : diff < 0 ? 'text-red-700' : 'text-gray-400'}`}
+                        className={`tabular-nums ${diff > 0 ? 'text-emerald-700' : diff < 0 ? 'text-red-700' : 'text-ink-400'}`}
                       >
                         {diff === 0 ? '—' : `${diff > 0 ? '+' : ''}${formatINR(diff)}`}
                       </Td>
@@ -179,7 +179,7 @@ export function RepriceTool({
                           {formatINR(r.estimatedNetProfitPaise)}
                         </span>
                       </Td>
-                      <Td className="hidden max-w-[140px] truncate text-xs text-gray-500 lg:table-cell">
+                      <Td className="hidden max-w-[140px] truncate text-xs text-ink-400 lg:table-cell">
                         {r.ruleName ?? '—'}
                       </Td>
                       <Td className="hidden max-w-[200px] text-xs text-amber-700 lg:table-cell">
@@ -191,7 +191,7 @@ export function RepriceTool({
               </tbody>
             </table>
           </TableWrap>
-          <p className="mt-2 text-[11px] text-gray-400">
+          <p className="mt-2 text-[11px] text-ink-400">
             “Est. net profit” uses the settings-based gateway fee estimate; actual profit is
             recorded per order from real fees and costs.
           </p>

@@ -188,7 +188,7 @@ export function CouponManager({
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>Code</Th>
               <Th>Discount</Th>
@@ -200,18 +200,18 @@ export function CouponManager({
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {rows.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">No coupons yet.</Td>
+                <Td className="py-8 text-center text-ink-400">No coupons yet.</Td>
               </tr>
             )}
             {rows.map((c) => (
-              <tr key={c.code} className="hover:bg-gray-50/60">
+              <tr key={c.code} className="hover:bg-cream-50/70">
                 <Td>
-                  <p className="font-mono text-xs font-bold text-gray-900">{c.code}</p>
+                  <p className="font-mono text-xs font-bold text-ink-900">{c.code}</p>
                   {c.description && (
-                    <p className="max-w-[180px] truncate text-[11px] text-gray-400">
+                    <p className="max-w-[180px] truncate text-[11px] text-ink-400">
                       {c.description}
                     </p>
                   )}
@@ -219,26 +219,26 @@ export function CouponManager({
                 <Td className="font-medium">
                   {c.type === 'PERCENT' ? `${c.value}% off` : `₹${c.value} off`}
                   {c.maxDiscountAmount != null && (
-                    <span className="block text-[10px] text-gray-400">
+                    <span className="block text-[10px] text-ink-400">
                       max {fmtMoney(c.maxDiscountAmount)}
                     </span>
                   )}
                 </Td>
-                <Td className="hidden text-xs text-gray-600 md:table-cell">
+                <Td className="hidden text-xs text-ink-600 md:table-cell">
                   {c.scope === 'CATEGORY'
                     ? `Category: ${c.categoryName ?? c.categoryId}`
                     : 'All products'}
                   {c.minOrderAmount != null && (
-                    <span className="block text-[10px] text-gray-400">
+                    <span className="block text-[10px] text-ink-400">
                       min order {fmtMoney(c.minOrderAmount)}
                     </span>
                   )}
                 </Td>
-                <Td className="hidden text-xs tabular-nums text-gray-600 lg:table-cell">
+                <Td className="hidden text-xs tabular-nums text-ink-600 lg:table-cell">
                   {c.usageLimit != null ? `${c.usageLimit} total` : 'unlimited'} · {c.perUserLimit}
                   /user
                 </Td>
-                <Td className="hidden text-[11px] text-gray-500 lg:table-cell">
+                <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
                   {c.startsAt ? new Date(c.startsAt).toLocaleDateString('en-IN') : 'now'} →{' '}
                   {c.endsAt ? new Date(c.endsAt).toLocaleDateString('en-IN') : 'no end'}
                 </Td>
@@ -448,7 +448,7 @@ export function CouponManager({
             onChange={(e) => set('firstOrderOnly', e.target.checked)}
           />
           {form.firstOrderOnly && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ink-400">
               Valid only for signed-in customers with no previous non-cancelled orders.
             </p>
           )}
@@ -476,7 +476,7 @@ export function CouponManager({
           </div>
         }
       >
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-ink-600">
           {deleting && deleting.usageCount > 0
             ? `This coupon has been used ${deleting.usageCount} time(s). It will be DEACTIVATED instead of deleted so past orders keep referencing it correctly.`
             : 'This permanently removes the coupon.'}

@@ -67,7 +67,7 @@ export default async function AdminOrderDetail({ params }: Ctx) {
             ← All orders
           </Link>
           <h1 className="mt-1 font-mono">{order.orderNumber}</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-ink-400">
             Placed {fmt(order.placedAt ?? order.createdAt)}
             {order.payments.some((p) => p.provider === 'TEST') && (
               <Badge tone="amber" className="ml-2">
@@ -110,7 +110,7 @@ export default async function AdminOrderDetail({ params }: Ctx) {
           <Card title={`Items (${order.items.length})`} padded={false}>
             <TableWrap className="border-0">
               <table className="table-base">
-                <thead className="bg-gray-50">
+                <thead className="bg-cream-50">
                   <tr>
                     <Th>Product</Th>
                     <Th className="hidden sm:table-cell">Unit price</Th>
@@ -120,7 +120,7 @@ export default async function AdminOrderDetail({ params }: Ctx) {
                     <Th className="hidden lg:table-cell">Line est. profit</Th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-ink-900/5">
                   {order.items.map((item) => {
                     const snap = item.productSnapshot as {
                       name?: string;
@@ -131,10 +131,10 @@ export default async function AdminOrderDetail({ params }: Ctx) {
                     return (
                       <tr key={item.id}>
                         <Td>
-                          <p className="max-w-[220px] truncate font-medium text-gray-900">
+                          <p className="max-w-[220px] truncate font-medium text-ink-900">
                             {snap?.name ?? 'Product'}
                           </p>
-                          <p className="text-[11px] text-gray-400">
+                          <p className="text-[11px] text-ink-400">
                             {snap?.variantName ? `${snap.variantName} · ` : ''}
                             {item.sku ?? snap?.slug ?? ''}
                             {item.supplierSku ? ` · sup: ${item.supplierSku}` : ''}
@@ -143,7 +143,7 @@ export default async function AdminOrderDetail({ params }: Ctx) {
                         <Td className="hidden tabular-nums sm:table-cell">
                           {formatINR(toPaise(item.unitPrice))}
                         </Td>
-                        <Td className="hidden tabular-nums text-gray-500 lg:table-cell">
+                        <Td className="hidden tabular-nums text-ink-400 lg:table-cell">
                           {formatINR(
                             toPaise(item.unitSupplierCost) +
                               toPaise(item.unitSupplierShipping) +
@@ -181,27 +181,27 @@ export default async function AdminOrderDetail({ params }: Ctx) {
           {/* Supplier orders */}
           <Card title={`Supplier orders (${order.supplierOrders.length})`} padded={false}>
             {order.supplierOrders.length === 0 ? (
-              <p className="p-4 text-sm text-gray-400">
+              <p className="p-4 text-sm text-ink-400">
                 No supplier order created — manual fulfilment, or fulfilment has not been triggered
                 yet.
               </p>
             ) : (
-              <ul className="divide-y divide-gray-100">
+              <ul className="divide-y divide-ink-900/5">
                 {order.supplierOrders.map((so) => (
                   <li
                     key={so.id}
                     className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm"
                   >
                     <div className="min-w-0">
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-ink-900">
                         {so.status.replace(/_/g, ' ')}
                         {so.supplierOrderId ? (
-                          <span className="ml-2 font-mono text-xs text-gray-400">
+                          <span className="ml-2 font-mono text-xs text-ink-400">
                             {so.supplierOrderId}
                           </span>
                         ) : null}
                       </p>
-                      <p className="text-[11px] text-gray-400">
+                      <p className="text-[11px] text-ink-400">
                         {so.attempts} attempt{so.attempts === 1 ? '' : 's'} · updated{' '}
                         {fmt(so.updatedAt)}
                         {so.lastError ? (
@@ -241,16 +241,16 @@ export default async function AdminOrderDetail({ params }: Ctx) {
           {/* Shipments */}
           <Card title={`Shipments (${order.shipments.length})`} padded={false}>
             {order.shipments.length === 0 ? (
-              <p className="p-4 text-sm text-gray-400">No shipment recorded yet.</p>
+              <p className="p-4 text-sm text-ink-400">No shipment recorded yet.</p>
             ) : (
-              <ul className="divide-y divide-gray-100">
+              <ul className="divide-y divide-ink-900/5">
                 {order.shipments.map((s) => (
                   <li key={s.id} className="px-4 py-3 text-sm">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-ink-900">
                         {s.carrier ?? 'Carrier not specified'}
                         {s.trackingNumber && (
-                          <span className="ml-2 font-mono text-xs text-gray-500">
+                          <span className="ml-2 font-mono text-xs text-ink-400">
                             {s.trackingNumber}
                           </span>
                         )}
@@ -278,14 +278,14 @@ export default async function AdminOrderDetail({ params }: Ctx) {
                       </a>
                     )}
                     {s.events.length > 0 && (
-                      <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2">
+                      <ul className="mt-2 space-y-1 border-t border-ink-900/5 pt-2">
                         {s.events.slice(0, 6).map((ev) => (
-                          <li key={ev.id} className="text-xs text-gray-500">
-                            <span className="font-medium text-gray-700">
+                          <li key={ev.id} className="text-xs text-ink-400">
+                            <span className="font-medium text-ink-700">
                               {ev.status.replace(/_/g, ' ')}
                             </span>
                             {ev.message ? ` — ${ev.message}` : ''}
-                            <span className="ml-1 text-gray-400">
+                            <span className="ml-1 text-ink-400">
                               {fmt(ev.eventAt)}
                               {ev.location ? ` · ${ev.location}` : ''}
                             </span>
@@ -302,13 +302,13 @@ export default async function AdminOrderDetail({ params }: Ctx) {
           {/* Payments */}
           <Card title={`Payment attempts (${order.payments.length})`} padded={false}>
             {order.payments.length === 0 ? (
-              <p className="p-4 text-sm text-gray-400">
+              <p className="p-4 text-sm text-ink-400">
                 No payment attempts recorded (COD or not started).
               </p>
             ) : (
               <TableWrap className="border-0">
                 <table className="table-base">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-cream-50">
                     <tr>
                       <Th>Provider</Th>
                       <Th className="hidden sm:table-cell">Provider order</Th>
@@ -319,7 +319,7 @@ export default async function AdminOrderDetail({ params }: Ctx) {
                       <Th className="hidden lg:table-cell">When</Th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-ink-900/5">
                     {order.payments.map((p) => (
                       <tr key={p.id}>
                         <Td>
@@ -330,20 +330,20 @@ export default async function AdminOrderDetail({ params }: Ctx) {
                             </Badge>
                           )}
                         </Td>
-                        <Td className="hidden max-w-[140px] truncate font-mono text-[11px] text-gray-500 sm:table-cell">
+                        <Td className="hidden max-w-[140px] truncate font-mono text-[11px] text-ink-400 sm:table-cell">
                           {p.providerOrderId}
                         </Td>
-                        <Td className="hidden max-w-[140px] truncate font-mono text-[11px] text-gray-500 md:table-cell">
+                        <Td className="hidden max-w-[140px] truncate font-mono text-[11px] text-ink-400 md:table-cell">
                           {p.providerPaymentId ?? '—'}
                         </Td>
                         <Td className="tabular-nums">{formatINR(toPaise(p.amount))}</Td>
-                        <Td className="tabular-nums text-gray-500">
+                        <Td className="tabular-nums text-ink-400">
                           {p.feeAmount != null ? formatINR(toPaise(p.feeAmount)) : '—'}
                         </Td>
                         <Td>
                           <GatewayPaymentStatusBadge status={p.status} />
                         </Td>
-                        <Td className="hidden text-[11px] text-gray-400 lg:table-cell">
+                        <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
                           {fmt(p.createdAt)}
                         </Td>
                       </tr>
@@ -357,19 +357,19 @@ export default async function AdminOrderDetail({ params }: Ctx) {
           {/* Returns & refunds */}
           {(order.returns.length > 0 || order.refunds.length > 0) && (
             <Card title="Returns & refunds" padded={false}>
-              <ul className="divide-y divide-gray-100 text-sm">
+              <ul className="divide-y divide-ink-900/5 text-sm">
                 {order.returns.map((r) => (
                   <li
                     key={r.id}
                     className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
                   >
-                    <span className="text-gray-700">
+                    <span className="text-ink-700">
                       Return: {r.reason}
                       {r.adminNote ? ` — ${r.adminNote}` : ''}
                     </span>
                     <span className="flex items-center gap-2">
                       {r.refundAmount != null && (
-                        <span className="tabular-nums text-gray-500">
+                        <span className="tabular-nums text-ink-400">
                           {formatINR(toPaise(r.refundAmount))}
                         </span>
                       )}
@@ -392,7 +392,7 @@ export default async function AdminOrderDetail({ params }: Ctx) {
                     key={r.id}
                     className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
                   >
-                    <span className="text-gray-700">
+                    <span className="text-ink-700">
                       Refund: {r.reason ?? 'no reason recorded'}
                       {r.failureReason ? ` — failed: ${r.failureReason}` : ''}
                     </span>
@@ -423,18 +423,18 @@ export default async function AdminOrderDetail({ params }: Ctx) {
             title={`Event log (${order.events.length}${order.events.length >= 60 ? ' newest 60' : ''})`}
             padded={false}
           >
-            <ol className="max-h-96 divide-y divide-gray-50 overflow-y-auto">
+            <ol className="max-h-96 divide-y divide-ink-900/5 overflow-y-auto">
               {order.events.map((ev) => (
                 <li key={ev.id} className="flex flex-wrap items-baseline gap-x-2 px-4 py-2 text-xs">
-                  <span className="font-mono text-gray-400">{fmt(ev.createdAt)}</span>
+                  <span className="font-mono text-ink-400">{fmt(ev.createdAt)}</span>
                   <Badge tone="neutral">{ev.type}</Badge>
                   {ev.fromStatus && ev.toStatus && (
-                    <span className="text-gray-500">
+                    <span className="text-ink-400">
                       {ev.fromStatus.replace(/_/g, ' ')} → {ev.toStatus.replace(/_/g, ' ')}
                     </span>
                   )}
-                  {ev.message && <span className="text-gray-600">{ev.message}</span>}
-                  <span className="ml-auto text-gray-400">{ev.actorType.toLowerCase()}</span>
+                  {ev.message && <span className="text-ink-600">{ev.message}</span>}
+                  <span className="ml-auto text-ink-400">{ev.actorType.toLowerCase()}</span>
                 </li>
               ))}
             </ol>
@@ -465,7 +465,7 @@ export default async function AdminOrderDetail({ params }: Ctx) {
                 <Row label="Refunded" value={`−${formatINR(refunded)}`} tone="text-red-700" />
               )}
             </dl>
-            <div className="my-3 border-t border-gray-200" />
+            <div className="my-3 border-t border-ink-900/10" />
             <dl className="space-y-1.5 text-sm">
               <Row label="Supplier cost" value={formatINR(costs.supplier)} />
               <Row label="Shipping cost (actual)" value={formatINR(costs.shipping)} />
@@ -473,7 +473,7 @@ export default async function AdminOrderDetail({ params }: Ctx) {
               <Row label="Other costs" value={formatINR(costs.other)} />
               <Row label="Total costs" value={formatINR(totalCosts)} strong />
             </dl>
-            <div className="my-3 border-t border-gray-200" />
+            <div className="my-3 border-t border-ink-900/10" />
             <dl className="space-y-1.5 text-sm">
               <Row
                 label="Gross margin (pre-fees)"
@@ -481,15 +481,15 @@ export default async function AdminOrderDetail({ params }: Ctx) {
                 muted
                 note="revenue − supplier cost only"
               />
-              <div className="flex items-baseline justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
-                <dt className="text-sm font-semibold text-gray-900">Actual profit</dt>
+              <div className="flex items-baseline justify-between gap-3 rounded-lg bg-cream-50 px-3 py-2">
+                <dt className="text-sm font-semibold text-ink-900">Actual profit</dt>
                 <dd
                   className={`text-lg font-bold tabular-nums ${actualProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}
                 >
                   {formatINR(actualProfit)}
                 </dd>
               </div>
-              <p className="text-[11px] leading-relaxed text-gray-400">
+              <p className="text-[11px] leading-relaxed text-ink-400">
                 {finalized
                   ? 'Finalised: all supplier costs, shipping, fees and refunds are recorded.'
                   : 'ESTIMATE — fulfilment is still open. Costs (supplier shipping, courier fees, refunds) can still change; the figure is finalised when the order completes.'}
@@ -500,14 +500,14 @@ export default async function AdminOrderDetail({ params }: Ctx) {
           <Card title="Customer">
             <dl className="space-y-2 text-sm">
               <div>
-                <dt className="text-xs text-gray-400">Name</dt>
-                <dd className="font-medium text-gray-900">
+                <dt className="text-xs text-ink-400">Name</dt>
+                <dd className="font-medium text-ink-900">
                   {order.user?.name ?? order.guestName ?? '—'}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-gray-400">Email</dt>
-                <dd className="break-all text-gray-700">
+                <dt className="text-xs text-ink-400">Email</dt>
+                <dd className="break-all text-ink-700">
                   {order.user?.email ?? order.guestEmail ?? '—'}
                   {order.user && (
                     <Link
@@ -520,12 +520,12 @@ export default async function AdminOrderDetail({ params }: Ctx) {
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-gray-400">Phone</dt>
-                <dd className="text-gray-700">{order.user?.phone ?? order.guestPhone ?? '—'}</dd>
+                <dt className="text-xs text-ink-400">Phone</dt>
+                <dd className="text-ink-700">{order.user?.phone ?? order.guestPhone ?? '—'}</dd>
               </div>
               <div>
-                <dt className="text-xs text-gray-400">Shipping address</dt>
-                <dd className="text-gray-700">
+                <dt className="text-xs text-ink-400">Shipping address</dt>
+                <dd className="text-ink-700">
                   {address.fullName}
                   <br />
                   {address.line1}
@@ -538,14 +538,14 @@ export default async function AdminOrderDetail({ params }: Ctx) {
               </div>
               {order.customerNote && (
                 <div>
-                  <dt className="text-xs text-gray-400">Delivery note</dt>
+                  <dt className="text-xs text-ink-400">Delivery note</dt>
                   <dd className="rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
                     {order.customerNote}
                   </dd>
                 </div>
               )}
               <div>
-                <dt className="text-xs text-gray-400">Account type</dt>
+                <dt className="text-xs text-ink-400">Account type</dt>
                 <dd>
                   {order.user ? (
                     <Badge tone="blue">Registered</Badge>
@@ -558,7 +558,7 @@ export default async function AdminOrderDetail({ params }: Ctx) {
           </Card>
 
           <Card title="Timestamps">
-            <dl className="space-y-1.5 text-xs text-gray-600">
+            <dl className="space-y-1.5 text-xs text-ink-600">
               <Row label="Created" value={fmt(order.createdAt)} small />
               <Row label="Placed" value={fmt(order.placedAt)} small />
               <Row label="Paid" value={fmt(order.paidAt)} small />
@@ -597,12 +597,12 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className={small ? 'text-gray-500' : muted ? 'text-gray-400' : 'text-gray-500'}>
+      <dt className={small ? 'text-ink-400' : muted ? 'text-ink-400' : 'text-ink-400'}>
         {label}
-        {note && <span className="block text-[10px] text-gray-300">{note}</span>}
+        {note && <span className="block text-[10px] text-ink-300">{note}</span>}
       </dt>
       <dd
-        className={`tabular-nums ${tone ?? ''} ${strong ? 'font-semibold text-gray-900' : 'text-gray-700'}`}
+        className={`tabular-nums ${tone ?? ''} ${strong ? 'font-semibold text-ink-900' : 'text-ink-700'}`}
       >
         {value}
       </dd>

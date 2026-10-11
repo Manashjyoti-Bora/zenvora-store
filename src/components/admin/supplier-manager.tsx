@@ -214,7 +214,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>Supplier</Th>
               <Th>Type</Th>
@@ -226,24 +226,24 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {rows.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">
+                <Td className="py-8 text-center text-ink-400">
                   No suppliers yet — orders without a supplier are fulfilled manually.
                 </Td>
               </tr>
             )}
             {rows.map((s) => (
-              <tr key={s.id} className="hover:bg-gray-50/60">
+              <tr key={s.id} className="hover:bg-cream-50/70">
                 <Td>
                   <Link
                     href={`/admin/suppliers/${s.id}`}
-                    className="font-medium text-gray-900 hover:text-brand-700"
+                    className="font-medium text-ink-900 hover:text-brand-700"
                   >
                     {s.name}
                   </Link>
-                  <p className="max-w-[200px] truncate text-[11px] text-gray-400">
+                  <p className="max-w-[200px] truncate text-[11px] text-ink-400">
                     {s.baseUrl ?? s.contactEmail ?? `/${s.slug}`}
                   </p>
                 </Td>
@@ -260,7 +260,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                   )}
                 </Td>
                 <Td className="hidden tabular-nums lg:table-cell">{s.supplierOrderCount}</Td>
-                <Td className="hidden text-[11px] text-gray-500 lg:table-cell">
+                <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
                   {s.lastSyncedAt
                     ? new Intl.DateTimeFormat('en-IN', {
                         dateStyle: 'medium',
@@ -284,7 +284,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                     <button
                       type="button"
                       onClick={() => openEdit(s)}
-                      className="font-medium text-gray-600 hover:underline"
+                      className="font-medium text-ink-600 hover:underline"
                     >
                       Edit
                     </button>
@@ -292,7 +292,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                       type="button"
                       onClick={() => sync(s)}
                       disabled={syncingId === s.id}
-                      className="font-medium text-gray-600 hover:underline disabled:opacity-50"
+                      className="font-medium text-ink-600 hover:underline disabled:opacity-50"
                     >
                       {syncingId === s.id ? 'Syncing…' : 'Sync catalog'}
                     </button>
@@ -417,8 +417,8 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
           </div>
 
           {form.type === 'HTTP_REST' && (
-            <div className="space-y-3 rounded-lg border border-gray-200 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <div className="space-y-3 rounded-lg border border-ink-900/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">
                 API credentials & endpoints
               </p>
               <Alert tone="warning">
@@ -478,8 +478,8 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
           )}
 
           {form.type === 'CJ' && (
-            <div className="space-y-3 rounded-lg border border-gray-200 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <div className="space-y-3 rounded-lg border border-ink-900/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">
                 CJ Dropshipping API v2
               </p>
               <Alert tone="warning">
@@ -518,7 +518,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                   />
                 )}
               </Field>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-ink-400">
                 Map each Zenvora product to a CJ variant: store the CJ <code>vid</code> (or CJ SKU)
                 in the product&apos;s supplier SKU field. Cancellations/returns are manual via the
                 CJ dashboard — CJ&apos;s public API v2 does not expose them, and Zenvora says so
@@ -544,7 +544,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
             checked={form.isActive}
             onChange={(e) => set('isActive', e.target.checked)}
           />
-          <p className="text-xs text-gray-400">{TYPE_INFO[form.type].hint}</p>
+          <p className="text-xs text-ink-400">{TYPE_INFO[form.type].hint}</p>
         </form>
       </Modal>
 
@@ -563,7 +563,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
           </div>
         }
       >
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-ink-600">
           {deleting?.type === 'MANUAL'
             ? 'Manual-fulfilment suppliers are the fallback for products without automation and cannot be deleted. Deactivate it instead (edit → uncheck Active).'
             : deleting && deleting.supplierOrderCount > 0

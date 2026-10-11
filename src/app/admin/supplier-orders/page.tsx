@@ -82,7 +82,7 @@ export default async function AdminSupplierOrdersPage({
     <div className="space-y-5">
       <header>
         <h1>Supplier orders</h1>
-        <p className="mt-1 text-sm tabular-nums text-gray-500">
+        <p className="mt-1 text-sm tabular-nums text-ink-400">
           {total} fulfilment record{total === 1 ? '' : 's'} — one per automated/manual supplier leg
           of an order.
         </p>
@@ -121,7 +121,7 @@ export default async function AdminSupplierOrdersPage({
         </select>
         <button
           type="submit"
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          className="rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800"
         >
           Filter
         </button>
@@ -134,7 +134,7 @@ export default async function AdminSupplierOrdersPage({
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>Store order</Th>
               <Th className="hidden md:table-cell">Supplier</Th>
@@ -146,26 +146,26 @@ export default async function AdminSupplierOrdersPage({
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {allRows.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">No supplier orders yet.</Td>
+                <Td className="py-8 text-center text-ink-400">No supplier orders yet.</Td>
               </tr>
             )}
             {allRows.map((so) => (
               <tr
                 key={so.id}
-                className={so.status === 'FAILED' ? 'bg-red-50/40' : 'hover:bg-gray-50/60'}
+                className={so.status === 'FAILED' ? 'bg-red-50/40' : 'hover:bg-cream-50/70'}
               >
                 <Td>
                   <Link
                     href={`/admin/orders/${so.order.id}`}
-                    className="font-mono text-xs font-semibold text-gray-900 hover:text-brand-700"
+                    className="font-mono text-xs font-semibold text-ink-900 hover:text-brand-700"
                   >
                     {so.order.orderNumber}
                   </Link>
                 </Td>
-                <Td className="hidden text-xs text-gray-600 md:table-cell">
+                <Td className="hidden text-xs text-ink-600 md:table-cell">
                   {so.supplier.name}{' '}
                   <Badge tone={so.supplier.type === 'DEMO' ? 'purple' : 'neutral'}>
                     {so.supplier.type}
@@ -184,16 +184,16 @@ export default async function AdminSupplierOrdersPage({
                     </span>
                   )}
                 </Td>
-                <Td className="hidden max-w-[130px] truncate font-mono text-[11px] text-gray-500 lg:table-cell">
+                <Td className="hidden max-w-[130px] truncate font-mono text-[11px] text-ink-400 lg:table-cell">
                   {so.supplierOrderId ?? '—'}
                 </Td>
-                <Td className="hidden text-[11px] text-gray-500 lg:table-cell">
+                <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
                   {so.trackingNumber ? `${so.carrier ?? ''} ${so.trackingNumber}` : '—'}
                 </Td>
-                <Td className="hidden text-xs tabular-nums text-gray-500 sm:table-cell">
+                <Td className="hidden text-xs tabular-nums text-ink-400 sm:table-cell">
                   {so.attempts}
                 </Td>
-                <Td className="hidden text-[11px] text-gray-400 md:table-cell">
+                <Td className="hidden text-[11px] text-ink-400 md:table-cell">
                   {fmt(so.updatedAt)}
                 </Td>
                 <Td>

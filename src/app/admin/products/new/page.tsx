@@ -25,7 +25,7 @@ export default async function NewProductPage() {
       <header className="flex items-center justify-between gap-3">
         <div>
           <h1>New product</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-ink-400">
             The selling price is computed by the pricing engine from your costs — see the live
             preview.
           </p>
