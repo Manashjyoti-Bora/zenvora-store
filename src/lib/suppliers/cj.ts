@@ -106,6 +106,21 @@ export function classifyCjFailure(code: number | null | undefined): CjFailureCla
   return CODE_CLASS[code] ?? 'CJ_SERVER_FAILURE';
 }
 
+/**
+ * True when an envelope means the request MAY have been processed even
+ * though we have no usable response — i.e. the outcome is UNCERTAIN and the
+ * order must be reconciled (by order number) before any resubmission:
+ *  - code 0  → transport failure: network error, timeout, non-JSON body.
+ *  - 5xx     → CJ/CDN server errors (the request may have been handled).
+ * Explicit CJ business rejections carry 5-digit CJ codes (16xxxxx/18xxxxx)
+ * and are never uncertain; 4xx with a parsed CJ envelope is a definite no.
+ */
+export function isUncertainTransportFailure(res: { code?: number | null }): boolean {
+  if (typeof res.code !== 'number') return true; // missing code = unknown envelope
+  if (res.code === 0) return true;
+  return res.code >= 500 && res.code <= 599;
+}
+
 /** CJ documents QPS = 1 for authentication and "consistent with other API
  * endpoints" — pace pagination and the logout→exchange sequence. */
 const CJ_QPS_DELAY_MS = 1_100;
@@ -166,6 +181,12 @@ export interface CjProbeResult {
     tokenPresent: boolean;
     tokenFingerprint: string | null;
     tokenExpiryPresent: boolean;
+    /**
+     * Character count of the token CJ returned. Compare against CJ's
+     * documented length (~593 for current tokens) — a value of exactly 500
+     * is the signature of truncation in the exchange path.
+     */
+    tokenLength: number | null;
   };
   authenticatedProbe: CjProbeStep & {
     endpoint: 'setting/get';
@@ -362,51 +383,125 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     };
 
     const res = await this.post('shopping/order/createOrderV2', body);
-    let data = (res.data ?? null) as Record<string, unknown> | null;
 
     if (!res.success) {
       const message = res.message ?? 'unknown error';
       if (/out of stock|insufficient stock|inventory/i.test(message)) {
         throw new SupplierRejectedError(`CJ rejected the order: ${message}`);
       }
-      if (!/already|exist|duplicate/i.test(message)) {
+      if (/already|exist|duplicate/i.test(message)) {
+        // Order number already known to CJ (retry after a partial failure):
+        // look it up and continue with the payment step instead of duplicating.
+        const lookup = await this.lookupOrderByNumber(input.orderNumber);
+        if (!lookup.found) {
+          // CJ claimed the order exists but the lookup saw no rows — do not
+          // guess. Park for admin review with an explicit instruction.
+          return {
+            accepted: false,
+            failureClass: 'UNCERTAIN',
+            message: `CJ reported “${message}” for order ${input.orderNumber}, but the reconciliation lookup returned no rows. Verify in the CJ dashboard, then use Admin → Supplier orders → Retry (it reconciles by order number).`,
+            raw: {},
+          };
+        }
+        return this.settleExistingOrder(lookup.data!, input, 'reconciled after “already exists” response');
+      }
+      if (isUncertainTransportFailure(res)) {
+        // UNCERTAIN OUTCOME: a transport failure (timeout / network /
+        // non-JSON / HTTP 5xx) means the request MAY have reached CJ and
+        // been processed. Reconcile by our order number FIRST — never
+        // blindly resubmit (that is how duplicate supplier orders happen).
+        const lookup = await this.lookupOrderByNumber(input.orderNumber);
+        if (lookup.found) {
+          // The first request did create the order — adopt it and settle,
+          // exactly like the duplicate path.
+          return this.settleExistingOrder(lookup.data!, input, 'reconciled after a createOrder transport failure');
+        }
+        if (lookup.determined) {
+          // CJ answered definitively: the order does not exist, so the
+          // request was not processed. Resubmission is safe — surface it as
+          // a TRANSIENT error so the job runner retries with backoff.
+          throw new Error(
+            `CJ createOrder transport failure (${message}, code ${res.code ?? 'n/a'}); reconciliation confirmed no order exists — retry is safe`
+          );
+        }
+        // The reconciliation itself could not reach CJ: the outcome is
+        // UNKNOWN. Park for explicit admin review — never auto-resubmit.
         return {
           accepted: false,
-          message: `CJ createOrder failed: ${message} (code ${res.code ?? 'n/a'})`,
+          failureClass: 'UNCERTAIN',
+          message: `CJ createOrder failed with a transport error (${message}, code ${res.code ?? 'n/a'}) and the reconciliation lookup could not determine the outcome — it is UNKNOWN whether order ${input.orderNumber} exists at CJ. Check the CJ dashboard; if the order exists there, use Admin → Supplier orders → Retry (it reconciles by order number and will adopt it); if it does not, Retry will create it.`,
           raw: (res as unknown as Record<string, unknown>) ?? {},
         };
       }
-      // Order number already known to CJ (retry after a partial failure):
-      // look it up and continue with the payment step instead of duplicating.
-      const listRes = await this.get('shopping/order/list', { orderNumber: input.orderNumber });
-      const list = this.unwrap<unknown>(listRes, 'shopping/order/list');
-      const rows = Array.isArray(list)
-        ? list
-        : (((list as Record<string, unknown>)?.list ?? []) as unknown[]);
-      data = (rows[0] ?? null) as Record<string, unknown> | null;
-      if (!data) {
-        return { accepted: false, message: `CJ createOrder failed: ${message}`, raw: {} };
-      }
+      // Explicit business rejection (CJ answered with a business code):
+      // resubmitting the same request will not help.
+      return {
+        accepted: false,
+        failureClass: 'BUSINESS_REJECTION',
+        message: `CJ createOrder failed: ${message} (code ${res.code ?? 'n/a'})`,
+        raw: (res as unknown as Record<string, unknown>) ?? {},
+      };
     }
 
-    const supplierOrderId =
-      str(data?.orderNumber) ?? str(data?.cjOrderId) ?? str(data?.orderId) ?? input.orderNumber;
+    return this.settleExistingOrder((res.data ?? {}) as Record<string, unknown>, input);
+  }
 
-    // Wallet payment: CJ debits the supplier wallet; without balance the order
-    // stays unpaid. We report that honestly instead of claiming fulfilment.
+  /**
+   * Reconciliation primitive: look up our order number at CJ. Tri-state on
+   * purpose — a failed lookup is NOT "not found":
+   *  - found:      CJ has the order (first row returned).
+   *  - determined: CJ answered normally; `found` says the truth.
+   *  - undetermined: the lookup itself failed (transport/auth) — the
+   *    outcome is UNKNOWN and callers must treat it as such.
+   */
+  private async lookupOrderByNumber(
+    orderNumber: string
+  ): Promise<{ found: boolean; determined: boolean; data: Record<string, unknown> | null }> {
+    const listRes = await this.get('shopping/order/list', { orderNumber });
+    if (!listRes.success) {
+      return { found: false, determined: false, data: null };
+    }
+    const list = this.unwrap<unknown>(listRes, 'shopping/order/list');
+    const rows = Array.isArray(list)
+      ? list
+      : (((list as Record<string, unknown>)?.list ?? []) as unknown[]);
+    const row = (rows[0] ?? null) as Record<string, unknown> | null;
+    return { found: Boolean(row), determined: true, data: row };
+  }
+
+  /**
+   * Adopt a CJ order row that is known to exist (fresh creation, the
+   * “already exists” duplicate response, or post-timeout reconciliation):
+   * extract the CJ order id, settle from the CJ wallet, and report the
+   * honest outcome. A wallet-payment failure is accepted+PENDING (never
+   * hidden) so the admin can top up and retry.
+   */
+  private async settleExistingOrder(
+    data: Record<string, unknown>,
+    input: SupplierCreateOrderInput,
+    note?: string
+  ): Promise<SupplierCreateOrderResult> {
+    const supplierOrderId =
+      str(data.orderNumber) ?? str(data.cjOrderId) ?? str(data.orderId) ?? input.orderNumber;
+    const suffix = note ? ` [${note}]` : '';
+
+    // Wallet payment: CJ debits the supplier wallet; without balance the
+    // order stays unpaid. We report that honestly instead of claiming
+    // fulfilment.
     const payRes = await this.post('shopping/pay/payBalanceV2', { orderNumber: supplierOrderId });
     if (!payRes.success) {
       const payMessage = payRes.message ?? 'wallet payment failed';
-      logger.warn('CJ order created but wallet payment failed', {
+      logger.warn('CJ order exists but wallet payment failed', {
         supplierOrderId,
         message: payMessage,
+        note,
       });
       return {
         accepted: true,
         supplierOrderId,
         status: 'PENDING',
-        message: `CJ order ${supplierOrderId} created but wallet payment failed (${payMessage}). Top up the CJ wallet, then retry from Admin → Supplier orders.`,
-        raw: { create: data, pay: payRes },
+        message: `CJ order ${supplierOrderId} exists but wallet payment failed (${payMessage}). Top up the CJ wallet, then retry from Admin → Supplier orders.${suffix}`,
+        raw: { order: data, pay: payRes },
       };
     }
 
@@ -414,7 +509,7 @@ export class CJDropshippingAdapter implements SupplierAdapter {
       accepted: true,
       supplierOrderId,
       status: 'ACCEPTED',
-      raw: { create: data, pay: payRes.data ?? null },
+      raw: { order: data, pay: payRes.data ?? null },
     };
   }
 
@@ -609,19 +704,34 @@ export class CJDropshippingAdapter implements SupplierAdapter {
       );
     }
     const data = (res.data ?? {}) as Record<string, unknown>;
-    const accessToken = str(data.accessToken);
+    // REGRESSION FIX (production 401 / code 1600001): keep the token EXACTLY
+    // as CJ returned it. It previously passed through str(), which caps
+    // strings at 500 chars — CJ's 593-char token was cached and sent
+    // truncated, so every authenticated call failed. Credential material
+    // never passes through display helpers.
+    const accessToken = credentialString(data.accessToken);
     if (!accessToken) throw new Error('CJ authentication returned no accessToken');
 
+    // Forensic evidence, measured on the RAW value (pre-processing) so
+    // "what CJ sent" is distinguishable from "what we will send". Context
+    // keys are named without 'token' so the logger's credential-key
+    // redaction does not turn the values into [REDACTED].
     logger.warn(`CJ forensic token received length=${accessToken.length}`, {
       supplier: this.supplier.slug,
-      tokenLength: accessToken.length,
-      tokenFingerprint: tokenFingerprint(accessToken),
+      credentialLength: accessToken.length,
+      credentialFingerprint: tokenFingerprint(accessToken),
     });
-    const parsedExpiry = Date.parse(str(data.accessTokenExpiryDate) ?? '');
+    warnIfImplausibleToken(accessToken, this.supplier.slug);
+
+    const expiryRaw = data.accessTokenExpiryDate;
+    const parsedExpiry = Date.parse(typeof expiryRaw === 'string' ? expiryRaw : '');
     const entry: TokenEntry = {
       token: accessToken,
       expiresAt: Number.isFinite(parsedExpiry) ? parsedExpiry : Date.now() + 2 * 3600_000,
-      refreshToken: str(data.refreshToken),
+      // Refresh tokens get the same exact treatment: a truncated refresh
+      // token silently breaks the refresh path (1600003) and forces a
+      // fresh exchange — CJ's auth endpoint is rate-limited to QPS 1.
+      refreshToken: credentialString(data.refreshToken),
     };
     tokenCache.set(key, entry);
     return entry;
@@ -719,11 +829,15 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     if (token) headers['CJ-Access-Token'] = token;
 
     if (token) {
+      // Compare outgoing vs cached length+fingerprint: any divergence here
+      // means something between cache store and header construction
+      // transformed the credential (the old 500-char cap did, on the way IN
+      // to the cache — compare the two forensic lines to locate it).
       logger.warn(`CJ forensic token sent length=${token.length}`, {
         supplier: this.supplier.slug,
-        tokenLength: token.length,
-        tokenFingerprint: tokenFingerprint(token),
-        tokenMatchesCache: token === tokenCache.get(this.supplier.id)?.token,
+        credentialLength: token.length,
+        credentialFingerprint: tokenFingerprint(token),
+        matchesCache: token === tokenCache.get(this.supplier.id)?.token,
       });
     }
     if (this.config.platformToken) headers.platformToken = this.config.platformToken;
@@ -807,6 +921,7 @@ export class CJDropshippingAdapter implements SupplierAdapter {
         ok: false, code: null, httpStatus: null, successFlag: null, resultFlag: null,
         message: null, requestId: null, elapsedMs: 0,
         tokenPresent: false, tokenFingerprint: null, tokenExpiryPresent: false,
+        tokenLength: null,
       },
       authenticatedProbe: {
         ok: false, code: null, httpStatus: null, successFlag: null, resultFlag: null,
@@ -841,12 +956,17 @@ export class CJDropshippingAdapter implements SupplierAdapter {
       s.message = res.message ?? null;
       s.requestId = res.requestId ?? null;
       const data = (res.data ?? {}) as Record<string, unknown>;
-      const access = str(data.accessToken);
+      // Exact token (credentialString, NOT str): the probe authenticates
+      // steps 2–3 with this value, so a truncated token would make the
+      // "safe diagnostic" fail with the same 1600001 as production.
+      const access = credentialString(data.accessToken);
       s.tokenPresent = Boolean(access);
       s.tokenFingerprint = fingerprint(access);
-      s.tokenExpiryPresent = Boolean(str(data.accessTokenExpiryDate));
+      s.tokenLength = access ? access.length : null;
+      s.tokenExpiryPresent =
+        typeof data.accessTokenExpiryDate === 'string' && data.accessTokenExpiryDate.length > 0;
       s.ok = this.ok(res) && s.tokenPresent;
-      token = access ?? null;
+      token = access;
     }
 
     if (token) {
@@ -984,7 +1104,17 @@ function probeConclusion(r: CjProbeResult): string {
     return `CJ rejected the credential exchange itself (${r.classification}). Verify the environment variable holds the FULL key of Type "API Key" (CJ also issues MCP tokens, which are not API keys) for the "Zenvora API" app.`;
   }
   if (!r.authenticatedProbe.ok) {
-    return `CJ rejected an authenticated setting/get call (${r.classification}) even though a token was issued — account/authorization-level failure on CJ's side. Send the requestId below to CJ support.`;
+    const len = r.getAccessToken.tokenLength;
+    const lenNote =
+      len === null
+        ? ''
+        : ` Token received from CJ: ${len} chars` +
+          (len === 500
+            ? ' — exactly the 500-char truncation signature (CJ issues ~593-char tokens); if this persists after the credentialString fix, the truncation is on the CJ side.'
+            : len !== 593
+              ? ` (CJ currently issues ~593-char tokens — a mismatch worth sending to CJ support).`
+              : ' (matches the current ~593-char CJ token length, so the token arrived intact).');
+    return `CJ rejected an authenticated setting/get call (${r.classification}) even though a token was issued.${lenNote} Send the requestId below to CJ support.`;
   }
   if (r.authenticatedProbe.root === 'NO_PERMISSION' || r.authenticatedProbe.isSandbox === true) {
     return `CJ itself reports this account as root=${r.authenticatedProbe.root ?? 'unknown'}, isSandbox=${String(r.authenticatedProbe.isSandbox)} — the token authenticates but the account is NOT fully authorized for API access. This must be fixed on CJ's side (API store authorization).`;
@@ -1006,8 +1136,50 @@ function num(v: unknown): number | null {
   return null;
 }
 
+/**
+ * Display/log helper: trimmed string capped at 500 chars, or null.
+ *
+ * WARNING — for display and log fields ONLY. NEVER pass a credential
+ * (access token, refresh token, API key) or any other value that is used as
+ * data through this helper: the 500-char cap silently corrupted CJ's
+ * 593-char access token in production (stored + sent truncated, every
+ * authenticated call rejected with 401 / code 1600001). Use
+ * credentialString() for credential material.
+ */
 function str(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
   return s.length > 0 ? s.slice(0, 500) : null;
+}
+
+/**
+ * Extract credential material EXACTLY as received: no truncation, no
+ * rewriting, no trimming. Tokens must survive to the wire byte-for-byte —
+ * any cap (like str()'s 500 chars) turns a valid 593-char CJ token into an
+ * invalid 500-char one. Returns null for missing/empty values.
+ */
+function credentialString(v: unknown): string | null {
+  if (typeof v !== 'string' || v.length === 0) return null;
+  return v;
+}
+
+/**
+ * Forensic length guard for freshly issued tokens. CJ issues ~593-char
+ * access tokens (CJ support confirmed this length during the 1600001
+ * investigation); values at the old 500-char str() cap or outside a sane
+ * band are the exact signature of an upstream truncation. Warn only — the
+ * token is still used, so a CJ format change degrades gracefully.
+ */
+function warnIfImplausibleToken(token: string, supplier: string): void {
+  if (token.length === 500) {
+    logger.warn(
+      'CJ access token is exactly 500 chars — classic truncation signature (CJ issues ~593-char tokens). The token will be rejected (1600001); investigate storage limits on this path.',
+      { supplier, credentialLength: token.length }
+    );
+  } else if (token.length < 100 || token.length > 10_000) {
+    logger.warn(
+      'CJ access token length outside plausible range [100, 10000] — possibly truncated or malformed.',
+      { supplier, credentialLength: token.length }
+    );
+  }
 }

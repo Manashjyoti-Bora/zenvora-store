@@ -75,6 +75,21 @@ export interface SupplierCreateOrderResult {
   status?: 'ACCEPTED' | 'PROCESSING' | 'PENDING';
   message?: string | null;
   raw?: Record<string, unknown>;
+  /**
+   * Classification of a rejection (`accepted: false`):
+   *  - BUSINESS_REJECTION: the supplier explicitly said no with a business
+   *    reason (invalid address, policy, …). Resubmitting the same request
+   *    will not help; fail to manual review.
+   *  - UNCERTAIN: a transport failure (timeout/network/5xx) or a failed
+   *    reconciliation means it is UNKNOWN whether the supplier created the
+   *    order. NEVER auto-resubmit blindly — the admin must verify against
+   *    the supplier dashboard; a reconciling retry (order-number lookup) is
+   *    the only safe resubmission path.
+   * Adapters that do not classify omit the field; callers must treat a
+   * missing classification as UNCERTAIN-safe (manual review), never as a
+   * free pass to resubmit.
+   */
+  failureClass?: 'BUSINESS_REJECTION' | 'UNCERTAIN';
 }
 
 export interface SupplierTrackingEventInput {

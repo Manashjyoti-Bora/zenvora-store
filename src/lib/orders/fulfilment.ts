@@ -215,6 +215,18 @@ export async function sendToSupplier(supplierOrderRowId: string): Promise<void> 
   }
 
   if (!result.accepted) {
+    if (result.failureClass === 'UNCERTAIN') {
+      // The supplier MAY have the order. The job must not be retried
+      // automatically (duplicate-fulfilment risk) and the order must not be
+      // treated as a clean failure either: park it with explicit
+      // reconciliation instructions. The admin's Retry action re-runs the
+      // adapter, which reconciles by order number before creating anything.
+      throw new PermanentJobError(
+        `UNCERTAIN supplier outcome — order may have been created. ${
+          result.message ?? `Supplier ${so.supplier.name} gave no usable response.`
+        } Admin: verify in the supplier dashboard, then Retry (reconciles by order number) or cancel + refund.`
+      );
+    }
     throw new PermanentJobError(
       result.message ?? `Supplier rejected the order (${so.supplier.name})`
     );

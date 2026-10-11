@@ -6,7 +6,7 @@ import { addToCart } from '@/lib/cart/service';
 import { createOrderFromCart } from '@/lib/orders/create';
 import { recalcOrderFinancials, adjustOrderCosts } from '@/lib/orders/finance';
 import { transitionOrder } from '@/lib/orders/state';
-import { updateSettings } from '@/lib/settings';
+import { getSettings, updateSettings, type StoreSettings } from '@/lib/settings';
 import { cleanupTestData, createTestProduct, testEmail, TEST_ADDRESS } from './fixtures';
 
 /**
@@ -16,9 +16,16 @@ import { cleanupTestData, createTestProduct, testEmail, TEST_ADDRESS } from './f
 describe('order finance engine (actual profit)', () => {
   let orderId: string;
   let userId: string;
+  // Shared-DB test isolation: restore the EXACT settings we override (the
+  // E2E suite runs against this same seeded database).
+  let savedPayments: StoreSettings['payments'];
+  let savedShipping: StoreSettings['shipping'];
 
   beforeAll(async () => {
     await cleanupTestData();
+    const before = await getSettings();
+    savedPayments = before.payments;
+    savedShipping = before.shipping;
     await updateSettings({
       payments: { feePercent: 2, feeFixedPaise: 0 },
       shipping: { flatRatePaise: 4900, freeAbovePaise: 99900, codEnabled: false, codFeePaise: 0 },
@@ -53,6 +60,7 @@ describe('order finance engine (actual profit)', () => {
   });
 
   afterAll(async () => {
+    await updateSettings({ payments: savedPayments, shipping: savedShipping });
     await cleanupTestData();
   });
 

@@ -1,11 +1,19 @@
-import { afterAll, describe, expect, it } from 'vitest';
-import { getSettings, updateSettings, invalidateSettingsCache } from '@/lib/settings';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { getSettings, updateSettings, invalidateSettingsCache, type StoreSettings } from '@/lib/settings';
 import { cleanupTestData } from './fixtures';
 
 describe('store settings (typed, persisted, cached)', () => {
+  // Shared-DB test isolation: restore the EXACT payments settings we touch
+  // (a hard-coded restore value leaked into the seeded store this suite
+  // shares with the E2E suite).
+  let savedPayments: StoreSettings['payments'];
+
+  beforeAll(async () => {
+    savedPayments = (await getSettings()).payments;
+  });
+
   afterAll(async () => {
-    // restore defaults touched by this suite
-    await updateSettings({ payments: { feePercent: 2, feeFixedPaise: 0 } });
+    await updateSettings({ payments: savedPayments });
     await cleanupTestData();
   });
 

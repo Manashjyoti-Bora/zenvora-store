@@ -5,7 +5,7 @@ import { registerUser } from '@/lib/auth/service';
 import { addToCart } from '@/lib/cart/service';
 import { createOrderFromCart } from '@/lib/orders/create';
 import { confirmCodOrder, markCodCollected } from '@/lib/payments/confirm';
-import { updateSettings } from '@/lib/settings';
+import { getSettings, updateSettings, type StoreSettings } from '@/lib/settings';
 import { clearCookieJar } from './mock-headers';
 import {
   cleanupTestData,
@@ -21,9 +21,15 @@ describe('checkout → order creation (the money-critical path)', () => {
   let userEmail: string;
   let productId: string;
   let supplierId: string;
+  // The integration suite shares one database with the E2E suite (which runs
+  // against the seeded dev store): capture the shipping settings we override
+  // and restore them EXACTLY afterwards. Hard-coded "restore" values leaked
+  // codEnabled:false into the seeded store and broke the E2E COD tests.
+  let savedShipping: StoreSettings['shipping'];
 
   beforeAll(async () => {
     await cleanupTestData();
+    savedShipping = (await getSettings()).shipping;
     // deterministic shipping/COD settings for exact total assertions
     await updateSettings({
       shipping: {
@@ -57,9 +63,7 @@ describe('checkout → order creation (the money-critical path)', () => {
   });
 
   afterAll(async () => {
-    await updateSettings({
-      shipping: { flatRatePaise: 4900, freeAbovePaise: 99900, codEnabled: false, codFeePaise: 0 },
-    });
+    await updateSettings({ shipping: savedShipping });
     await cleanupTestData();
   });
 
