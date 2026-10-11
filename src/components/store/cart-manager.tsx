@@ -111,10 +111,59 @@ export function CartManager({
   }
 
   const unavailable = cart.lines.filter((l) => !l.available);
+  const netSubtotal = Math.max(0, cart.subtotalPaise - (cart.coupon?.discountPaise ?? 0));
+  const freeShippingRemaining =
+    cart.freeShippingThresholdPaise > 0
+      ? Math.max(0, cart.freeShippingThresholdPaise - netSubtotal)
+      : 0;
+  const freeShippingProgress =
+    cart.freeShippingThresholdPaise > 0
+      ? Math.min(100, Math.round((netSubtotal / cart.freeShippingThresholdPaise) * 100))
+      : 100;
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
       <div className="space-y-4">
+        {cart.freeShippingThresholdPaise > 0 && (
+          <div className="card border-ink-900/10 bg-cream-50/70 p-4">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="inline-flex items-center gap-2 font-semibold text-ink-900">
+                {freeShippingRemaining === 0 ? (
+                  <>
+                    <CheckIcon className="h-4 w-4 text-emerald-600" />
+                    <span className="text-emerald-800">
+                      Unlocked FREE shipping on this order!
+                    </span>
+                  </>
+                ) : (
+                  <span>
+                    Add{' '}
+                    <strong className="font-bold text-brand-700">
+                      {formatINR(freeShippingRemaining)}
+                    </strong>{' '}
+                    more for <strong className="font-semibold">FREE shipping</strong>
+                  </span>
+                )}
+              </span>
+              <span className="font-mono text-[11px] font-semibold tabular-nums text-ink-400">
+                {freeShippingProgress}%
+              </span>
+            </div>
+            <div
+              className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-cream-200"
+              role="progressbar"
+              aria-valuenow={freeShippingProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Free shipping progress"
+            >
+              <div
+                className="h-full rounded-full bg-brand-600 transition-all duration-300 ease-zenvora"
+                style={{ width: `${freeShippingProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
         {unavailable.length > 0 && (
           <Alert tone="warning" title="Some items changed">
             {unavailable.map((l) => l.name).join(', ')} — stock is no longer sufficient. Adjust the

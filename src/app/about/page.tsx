@@ -22,10 +22,13 @@ export default async function AboutPage() {
 
   return (
     <div className="container-store max-w-3xl py-8 sm:py-12">
-      <h1>About {settings.storeName}</h1>
+      <header className="rounded-2xl border border-ink-900/10 bg-gradient-to-br from-cream-100/80 via-white to-cream-50 p-6 shadow-hair sm:p-7">
+        <p className="eyebrow">Our Story &amp; Operating Model</p>
+        <h1 className="display mt-1">About {settings.storeName}</h1>
+      </header>
 
       <div className="mt-6 space-y-6 text-sm leading-relaxed text-ink-700 sm:text-base">
-        <section aria-labelledby="who-we-are">
+        <section className="card p-5 sm:p-6" aria-labelledby="who-we-are">
           <h2 id="who-we-are">Who we are</h2>
           <p className="mt-2">
             {settings.storeName} is an online store bringing carefully selected products to
@@ -35,7 +38,7 @@ export default async function AboutPage() {
           </p>
         </section>
 
-        <section aria-labelledby="how-it-works">
+        <section className="card p-5 sm:p-6" aria-labelledby="how-it-works">
           <h2 id="how-it-works">How our store works</h2>
           <ul className="mt-2 list-disc space-y-2 pl-5">
             <li>
@@ -70,7 +73,7 @@ export default async function AboutPage() {
           </ul>
         </section>
 
-        <section aria-labelledby="our-commitments">
+        <section className="card p-5 sm:p-6" aria-labelledby="our-commitments">
           <h2 id="our-commitments">Our commitments</h2>
           <ul className="mt-2 list-disc space-y-2 pl-5">
             <li>No hidden charges — taxes and shipping are disclosed before you pay.</li>

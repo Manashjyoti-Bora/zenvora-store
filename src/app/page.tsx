@@ -335,38 +335,41 @@ export default async function HomePage() {
           <h2 id="how-it-works" className="mt-1 text-center">
             How ordering works
           </h2>
-          <ol className="mx-auto mt-9 grid max-w-4xl grid-cols-1 gap-6 sm:grid-cols-4">
+          <ol className="mx-auto mt-9 grid max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
               {
-                n: '1',
+                n: '01',
                 t: 'Browse & add to cart',
                 d: 'Prices shown in ₹ are final, tax-inclusive prices.',
               },
               {
-                n: '2',
+                n: '02',
                 t: 'Secure checkout',
                 d: 'Pay online via our payment gateway or choose Cash on Delivery where available.',
               },
               {
-                n: '3',
+                n: '03',
                 t: 'We prepare your order',
                 d: 'Your order is confirmed and dispatched through our fulfilment partners.',
               },
               {
-                n: '4',
+                n: '04',
                 t: 'Track to your door',
                 d: 'Follow live shipping status with your order number and email.',
               },
             ].map((s) => (
-              <li key={s.n} className="relative text-center">
+              <li
+                key={s.n}
+                className="card relative flex flex-col items-center p-5 text-center sm:items-start sm:text-left"
+              >
                 <span
-                  className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-ink-950 text-sm font-bold text-brass-300 shadow-soft"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink-950 text-xs font-bold text-brass-300 shadow-soft"
                   aria-hidden="true"
                 >
                   {s.n}
                 </span>
-                <h3 className="mt-3.5 text-sm font-semibold text-ink-900">{s.t}</h3>
-                <p className="mx-auto mt-1.5 max-w-56 text-xs leading-relaxed text-ink-500">{s.d}</p>
+                <h3 className="mt-4 text-sm font-semibold text-ink-900">{s.t}</h3>
+                <p className="mt-1.5 text-xs leading-relaxed text-ink-500">{s.d}</p>
               </li>
             ))}
           </ol>

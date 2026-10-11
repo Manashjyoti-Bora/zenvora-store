@@ -15,7 +15,7 @@ export async function Footer() {
           <div className="col-span-2 lg:col-span-2">
             <Link href="/" className="group inline-flex items-center gap-2.5">
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-sm font-black text-white transition-transform duration-200 group-hover:-rotate-6">
-                Z
+                {settings.storeName.slice(0, 1).toUpperCase()}
               </span>
               <span className="text-lg font-extrabold uppercase tracking-[0.18em] text-cream-100">
                 {settings.storeName}

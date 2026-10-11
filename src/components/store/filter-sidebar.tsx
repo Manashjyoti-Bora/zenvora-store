@@ -44,18 +44,20 @@ export function FilterSidebar({
   );
 
   return (
-    <aside className="space-y-6 lg:sticky lg:top-20" aria-label="Product filters">
+    <aside className="card space-y-6 p-4 lg:sticky lg:top-20" aria-label="Product filters">
       <nav aria-label="Categories">
-        <h2 className="mb-2 text-sm font-semibold text-ink-900">Categories</h2>
+        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-eyebrow text-ink-400">
+          Categories
+        </h2>
         <ul className="space-y-1">
           <li>
             <Link
               href={preserve({ category: null })}
               className={cn(
-                'block rounded-lg px-3 py-1.5 text-sm',
+                'block rounded-lg px-3 py-1.5 text-sm transition-colors',
                 !activeCategory
-                  ? 'bg-brand-50 font-semibold text-brand-800'
-                  : 'text-ink-500 hover:bg-cream-50'
+                  ? 'bg-brand-50 font-semibold text-brand-800 ring-1 ring-brand-500/20'
+                  : 'text-ink-600 hover:bg-cream-50'
               )}
             >
               All products
@@ -66,14 +68,14 @@ export function FilterSidebar({
               <Link
                 href={preserve({ category: c.slug })}
                 className={cn(
-                  'flex items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-sm',
+                  'flex items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors',
                   activeCategory === c.slug
-                    ? 'bg-brand-50 font-semibold text-brand-800'
-                    : 'text-ink-500 hover:bg-cream-50'
+                    ? 'bg-brand-50 font-semibold text-brand-800 ring-1 ring-brand-500/20'
+                    : 'text-ink-600 hover:bg-cream-50'
                 )}
               >
                 <span className="truncate">{c.name}</span>
-                <span className="shrink-0 text-xs tabular-nums text-ink-400">
+                <span className="shrink-0 rounded-full bg-cream-100 px-2 py-0.5 text-[11px] font-medium tabular-nums text-ink-500">
                   {c.productCount}
                 </span>
               </Link>
@@ -82,8 +84,10 @@ export function FilterSidebar({
         </ul>
       </nav>
 
-      <nav aria-label="Price filters">
-        <h2 className="mb-2 text-sm font-semibold text-ink-900">Price</h2>
+      <nav aria-label="Price filters" className="border-t border-ink-900/10 pt-4">
+        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-eyebrow text-ink-400">
+          Price Range
+        </h2>
         <ul className="space-y-1">
           {PRICE_BANDS.map((b, i) => (
             <li key={b.label}>
@@ -93,10 +97,10 @@ export function FilterSidebar({
                   max: b.max != null ? String(b.max) : null,
                 })}
                 className={cn(
-                  'block rounded-lg px-3 py-1.5 text-sm',
+                  'block rounded-lg px-3 py-1.5 text-sm transition-colors',
                   activeBand === i
-                    ? 'bg-brand-50 font-semibold text-brand-800'
-                    : 'text-ink-500 hover:bg-cream-50'
+                    ? 'bg-brand-50 font-semibold text-brand-800 ring-1 ring-brand-500/20'
+                    : 'text-ink-600 hover:bg-cream-50'
                 )}
               >
                 {b.label}
