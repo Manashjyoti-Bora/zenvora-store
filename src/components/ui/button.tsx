@@ -6,15 +6,16 @@ type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'succe
 type Size = 'sm' | 'md' | 'lg';
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
+  'btn-press inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800',
-  secondary: 'bg-ink-900 text-white hover:bg-ink-800 active:bg-ink-950',
-  outline: 'border border-ink-900/20 bg-white text-ink-700 hover:bg-cream-100',
-  ghost: 'text-ink-500 hover:bg-ink-900/5 hover:text-ink-900',
-  danger: 'bg-red-600 text-white hover:bg-red-700',
-  success: 'bg-emerald-600 text-white hover:bg-emerald-700',
+  primary: 'bg-brand-600 text-white shadow-soft hover:bg-brand-700 active:bg-brand-800',
+  secondary: 'bg-ink-900 text-white shadow-soft hover:bg-ink-800 active:bg-ink-950',
+  outline:
+    'border border-ink-900/20 bg-white text-ink-800 shadow-hair hover:border-ink-900/30 hover:bg-cream-50 active:bg-cream-100',
+  ghost: 'text-ink-600 hover:bg-ink-900/5 hover:text-ink-900',
+  danger: 'bg-red-600 text-white shadow-soft hover:bg-red-700',
+  success: 'bg-emerald-600 text-white shadow-soft hover:bg-emerald-700',
 };
 
 const sizes: Record<Size, string> = {

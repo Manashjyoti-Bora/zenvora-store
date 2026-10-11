@@ -55,21 +55,36 @@ export function LineChart({
           y1={h - padBottom}
           x2={w - padX}
           y2={h - padBottom}
-          stroke="#e5e7eb"
+          stroke="rgba(16, 27, 22, 0.12)"
           strokeWidth="1"
         />
-        <line x1={padX} y1={padTop} x2={padX} y2={h - padBottom} stroke="#e5e7eb" strokeWidth="1" />
-        <path d={area} fill="#35885d" opacity="0.08" />
+        <line
+          x1={padX}
+          y1={padTop}
+          x2={padX}
+          y2={h - padBottom}
+          stroke="rgba(16, 27, 22, 0.08)"
+          strokeWidth="1"
+        />
+        <path d={area} fill="#266d49" opacity="0.12" />
         <path
           d={path}
           fill="none"
-          stroke="#35885d"
-          strokeWidth="2"
+          stroke="#266d49"
+          strokeWidth="2.2"
           strokeLinejoin="round"
           strokeLinecap="round"
         />
         {points.map(([x, y], i) => (
-          <circle key={i} cx={x} cy={y} r="2.5" fill="#20573c">
+          <circle
+            key={i}
+            cx={x}
+            cy={y}
+            r="2.8"
+            fill="#FAF8F3"
+            stroke="#20573c"
+            strokeWidth="1.8"
+          >
             <title>{`${data[i].label}: ${fmt(data[i].value)}`}</title>
           </circle>
         ))}
@@ -80,8 +95,8 @@ export function LineChart({
               x={points[i][0]}
               y={h - 6}
               textAnchor="middle"
-              fontSize="9"
-              fill="#9ca3af"
+              fontSize="9.5"
+              fill="#5F7268"
             >
               {d.label}
             </text>

@@ -5,7 +5,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Heritage primary — Zenvora deep green (unchanged; used across app+admin).
+        // Heritage primary — Zenvora deep botanical green (used across storefront + admin).
         brand: {
           50: '#eef7f2',
           100: '#d7ecdf',
@@ -19,7 +19,7 @@ const config: Config = {
           900: '#173a29',
           950: '#0b2016',
         },
-        // Deal/CTA accent (unchanged hue, used sparingly).
+        // Deal/savings accent (used sparingly on real discount moments).
         accent: {
           50: '#fff7ed',
           100: '#ffedd5',
@@ -32,8 +32,11 @@ const config: Config = {
           800: '#9a3412',
           900: '#7c2d12',
         },
-        // Zenvora identity surfaces: warm ink + paper cream + restrained brass.
+        // Zenvora identity surfaces: warm botanical ink + paper cream + restrained brass.
         ink: {
+          50: '#F3F5F4',
+          100: '#E4E9E6',
+          200: '#C7D1CC',
           300: '#8A978F',
           400: '#5F7268',
           500: '#3D5148',
@@ -48,13 +51,18 @@ const config: Config = {
           100: '#F5F1E7',
           200: '#EAE4D4',
           300: '#D9D1BC',
+          400: '#B8AE96',
+          500: '#948A73',
         },
         brass: {
+          50: '#FBF8EE',
+          100: '#F4ECD2',
           200: '#E7D9AE',
           300: '#D8C287',
           400: '#C6A75C',
           500: '#A98B45',
           600: '#8A7038',
+          700: '#6E582B',
         },
       },
       fontFamily: {
@@ -71,15 +79,15 @@ const config: Config = {
         ],
       },
       letterSpacing: {
-        display: '-0.022em',
+        display: '-0.024em',
         eyebrow: '0.14em',
       },
       boxShadow: {
-        // Layered, low-elevation depth system (no heavy drop shadows).
+        // Layered, low-elevation warm depth system (no heavy cool-gray drop shadows).
         hair: 'inset 0 0 0 1px rgba(16, 27, 22, 0.06)',
-        soft: '0 1px 2px rgba(16, 27, 22, 0.05), 0 4px 12px -6px rgba(16, 27, 22, 0.10)',
-        lift: '0 2px 4px rgba(16, 27, 22, 0.06), 0 16px 28px -12px rgba(16, 27, 22, 0.18)',
-        glow: '0 0 0 1px rgba(216, 194, 135, 0.35), 0 12px 32px -12px rgba(16, 27, 22, 0.35)',
+        soft: '0 1px 2px rgba(16, 27, 22, 0.05), 0 6px 16px -6px rgba(16, 27, 22, 0.09)',
+        lift: '0 2px 6px rgba(16, 27, 22, 0.06), 0 18px 32px -12px rgba(16, 27, 22, 0.16)',
+        glow: '0 0 0 1px rgba(216, 194, 135, 0.35), 0 14px 36px -12px rgba(16, 27, 22, 0.35)',
       },
       transitionTimingFunction: {
         /* The Zenvora ease: fast start, long gentle settle. One signature curve
@@ -95,14 +103,19 @@ const config: Config = {
           from: { opacity: '0', transform: 'translateY(12px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
+        'scale-in': {
+          from: { opacity: '0', transform: 'scale(0.97)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
         shimmer: {
           from: { transform: 'translateX(-100%)' },
           to: { transform: 'translateX(100%)' },
         },
       },
       animation: {
-        'fade-in': 'fade-in 0.2s ease-out',
+        'fade-in': 'fade-in 0.22s cubic-bezier(0.22, 1, 0.36, 1)',
         'fade-up': 'fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'scale-in': 'scale-in 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
         shimmer: 'shimmer 1.6s linear infinite',
       },
     },
