@@ -22,14 +22,20 @@ export function SupplierSyncButton({
     setBusy(true);
     try {
       const result = await apiFetch<{
+        synced?: boolean;
         created: number;
         updated: number;
         total: number;
         skippedNoCost?: number;
+        skippedNoSku?: number;
         message?: string;
       }>(`/api/admin/suppliers/${supplierId}/sync`);
       const base = `Catalog sync: ${result.created} new, ${result.updated} updated (${result.total} fetched)`;
-      toast(result.message ? `${base}. ${result.message}` : base, 'success');
+      const hasItems = result.total > 0 && result.created + result.updated > 0;
+      toast(
+        result.message ? `${base}. ${result.message}` : base,
+        hasItems ? 'success' : 'info'
+      );
       router.refresh();
     } catch (err) {
       toast(err instanceof ApiClientError ? err.message : 'Catalog sync failed', 'error');

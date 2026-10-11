@@ -165,12 +165,18 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
   async function sync(s: SupplierRow) {
     setSyncingId(s.id);
     try {
-      const result = await apiFetch<{ created: number; updated: number; total: number }>(
-        `/api/admin/suppliers/${s.id}/sync`
-      );
+      const result = await apiFetch<{
+        synced?: boolean;
+        created: number;
+        updated: number;
+        total: number;
+        message?: string;
+      }>(`/api/admin/suppliers/${s.id}/sync`);
+      const base = `Catalog sync: ${result.created} new, ${result.updated} updated (${result.total} fetched)`;
+      const hasItems = result.total > 0 && result.created + result.updated > 0;
       toast(
-        `Catalog sync: ${result.created} new, ${result.updated} updated (${result.total} fetched)`,
-        'success'
+        result.message ? `${base}. ${result.message}` : base,
+        hasItems ? 'success' : 'info'
       );
       router.refresh();
     } catch (err) {

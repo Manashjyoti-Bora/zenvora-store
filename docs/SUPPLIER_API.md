@@ -276,8 +276,16 @@ Catalog sync semantics (intentional):
   (`/product/listV2`) is deliberately NOT auto-imported: nothing becomes publicly sellable in
   Zenvora without the owner explicitly adding it to CJ My Products, syncing, and mapping it to
   a Zenvora product with a reviewed price.
+- Envelope & field normalisation: CJ's `GET /product/myProduct/query` returns a Spring `Page`
+  payload inside `data` (`{ pageSize, pageNumber, totalRecords, totalPages, content: [...] }`),
+  where each item uses `productId` (or `pid`), `nameEn` (or `productName`/`productNameEn`),
+  `sku`, `sellPrice` (single USD value or `"min - max"` variant range, parsed conservatively to
+  the upper bound), `freightTrial` (mapped to `shippingPaise`), and `totalPrice`. The adapter
+  normalises `data.content`, `data.list`, `data.records`, `data.productList`, and bare array
+  shapes and deduplicates by `sku` and `externalId` (`productId`).
 - Pagination is bounded: at most 5 pages of ≤100 items (≤500 products) per sync; a short page
-  ends the loop (a small catalogue costs exactly one request).
+  or reaching `totalPages`/`totalRecords` ends the loop (a small catalogue costs exactly one
+  request).
 - Items with an unknown CJ cost are **skipped** (reported as `skippedNoCost` in the sync
   response) instead of being stored with a fabricated 0.00 cost, which would corrupt
   auto-pricing and margin floors.

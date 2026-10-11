@@ -44,11 +44,15 @@ export function CjForensicProbePanel({ supplierId }: { supplierId: string }) {
         return;
       }
       setProbe(result);
+      const hasProducts =
+        (result.myProductQuery?.returned ?? 0) > 0 || (result.myProductQuery?.total ?? 0) > 0;
       toast(
         result.classification === null
-          ? 'CJ probe: all three steps succeeded.'
+          ? hasProducts
+            ? 'CJ probe: all three steps succeeded and My Products returned items.'
+            : 'CJ probe: auth & endpoints succeeded, but My Products returned 0 items.'
           : `CJ probe finished — failing step classified as ${result.classification}.`,
-        result.classification === null ? 'success' : 'error'
+        result.classification === null ? (hasProducts ? 'success' : 'info') : 'error'
       );
     } catch (err) {
       const message = err instanceof ApiClientError ? err.message : 'CJ probe failed to run.';
@@ -130,6 +134,9 @@ export function CjForensicProbePanel({ supplierId }: { supplierId: string }) {
                 <span className="font-mono">
                   total={probe.myProductQuery.total ?? '—'} · returned=
                   {probe.myProductQuery.returned ?? '—'}
+                  {probe.myProductQuery.listKey
+                    ? ` · key=${probe.myProductQuery.listKey}`
+                    : ''}
                 </span>
               }
             />

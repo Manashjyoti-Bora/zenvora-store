@@ -197,6 +197,9 @@ export interface CjProbeResult {
   myProductQuery: CjProbeStep & {
     total: number | null;
     returned: number | null;
+    listKey?: string | null;
+    dataKeys?: string[];
+    firstItemKeys?: string[];
   };
   /** Classification of the first failing step (null when all succeeded). */
   classification: CjFailureClass | null;
@@ -276,20 +279,54 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     const pageSize = Math.min(cap, 100);
     const maxPages = 5;
     const out: SupplierProductDto[] = [];
+    const seenSkus = new Set<string>();
+    const seenExternalIds = new Set<string>();
+
     for (let pageNum = 1; pageNum <= maxPages && out.length < cap; pageNum += 1) {
       const res = await this.get('product/myProduct/query', {
         pageNum: String(pageNum),
+        pageNumber: String(pageNum),
         pageSize: String(pageSize),
       });
       const data = this.unwrap<unknown>(res, 'product/myProduct/query');
-      const list = Array.isArray(data)
-        ? data
-        : (((data as Record<string, unknown>)?.list ?? []) as unknown[]);
-      for (const item of list) {
+      const page = extractCjProductPage(data);
+
+      // Safe structural log: status/code/envelope keys/counts only, never
+      // credentials or raw payload values.
+      logger.info('CJ myProduct/query page received', {
+        supplier: this.supplier.slug,
+        pageNum,
+        code: res.code ?? null,
+        requestId: res.requestId ?? null,
+        dataType: page.dataType,
+        dataKeys: page.dataKeys,
+        listKey: page.listKey,
+        firstItemKeys: page.firstItemKeys,
+        totalReported: page.total,
+        itemCount: page.items.length,
+      });
+
+      for (const item of page.items) {
         if (out.length >= cap) break;
-        out.push(this.mapProduct(item as Record<string, unknown>));
+        const dto = this.mapProduct(item);
+        const skuKey = dto.sku ? dto.sku.toLowerCase() : '';
+        const extKey = dto.externalId ? dto.externalId.toLowerCase() : '';
+        if (skuKey && seenSkus.has(skuKey)) continue;
+        if (extKey && seenExternalIds.has(extKey)) continue;
+        if (skuKey) seenSkus.add(skuKey);
+        if (extKey) seenExternalIds.add(extKey);
+        out.push(dto);
       }
-      if (list.length < pageSize) break;
+
+      if (page.items.length === 0) break;
+      if (page.totalPages !== null && page.totalPages > 0 && pageNum >= page.totalPages) break;
+      if (page.total !== null && page.total >= 0 && out.length >= page.total) break;
+      const effectivePageSize =
+        page.pageSize !== null && page.pageSize > 0
+          ? Math.min(pageSize, page.pageSize)
+          : pageSize;
+      if (page.items.length < effectivePageSize) break;
+
       // CJ documents QPS = 1 ("consistent with other API endpoints"): pace
       // multi-page syncs instead of bursting and tripping 1600200.
       if (out.length < cap && pageNum < maxPages) await sleep(CJ_QPS_DELAY_MS);
@@ -303,13 +340,16 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     const res = await this.get('product/variant/queryByVid', { vid });
     if (!res.success) return null;
     const data = this.unwrap<Record<string, unknown>>(res, 'product/variant/queryByVid');
+    const stock = num(data.stock ?? data.storageNum ?? data.inventoryNum);
     return {
-      externalId: str(data.pid),
-      sku: str(data.sku) ?? str(data.vid) ?? supplierSku,
-      name: str(data.productName ?? data.name),
-      costPaise: this.usdToPaise(firstNum(data, ['variantBuyPrice', 'buyPrice', 'variantSellPrice', 'sellPrice'])),
-      inStock: typeof data.stock === 'number' ? data.stock > 0 : undefined,
-      qty: typeof data.stock === 'number' ? data.stock : undefined,
+      externalId: str(data.productId ?? data.pid ?? data.id),
+      sku: str(data.variantSku ?? data.sku ?? data.vid) ?? supplierSku,
+      name: str(data.nameEn ?? data.productNameEn ?? data.productName ?? data.variantNameEn ?? data.name),
+      costPaise: this.usdToPaise(
+        firstUsd(data, ['variantBuyPrice', 'buyPrice', 'variantSellPrice', 'sellPrice', 'price'])
+      ),
+      inStock: stock !== null ? stock > 0 : undefined,
+      qty: stock !== null ? stock : undefined,
       raw: data,
     };
   }
@@ -320,18 +360,26 @@ export class CJDropshippingAdapter implements SupplierAdapter {
       throw new SupplierRejectedError(`CJ cannot resolve variant/SKU "${supplierSku}"`);
     }
     const res = await this.get('product/stock/queryByVid', { vid });
-    const data = this.unwrap<Record<string, unknown>>(res, 'product/stock/queryByVid');
-    const inventories = Array.isArray(data.inventories)
-      ? (data.inventories as Array<Record<string, unknown>>)
-      : [];
+    const rawData = this.unwrap<unknown>(res, 'product/stock/queryByVid');
+    const data = (Array.isArray(rawData) ? {} : (rawData ?? {})) as Record<string, unknown>;
+    const inventories = Array.isArray(rawData)
+      ? (rawData as Array<Record<string, unknown>>)
+      : Array.isArray(data.inventories)
+        ? (data.inventories as Array<Record<string, unknown>>)
+        : [];
+    const directStock = num(data.stock ?? data.quantity ?? data.totalInventoryNum ?? data.storageNum);
     const qty =
-      typeof data.stock === 'number'
-        ? data.stock
-        : typeof data.quantity === 'number'
-          ? data.quantity
-          : inventories.reduce((sum, inv) => sum + (num(inv.stock) ?? 0), 0);
+      directStock !== null
+        ? directStock
+        : inventories.reduce(
+            (sum, inv) =>
+              sum +
+              (num(inv.stock ?? inv.totalInventoryNum ?? inv.cjInventoryNum ?? inv.storageNum ?? inv.quantity) ??
+                0),
+            0
+          );
     const inStock = typeof data.inStock === 'boolean' ? data.inStock : qty >= quantity;
-    return { inStock, qty, raw: data };
+    return { inStock, qty, raw: Array.isArray(rawData) ? { inventories: rawData } : data };
   }
 
   // --- Orders ----------------------------------------------------------------
@@ -601,14 +649,67 @@ export class CJDropshippingAdapter implements SupplierAdapter {
         ? (p.variants as Array<Record<string, unknown>>)
         : [];
     const first = variants[0] ?? {};
+    const externalId = str(p.productId ?? p.pid ?? p.cjProductId ?? p.id);
+    const sku =
+      str(p.sku) ??
+      str(p.productSku) ??
+      str(p.variantSku) ??
+      str(p.vid) ??
+      str(first.variantSku) ??
+      str(first.sku) ??
+      str(first.vid) ??
+      externalId ??
+      '';
+    const nameFromSet = Array.isArray(p.productNameSet) ? str(p.productNameSet[0]) : null;
+    const name =
+      str(p.nameEn) ??
+      str(p.productNameEn) ??
+      str(p.productName) ??
+      str(p.name) ??
+      str(p.title) ??
+      nameFromSet;
+
+    let unitUsd =
+      firstUsd(p, ['buyPrice', 'sellPrice', 'discountPrice', 'nowPrice', 'price']) ??
+      firstUsd(first, ['variantBuyPrice', 'variantSellPrice', 'buyPrice', 'sellPrice', 'price']);
+    let shippingUsd =
+      firstUsd(p, ['freightTrial', 'shippingCost', 'postage', 'logisticPrice']) ??
+      firstUsd(first, ['freightTrial', 'shippingCost', 'postage']);
+
+    // In CJ product/myProduct/query, totalPrice = sellPrice + freightTrial.
+    // Fall back to totalPrice if sellPrice/buyPrice is absent, subtracting
+    // freightTrial when present so shipping is not double-counted.
+    if (unitUsd === null) {
+      const totalUsd = firstUsd(p, ['totalPrice']);
+      if (totalUsd !== null) {
+        if (shippingUsd !== null && totalUsd >= shippingUsd) {
+          unitUsd = Number((totalUsd - shippingUsd).toFixed(4));
+        } else {
+          unitUsd = totalUsd;
+          shippingUsd = null;
+        }
+      }
+    }
+
+    const stockNum = num(
+      p.stock ?? p.storageNum ?? p.inventoryNum ?? p.totalInventoryNum ?? first.stock
+    );
+    const qty = stockNum !== null ? Math.max(0, Math.trunc(stockNum)) : undefined;
+    const inStock =
+      typeof p.inStock === 'boolean'
+        ? p.inStock
+        : qty !== undefined
+          ? qty > 0
+          : undefined;
+
     return {
-      externalId: str(p.pid),
-      sku: str(p.sku) ?? str(first.sku) ?? str(first.vid) ?? str(p.pid) ?? '',
-      name: str(p.productName ?? p.productNameEn ?? p.name),
-      costPaise: this.usdToPaise(
-        firstNum(p, ['buyPrice', 'sellPrice']) ?? firstNum(first, ['variantBuyPrice', 'variantSellPrice'])
-      ),
-      qty: typeof p.stock === 'number' ? p.stock : undefined,
+      externalId,
+      sku,
+      name,
+      costPaise: this.usdToPaise(unitUsd),
+      shippingPaise: shippingUsd !== null ? this.usdToPaise(shippingUsd) : undefined,
+      inStock,
+      qty,
       raw: p,
     };
   }
@@ -633,8 +734,20 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     if (/^[0-9A-F]{8}-[0-9A-F]{4}-/i.test(sku) || /^\d{15,}$/.test(sku)) return sku;
     const res = await this.get('product/stock/queryBySku', { sku });
     if (!res.success) return null;
-    const data = (res.data ?? {}) as Record<string, unknown>;
-    return str(data.vid) ?? str(data.variantId) ?? null;
+    const raw = res.data;
+    const data = (
+      Array.isArray(raw) ? (raw[0] ?? {}) : (raw ?? {})
+    ) as Record<string, unknown>;
+    const firstInv = Array.isArray(data.inventories)
+      ? ((data.inventories[0] ?? {}) as Record<string, unknown>)
+      : {};
+    return (
+      str(data.vid) ??
+      str(data.variantId) ??
+      str(firstInv.vid) ??
+      str(firstInv.variantId) ??
+      null
+    );
   }
 
   /** Deduplicate concurrent async recoveries for the same supplier+purpose. */
@@ -1008,6 +1121,7 @@ export class CJDropshippingAdapter implements SupplierAdapter {
       {
         const url = new URL(`${API_BASE}/product/myProduct/query`);
         url.searchParams.set('pageNum', '1');
+        url.searchParams.set('pageNumber', '1');
         url.searchParams.set('pageSize', '1');
         const { res, httpStatus, elapsedMs } = await this.rawRequest(
           url.toString(),
@@ -1023,14 +1137,12 @@ export class CJDropshippingAdapter implements SupplierAdapter {
         s.resultFlag = res.result ?? null;
         s.message = res.message ?? null;
         s.requestId = res.requestId ?? null;
-        const data = (res.data ?? {}) as Record<string, unknown>;
-        const list = Array.isArray(data.list)
-          ? (data.list as unknown[])
-          : Array.isArray(res.data)
-            ? (res.data as unknown[])
-            : [];
-        s.total = typeof data.total === 'number' ? data.total : null;
-        s.returned = list.length;
+        const page = extractCjProductPage(res.data);
+        s.total = page.total;
+        s.returned = page.items.length;
+        s.listKey = page.listKey;
+        s.dataKeys = page.dataKeys;
+        s.firstItemKeys = page.firstItemKeys;
         s.ok = this.ok(res);
       }
     }
@@ -1110,7 +1222,12 @@ function fingerprint(value: string | null | undefined): string | null {
 /** Human-readable, secret-free verdict for the probe result. */
 function probeConclusion(r: CjProbeResult): string {
   if (r.getAccessToken.ok && r.authenticatedProbe.ok && r.myProductQuery.ok) {
-    return 'All three CJ probes succeeded: the API key authenticates, the account reads as authorized, and product/myProduct/query responds. There is no CJ-side blocker for catalog sync.';
+    const total = r.myProductQuery.total ?? r.myProductQuery.returned ?? 0;
+    const returned = r.myProductQuery.returned ?? 0;
+    if (total === 0 && returned === 0) {
+      return 'All three CJ probes succeeded (no CJ-side blocker for auth or endpoint access), but product/myProduct/query returned 0 products (total=0, returned=0). Verify products are added under My Products in the CJ account bound to this API key.';
+    }
+    return `All three CJ probes succeeded: the API key authenticates, the account reads as authorized, and product/myProduct/query returned ${returned} item(s) (total=${total}). There is no CJ-side blocker for catalog sync.`;
   }
   if (!r.getAccessToken.ok) {
     return `CJ rejected the credential exchange itself (${r.classification}). Verify the environment variable holds the FULL key of Type "API Key" (CJ also issues MCP tokens, which are not API keys) for the "Zenvora API" app.`;
@@ -1134,9 +1251,192 @@ function probeConclusion(r: CjProbeResult): string {
   return `CJ-side endpoint authorization mismatch: the token authenticates and setting/get succeeds (root=${r.authenticatedProbe.root ?? 'unknown'}), but product/myProduct/query still fails (code ${r.myProductQuery.code ?? 'n/a'}). This is not a Zenvora code or token-caching problem — send both requestIds to CJ support and verify the API store "Zenvora Store" authorization for the "Zenvora API" app.`;
 }
 
-function firstNum(o: Record<string, unknown>, keys: string[]): number | null {
+export interface CjExtractedPage {
+  items: Array<Record<string, unknown>>;
+  listKey: string;
+  dataType: string;
+  dataKeys: string[];
+  firstItemKeys: string[];
+  total: number | null;
+  pageNumber: number | null;
+  pageSize: number | null;
+  totalPages: number | null;
+}
+
+const CJ_PAGE_ARRAY_KEYS = [
+  'content',
+  'list',
+  'records',
+  'productList',
+  'products',
+  'items',
+  'rows',
+] as const;
+
+/**
+ * Normalise CJ's product pagination envelopes.
+ *
+ * Official CJ API v2 `GET /product/myProduct/query` returns a Spring Page
+ * envelope inside `data`:
+ *   { pageSize, pageNumber, totalRecords, totalPages, content: [...] }
+ * whereas `/product/list` and `/shopping/order/list` return:
+ *   { pageNum, pageSize, total, list: [...] }
+ * and some responses return a bare array `data: [...]` or nest `productList`
+ * inside `content` blocks (`listV2` style).
+ */
+export function extractCjProductPage(rawData: unknown): CjExtractedPage {
+  if (Array.isArray(rawData)) {
+    const items = flattenCjProductItems(rawData);
+    return {
+      items,
+      listKey: 'rootArray',
+      dataType: 'array',
+      dataKeys: [],
+      firstItemKeys: items[0] ? Object.keys(items[0]).slice(0, 25) : [],
+      total: null,
+      pageNumber: null,
+      pageSize: null,
+      totalPages: null,
+    };
+  }
+
+  if (!rawData || typeof rawData !== 'object') {
+    return {
+      items: [],
+      listKey: 'none',
+      dataType: rawData === null ? 'null' : typeof rawData,
+      dataKeys: [],
+      firstItemKeys: [],
+      total: null,
+      pageNumber: null,
+      pageSize: null,
+      totalPages: null,
+    };
+  }
+
+  const obj = rawData as Record<string, unknown>;
+  const dataKeys = Object.keys(obj).slice(0, 25);
+  let target: Record<string, unknown> = obj;
+  let prefix = '';
+
+  // Support one level of wrapper (`data.data` or `data.page`) if CJ nests the page object.
+  const hasDirectArray = CJ_PAGE_ARRAY_KEYS.some((k) => Array.isArray(obj[k]));
+  if (!hasDirectArray) {
+    for (const nestedKey of ['data', 'page', 'result'] as const) {
+      const nested = obj[nestedKey];
+      if (Array.isArray(nested)) {
+        const items = flattenCjProductItems(nested);
+        return {
+          items,
+          listKey: `${nestedKey}[]`,
+          dataType: 'object',
+          dataKeys,
+          firstItemKeys: items[0] ? Object.keys(items[0]).slice(0, 25) : [],
+          total:
+            num(obj.totalRecords ?? obj.total ?? obj.totalCount ?? obj.count) ?? items.length,
+          pageNumber: num(obj.pageNumber ?? obj.pageNum),
+          pageSize: num(obj.pageSize ?? obj.size),
+          totalPages: num(obj.totalPages ?? obj.pages),
+        };
+      }
+      if (nested && typeof nested === 'object') {
+        target = nested as Record<string, unknown>;
+        prefix = `${nestedKey}.`;
+        break;
+      }
+    }
+  }
+
+  let listKey = 'none';
+  let rawItems: unknown[] = [];
+  for (const key of CJ_PAGE_ARRAY_KEYS) {
+    if (Array.isArray(target[key])) {
+      rawItems = target[key] as unknown[];
+      listKey = `${prefix}${key}`;
+      break;
+    }
+  }
+
+  const items = flattenCjProductItems(rawItems);
+  const total =
+    num(target.totalRecords ?? target.total ?? target.totalCount ?? target.count) ??
+    num(obj.totalRecords ?? obj.total ?? obj.totalCount ?? obj.count);
+  const pageNumber =
+    num(target.pageNumber ?? target.pageNum) ?? num(obj.pageNumber ?? obj.pageNum);
+  const pageSize = num(target.pageSize ?? target.size) ?? num(obj.pageSize ?? obj.size);
+  const totalPages = num(target.totalPages ?? target.pages) ?? num(obj.totalPages ?? obj.pages);
+
+  return {
+    items,
+    listKey,
+    dataType: 'object',
+    dataKeys,
+    firstItemKeys: items[0] ? Object.keys(items[0]).slice(0, 25) : [],
+    total,
+    pageNumber,
+    pageSize,
+    totalPages,
+  };
+}
+
+function flattenCjProductItems(rawItems: unknown[]): Array<Record<string, unknown>> {
+  const out: Array<Record<string, unknown>> = [];
+  for (const entry of rawItems) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const rec = entry as Record<string, unknown>;
+    const hasProductIdentity =
+      rec.productId !== undefined ||
+      rec.pid !== undefined ||
+      rec.sku !== undefined ||
+      rec.productSku !== undefined ||
+      rec.vid !== undefined ||
+      rec.nameEn !== undefined ||
+      rec.productName !== undefined ||
+      rec.productNameEn !== undefined;
+    if (!hasProductIdentity && Array.isArray(rec.productList)) {
+      for (const sub of rec.productList) {
+        if (sub && typeof sub === 'object' && !Array.isArray(sub)) {
+          out.push(sub as Record<string, unknown>);
+        }
+      }
+      continue;
+    }
+    out.push(rec);
+  }
+  return out;
+}
+
+/**
+ * Parse a CJ USD price value. Handles numbers (`8.79`), numeric strings
+ * (`"8.79"`, `"$8.79"`), and CJ multi-variant price range strings
+ * (`"8.79 - 12.50"`, `"8.79 -- 12.50"`, `"8.79~12.50"`). For a range, returns
+ * the upper bound (`Math.max`) so auto-pricing never under-costs a higher-cost
+ * variant.
+ */
+export function parseUsd(v: unknown): number | null {
+  if (typeof v === 'number') {
+    return Number.isFinite(v) && v >= 0 ? v : null;
+  }
+  if (typeof v !== 'string') return null;
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  const direct = Number(trimmed);
+  if (Number.isFinite(direct) && direct >= 0) return direct;
+
+  // Match currency-prefixed or range strings such as "8.79 - 12.50" or "8.79 -- 12.50".
+  if (/^[\d\s.,$€£¥~–—-]+$/.test(trimmed)) {
+    const matches = trimmed.replace(/,/g, '').match(/\d+(?:\.\d+)?/g);
+    if (matches && matches.length > 0) {
+      const nums = matches.map(Number).filter((n) => Number.isFinite(n) && n >= 0);
+      if (nums.length > 0) return Math.max(...nums);
+    }
+  }
+  return null;
+}
+
+function firstUsd(o: Record<string, unknown>, keys: string[]): number | null {
   for (const k of keys) {
-    const v = num(o[k]);
+    const v = parseUsd(o[k]);
     if (v !== null) return v;
   }
   return null;

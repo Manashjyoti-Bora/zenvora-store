@@ -3,9 +3,11 @@ import type { Supplier } from '@prisma/client';
 import {
   CJDropshippingAdapter,
   classifyCjFailure,
+  extractCjProductPage,
   isUncertainTransportFailure,
   mapCjOrderStatus,
   mapCjTrackingStatus,
+  parseUsd,
 } from '@/lib/suppliers/cj';
 import { logger } from '@/lib/logger';
 import { diagnoseSupplierAdapter } from '@/lib/suppliers/registry';
@@ -1306,3 +1308,241 @@ describe('CJ forensic probe (safe; no secret material)', () => {
     expect(JSON.stringify(probe)).not.toContain('tok-auth-ok');
   });
 });
+
+describe('CJ My Products envelope + mapping regression (data.content / totalRecords / price ranges)', () => {
+  it('maps the documented CJ product/myProduct/query Spring Page envelope (data.content + totalRecords + productId + nameEn + sellPrice/freightTrial)', async () => {
+    const infoSpy = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    try {
+      const calls: CapturedCall[] = [];
+      stubFetch(
+        [
+          TOKEN_ROUTE,
+          {
+            match: 'myProduct/query',
+            body: {
+              code: 200,
+              result: true,
+              success: true,
+              message: 'Success',
+              requestId: 'req-myprod-2',
+              data: {
+                pageSize: 100,
+                pageNumber: 1,
+                totalRecords: 2,
+                totalPages: 1,
+                content: [
+                  {
+                    productId: '04182450-4636-4F18-996E-9B0B43E91234',
+                    nameEn: 'Portable USB Blender',
+                    sku: 'CJBL-001',
+                    bigImage: 'https://cf.cjdropshipping.com/img1.jpg',
+                    sellPrice: '8.50',
+                    freightTrial: '3.50',
+                    totalPrice: '12.00',
+                    areaId: '1',
+                    areaEn: 'China Warehouse',
+                    shopMethod: 'CJPacket Ordinary',
+                  },
+                  {
+                    productId: '98123450-4636-4F18-996E-9B0B43E95678',
+                    nameEn: 'Foldable LED Desk Lamp',
+                    sku: 'CJDL-002',
+                    bigImage: 'https://cf.cjdropshipping.com/img2.jpg',
+                    // Multi-variant price range string returned by CJ My Products
+                    sellPrice: '10.00 - 12.50',
+                    freightTrial: '4.00',
+                    totalPrice: '14.00 - 16.50',
+                  },
+                ],
+              },
+            },
+          },
+        ],
+        calls
+      );
+
+      const adapter = new CJDropshippingAdapter(makeSupplier());
+      const products = await adapter.getProducts({ limit: 200 });
+
+      expect(products).toHaveLength(2);
+      expect(products[0]).toMatchObject({
+        externalId: '04182450-4636-4F18-996E-9B0B43E91234',
+        sku: 'CJBL-001',
+        name: 'Portable USB Blender',
+        // 8.50 USD * 88 INR/USD * 100 paise = 74800
+        costPaise: 74800,
+        // 3.50 USD * 88 INR/USD * 100 paise = 30800
+        shippingPaise: 30800,
+      });
+      expect(products[1]).toMatchObject({
+        externalId: '98123450-4636-4F18-996E-9B0B43E95678',
+        sku: 'CJDL-002',
+        name: 'Foldable LED Desk Lamp',
+        // Upper bound of "10.00 - 12.50" = 12.50 USD * 88 * 100 = 110000
+        costPaise: 110000,
+        // 4.00 USD * 88 * 100 = 35200
+        shippingPaise: 35200,
+      });
+
+      // Only one page request needed when totalRecords=2, totalPages=1
+      expect(calls.filter((c) => c.url.includes('myProduct/query'))).toHaveLength(1);
+
+      // Safe structural log check: logs structure & counts, never token or key
+      const pageLog = infoSpy.mock.calls.find(
+        (c) => String(c[0]) === 'CJ myProduct/query page received'
+      );
+      expect(pageLog).toBeTruthy();
+      const ctx = pageLog![1] as Record<string, unknown>;
+      expect(ctx.listKey).toBe('content');
+      expect(ctx.totalReported).toBe(2);
+      expect(ctx.itemCount).toBe(2);
+      expect(ctx.dataKeys).toEqual([
+        'pageSize',
+        'pageNumber',
+        'totalRecords',
+        'totalPages',
+        'content',
+      ]);
+      expect(JSON.stringify(ctx)).not.toContain('tok-1');
+      expect(JSON.stringify(ctx)).not.toContain('cj-test-key');
+    } finally {
+      infoSpy.mockRestore();
+    }
+  });
+
+  it('deduplicates repeated SKUs or productIds across pages and handles server-capped pageSize via totalPages/totalRecords', async () => {
+    const calls: CapturedCall[] = [];
+    stubFetch(
+      [
+        TOKEN_ROUTE,
+        {
+          match: 'pageNum=1',
+          body: {
+            code: 200,
+            result: true,
+            data: {
+              pageSize: 2,
+              pageNumber: 1,
+              totalRecords: 3,
+              totalPages: 2,
+              content: [
+                { productId: 'PID-1', nameEn: 'Item One', sku: 'CJSKU-1', sellPrice: '5.00' },
+                { productId: 'PID-2', nameEn: 'Item Two', sku: 'CJSKU-2', sellPrice: '6.00' },
+              ],
+            },
+          },
+        },
+        {
+          match: 'pageNum=2',
+          body: {
+            code: 200,
+            result: true,
+            data: {
+              pageSize: 2,
+              pageNumber: 2,
+              totalRecords: 3,
+              totalPages: 2,
+              content: [
+                // Duplicate of page 1 item + one new item
+                { productId: 'PID-2', nameEn: 'Item Two Duplicate', sku: 'CJSKU-2', sellPrice: '6.00' },
+                { productId: 'PID-3', nameEn: 'Item Three', sku: 'CJSKU-3', sellPrice: '7.00' },
+              ],
+            },
+          },
+        },
+      ],
+      calls
+    );
+
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const products = await adapter.getProducts({ limit: 200 });
+    expect(products).toHaveLength(3);
+    expect(products.map((p) => p.sku)).toEqual(['CJSKU-1', 'CJSKU-2', 'CJSKU-3']);
+    expect(calls.filter((c) => c.url.includes('myProduct/query'))).toHaveLength(2);
+  });
+
+  it('handles empty My Products (content: [], totalRecords: 0) without inventing products and reports 0 in probe conclusion', async () => {
+    const calls: CapturedCall[] = [];
+    stubFetch(
+      [
+        TOKEN_ROUTE,
+        {
+          match: 'setting/get',
+          body: { code: 200, result: true, data: { root: 'GENERAL', isSandbox: false } },
+        },
+        {
+          match: 'myProduct/query',
+          body: {
+            code: 200,
+            result: true,
+            data: {
+              pageSize: 100,
+              pageNumber: 1,
+              totalRecords: 0,
+              totalPages: 0,
+              content: [],
+            },
+          },
+        },
+      ],
+      calls
+    );
+
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const products = await adapter.getProducts({ limit: 200 });
+    expect(products).toEqual([]);
+    expect(calls.filter((c) => c.url.includes('myProduct/query'))).toHaveLength(1);
+
+    const probe = await adapter.probe();
+    expect(probe.myProductQuery.ok).toBe(true);
+    expect(probe.myProductQuery.total).toBe(0);
+    expect(probe.myProductQuery.returned).toBe(0);
+    expect(probe.myProductQuery.listKey).toBe('content');
+    expect(probe.conclusion).toMatch(/returned 0 products/);
+  });
+
+  it('surfaces classified API errors from product/myProduct/query (never silently returns empty list)', async () => {
+    stubFetch(
+      [
+        TOKEN_ROUTE,
+        {
+          match: 'myProduct/query',
+          body: {
+            code: 1600200,
+            result: false,
+            success: false,
+            message: 'Call frequency too fast, please try again later',
+          },
+        },
+      ],
+      []
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    await expect(adapter.getProducts()).rejects.toThrow(
+      /CJ product\/myProduct\/query failed:.*\(code 1600200\) \[RATE_LIMIT\]/
+    );
+  });
+
+  it('unit-tests parseUsd and extractCjProductPage across CJ formats', () => {
+    expect(parseUsd(8.79)).toBe(8.79);
+    expect(parseUsd('8.79')).toBe(8.79);
+    expect(parseUsd('$8.79')).toBe(8.79);
+    expect(parseUsd('8.79 - 12.50')).toBe(12.5);
+    expect(parseUsd('8.79 -- 12.50')).toBe(12.5);
+    expect(parseUsd('8.79~12.50')).toBe(12.5);
+    expect(parseUsd('')).toBeNull();
+    expect(parseUsd(null)).toBeNull();
+
+    const springPage = extractCjProductPage({
+      pageSize: 10,
+      pageNumber: 1,
+      totalRecords: 2,
+      totalPages: 1,
+      content: [{ productId: 'P1', nameEn: 'A', sku: 'S1' }],
+    });
+    expect(springPage.listKey).toBe('content');
+    expect(springPage.total).toBe(2);
+    expect(springPage.items).toHaveLength(1);
+  });
+});
+
