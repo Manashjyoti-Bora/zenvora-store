@@ -76,7 +76,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Unit + integration tests (134)
+      - name: Unit + integration tests
         run: npm test
 
       # E2E (npm run test:e2e, 62 tests) intentionally NOT run here: it needs a

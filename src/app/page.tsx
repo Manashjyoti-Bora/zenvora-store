@@ -16,6 +16,7 @@ import {
   listActiveCategories,
 } from '@/lib/catalog/storefront';
 import { prisma } from '@/lib/db';
+import { STOREFRONT_PRODUCT_WHERE } from '@/lib/catalog/eligibility';
 import { describePaymentProvider } from '@/lib/payments';
 import { ProductGrid } from '@/components/store/product-grid';
 import { LinkButton } from '@/components/ui/button';
@@ -104,7 +105,7 @@ export default async function HomePage() {
     getFeaturedProducts(8),
     getNewArrivals(8),
     getSaleProducts(8),
-    prisma.product.count({ where: { status: 'ACTIVE' } }),
+    prisma.product.count({ where: STOREFRONT_PRODUCT_WHERE }),
     Promise.resolve(describePaymentProvider()),
   ]);
 
