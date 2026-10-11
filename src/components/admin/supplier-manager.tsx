@@ -30,6 +30,11 @@ export interface SupplierRow {
   supplierProductCount: number;
   supplierOrderCount: number;
   lastSyncedAt: string | null;
+  configured?: boolean;
+  adapterError?: string | null;
+  envPresent?: boolean;
+  vercelEnv?: string | null;
+  gitBranch?: string | null;
 }
 
 interface FormState {
@@ -165,12 +170,18 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
   async function sync(s: SupplierRow) {
     setSyncingId(s.id);
     try {
-      const result = await apiFetch<{ created: number; updated: number; total: number }>(
-        `/api/admin/suppliers/${s.id}/sync`
-      );
+      const result = await apiFetch<{
+        synced?: boolean;
+        created: number;
+        updated: number;
+        total: number;
+        message?: string;
+      }>(`/api/admin/suppliers/${s.id}/sync`);
+      const base = `Catalog sync: ${result.created} new, ${result.updated} updated (${result.total} fetched)`;
+      const hasItems = result.total > 0 && result.created + result.updated > 0;
       toast(
-        `Catalog sync: ${result.created} new, ${result.updated} updated (${result.total} fetched)`,
-        'success'
+        result.message ? `${base}. ${result.message}` : base,
+        hasItems ? 'success' : 'info'
       );
       router.refresh();
     } catch (err) {
@@ -214,7 +225,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>Supplier</Th>
               <Th>Type</Th>
@@ -226,24 +237,24 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {rows.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">
+                <Td className="py-8 text-center text-ink-400">
                   No suppliers yet — orders without a supplier are fulfilled manually.
                 </Td>
               </tr>
             )}
             {rows.map((s) => (
-              <tr key={s.id} className="hover:bg-gray-50/60">
+              <tr key={s.id} className="hover:bg-cream-50/70">
                 <Td>
                   <Link
                     href={`/admin/suppliers/${s.id}`}
-                    className="font-medium text-gray-900 hover:text-brand-700"
+                    className="font-medium text-ink-900 hover:text-brand-700"
                   >
                     {s.name}
                   </Link>
-                  <p className="max-w-[200px] truncate text-[11px] text-gray-400">
+                  <p className="max-w-[200px] truncate text-[11px] text-ink-400">
                     {s.baseUrl ?? s.contactEmail ?? `/${s.slug}`}
                   </p>
                 </Td>
@@ -260,7 +271,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                   )}
                 </Td>
                 <Td className="hidden tabular-nums lg:table-cell">{s.supplierOrderCount}</Td>
-                <Td className="hidden text-[11px] text-gray-500 lg:table-cell">
+                <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
                   {s.lastSyncedAt
                     ? new Intl.DateTimeFormat('en-IN', {
                         dateStyle: 'medium',
@@ -269,9 +280,16 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                     : 'never'}
                 </Td>
                 <Td>
-                  <Badge tone={s.isActive ? 'green' : 'gray'}>
-                    {s.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge tone={s.isActive ? 'green' : 'gray'}>
+                      {s.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                    {(s.type === 'CJ' || s.type === 'HTTP_REST') && s.configured !== undefined && (
+                      <Badge tone={s.configured ? 'green' : 'red'}>
+                        {s.configured ? 'Env OK' : 'Env missing'}
+                      </Badge>
+                    )}
+                  </div>
                 </Td>
                 <Td className="text-right">
                   <div className="flex justify-end gap-3 text-xs">
@@ -284,7 +302,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                     <button
                       type="button"
                       onClick={() => openEdit(s)}
-                      className="font-medium text-gray-600 hover:underline"
+                      className="font-medium text-ink-600 hover:underline"
                     >
                       Edit
                     </button>
@@ -292,7 +310,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                       type="button"
                       onClick={() => sync(s)}
                       disabled={syncingId === s.id}
-                      className="font-medium text-gray-600 hover:underline disabled:opacity-50"
+                      className="font-medium text-ink-600 hover:underline disabled:opacity-50"
                     >
                       {syncingId === s.id ? 'Syncing…' : 'Sync catalog'}
                     </button>
@@ -358,7 +376,15 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                 <Select
                   {...p}
                   value={form.type}
-                  onChange={(e) => set('type', e.target.value as SupplierRow['type'])}
+                  onChange={(e) => {
+                    const nextType = e.target.value as SupplierRow['type'];
+                    setForm((f) => ({
+                      ...f,
+                      type: nextType,
+                      apiKeyEnvVar:
+                        nextType === 'CJ' && !f.apiKeyEnvVar.trim() ? 'CJ_API_KEY' : f.apiKeyEnvVar,
+                    }));
+                  }}
                 >
                   <option value="MANUAL">Manual fulfilment</option>
                   <option value="HTTP_REST">HTTP REST API (automated)</option>
@@ -417,8 +443,8 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
           </div>
 
           {form.type === 'HTTP_REST' && (
-            <div className="space-y-3 rounded-lg border border-gray-200 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <div className="space-y-3 rounded-lg border border-ink-900/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">
                 API credentials & endpoints
               </p>
               <Alert tone="warning">
@@ -478,16 +504,33 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
           )}
 
           {form.type === 'CJ' && (
-            <div className="space-y-3 rounded-lg border border-gray-200 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <div className="space-y-3 rounded-lg border border-ink-900/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">
                 CJ Dropshipping API v2
               </p>
               <Alert tone="warning">
                 The CJ API key lives <strong>only in an environment variable</strong>. Enter the
                 variable NAME here (default <code>CJ_API_KEY</code>); put the actual key in
-                Vercel/server env (CJ dashboard → My CJ → Authorization → API). Never paste the
-                key into this form or into chat.
+                Vercel/server env (CJ dashboard → My CJ → Authorization → API). Enable both{' '}
+                <strong>Production</strong> and <strong>Preview</strong> scopes in Vercel → Project
+                Settings → Environment Variables and redeploy. Never paste the key into this form or
+                into chat.
               </Alert>
+              {editing && editing.type === 'CJ' && editing.configured !== undefined && (
+                <Alert
+                  tone={editing.configured ? 'success' : 'error'}
+                  title={
+                    editing.configured
+                      ? `Runtime check: ${editing.apiKeyEnvVar || 'CJ_API_KEY'} is present${editing.vercelEnv ? ` (${editing.vercelEnv}${editing.gitBranch ? ` · ${editing.gitBranch}` : ''})` : ''}`
+                      : `Runtime check: ${editing.apiKeyEnvVar || 'CJ_API_KEY'} is missing in this environment${editing.vercelEnv ? ` (${editing.vercelEnv}${editing.gitBranch ? ` · ${editing.gitBranch}` : ''})` : ''}`
+                  }
+                >
+                  {editing.configured
+                    ? 'The server-side adapter constructed cleanly in this runtime (secret value is never exposed).'
+                    : (editing.adapterError ??
+                      'Enable this variable for the Preview environment in Vercel → Project Settings → Environment Variables and redeploy.')}
+                </Alert>
+              )}
               <Field label="API key env var name" hint="UPPER_SNAKE_CASE">
                 {(p) => (
                   <Input
@@ -518,7 +561,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
                   />
                 )}
               </Field>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-ink-400">
                 Map each Zenvora product to a CJ variant: store the CJ <code>vid</code> (or CJ SKU)
                 in the product&apos;s supplier SKU field. Cancellations/returns are manual via the
                 CJ dashboard — CJ&apos;s public API v2 does not expose them, and Zenvora says so
@@ -544,7 +587,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
             checked={form.isActive}
             onChange={(e) => set('isActive', e.target.checked)}
           />
-          <p className="text-xs text-gray-400">{TYPE_INFO[form.type].hint}</p>
+          <p className="text-xs text-ink-400">{TYPE_INFO[form.type].hint}</p>
         </form>
       </Modal>
 
@@ -563,7 +606,7 @@ export function SupplierManager({ initial }: { initial: SupplierRow[] }) {
           </div>
         }
       >
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-ink-600">
           {deleting?.type === 'MANUAL'
             ? 'Manual-fulfilment suppliers are the fallback for products without automation and cannot be deleted. Deactivate it instead (edit → uncheck Active).'
             : deleting && deleting.supplierOrderCount > 0

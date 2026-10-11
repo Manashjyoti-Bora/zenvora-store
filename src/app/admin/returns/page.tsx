@@ -50,7 +50,7 @@ export default async function AdminReturnsPage({
     <div className="space-y-5">
       <header>
         <h1>Return requests</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Customer return/refund requests. Decisions trigger emails; approving issues the refund
           through the original payment provider (or queues it for manual settlement in TEST mode).
         </p>
@@ -72,7 +72,7 @@ export default async function AdminReturnsPage({
         </select>
         <button
           type="submit"
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          className="rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800"
         >
           Filter
         </button>
@@ -85,7 +85,7 @@ export default async function AdminReturnsPage({
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>Order</Th>
               <Th className="hidden md:table-cell">Item</Th>
@@ -96,10 +96,10 @@ export default async function AdminReturnsPage({
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {returns.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">No return requests.</Td>
+                <Td className="py-8 text-center text-ink-400">No return requests.</Td>
               </tr>
             )}
             {returns.map((r) => {
@@ -113,39 +113,39 @@ export default async function AdminReturnsPage({
               return (
                 <tr
                   key={r.id}
-                  className={r.status === 'REQUESTED' ? 'bg-amber-50/30' : 'hover:bg-gray-50/60'}
+                  className={r.status === 'REQUESTED' ? 'bg-amber-50/30' : 'hover:bg-cream-50/70'}
                 >
                   <Td>
                     <Link
                       href={`/admin/orders/${r.order.id}`}
-                      className="font-mono text-xs font-semibold text-gray-900 hover:text-brand-700"
+                      className="font-mono text-xs font-semibold text-ink-900 hover:text-brand-700"
                     >
                       {r.order.orderNumber}
                     </Link>
                   </Td>
-                  <Td className="hidden max-w-[180px] text-xs text-gray-600 md:table-cell">
+                  <Td className="hidden max-w-[180px] text-xs text-ink-600 md:table-cell">
                     {r.orderItem ? (
                       <>
                         <span className="block truncate font-medium">{snap.name ?? 'Item'}</span>
                         {snap.variantName && (
-                          <span className="text-[10px] text-gray-400">{snap.variantName}</span>
+                          <span className="text-[10px] text-ink-400">{snap.variantName}</span>
                         )}
                       </>
                     ) : (
-                      <span className="text-gray-400">Whole order</span>
+                      <span className="text-ink-400">Whole order</span>
                     )}
                   </Td>
                   <Td className="max-w-[220px]">
-                    <p className="truncate text-xs text-gray-700" title={r.reason}>
+                    <p className="truncate text-xs text-ink-700" title={r.reason}>
                       {r.reason}
                     </p>
                     {r.customerNote && (
-                      <p className="truncate text-[10px] text-gray-400" title={r.customerNote}>
+                      <p className="truncate text-[10px] text-ink-400" title={r.customerNote}>
                         {r.customerNote}
                       </p>
                     )}
                   </Td>
-                  <Td className="hidden text-[11px] text-gray-400 lg:table-cell">
+                  <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
                     {fmt(r.createdAt)}
                   </Td>
                   <Td>
@@ -155,7 +155,7 @@ export default async function AdminReturnsPage({
                     {r.refundAmount != null ? (
                       formatINR(toPaise(r.refundAmount))
                     ) : (
-                      <span className="text-gray-300">—</span>
+                      <span className="text-ink-300">—</span>
                     )}
                   </Td>
                   <Td className="text-right">

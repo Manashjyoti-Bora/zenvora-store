@@ -79,7 +79,7 @@ export default async function AdminUsersPage({
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1>Users &amp; roles</h1>
-          <p className="mt-1 text-sm tabular-nums text-gray-500">
+          <p className="mt-1 text-sm tabular-nums text-ink-400">
             {total} user{total === 1 ? '' : 's'} · {staffCount} active staff/admin
             {staffCount === 1 ? '' : 's'}
           </p>
@@ -119,7 +119,7 @@ export default async function AdminUsersPage({
         </select>
         <button
           type="submit"
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          className="rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800"
         >
           Filter
         </button>
@@ -132,7 +132,7 @@ export default async function AdminUsersPage({
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>User</Th>
               <Th>Role</Th>
@@ -142,22 +142,22 @@ export default async function AdminUsersPage({
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {rows.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">No users match.</Td>
+                <Td className="py-8 text-center text-ink-400">No users match.</Td>
               </tr>
             )}
             {rows.map((u) => (
-              <tr key={u.id} className="hover:bg-gray-50/60">
+              <tr key={u.id} className="hover:bg-cream-50/70">
                 <Td>
-                  <p className="font-medium text-gray-900">
+                  <p className="font-medium text-ink-900">
                     {u.name}
                     {u.isSelf && (
                       <span className="ml-2 text-[10px] font-normal text-brand-700">(you)</span>
                     )}
                   </p>
-                  <p className="text-xs text-gray-400">{u.email}</p>
+                  <p className="text-xs text-ink-400">{u.email}</p>
                 </Td>
                 <Td>
                   <Badge
@@ -169,10 +169,10 @@ export default async function AdminUsersPage({
                 <Td>
                   <Badge tone={u.status === 'ACTIVE' ? 'green' : 'red'}>{u.status}</Badge>
                 </Td>
-                <Td className="hidden text-[11px] text-gray-400 md:table-cell">
+                <Td className="hidden text-[11px] text-ink-400 md:table-cell">
                   {fmt(new Date(u.createdAt))}
                 </Td>
-                <Td className="hidden text-[11px] text-gray-400 lg:table-cell">
+                <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
                   {fmt(u.lastLoginAt ? new Date(u.lastLoginAt) : null)}
                 </Td>
                 <Td className="text-right">

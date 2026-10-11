@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getCurrentUser } from '@/lib/auth/guards';
 import { getCartViewReadOnly } from '@/lib/cart/service';
 import { CartManager } from '@/components/store/cart-manager';
+import { CheckoutSteps } from '@/components/store/checkout-steps';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,8 +18,10 @@ export default async function CartPage() {
 
   return (
     <div className="container-store py-6 sm:py-8">
+      <CheckoutSteps current="cart" />
       <header className="mb-6">
-        <h1>Your cart</h1>
+        <p className="eyebrow">Order Review</p>
+        <h1 className="display mt-1">Your cart</h1>
       </header>
       <CartManager initialCart={cart} isLoggedIn={Boolean(user)} />
     </div>

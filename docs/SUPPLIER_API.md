@@ -276,8 +276,16 @@ Catalog sync semantics (intentional):
   (`/product/listV2`) is deliberately NOT auto-imported: nothing becomes publicly sellable in
   Zenvora without the owner explicitly adding it to CJ My Products, syncing, and mapping it to
   a Zenvora product with a reviewed price.
+- Envelope & field normalisation: CJ's `GET /product/myProduct/query` returns a Spring `Page`
+  payload inside `data` (`{ pageSize, pageNumber, totalRecords, totalPages, content: [...] }`),
+  where each item uses `productId` (or `pid`), `nameEn` (or `productName`/`productNameEn`),
+  `sku`, `sellPrice` (single USD value or `"min - max"` variant range, parsed conservatively to
+  the upper bound), `freightTrial` (mapped to `shippingPaise`), and `totalPrice`. The adapter
+  normalises `data.content`, `data.list`, `data.records`, `data.productList`, and bare array
+  shapes and deduplicates by `sku` and `externalId` (`productId`).
 - Pagination is bounded: at most 5 pages of ≤100 items (≤500 products) per sync; a short page
-  ends the loop (a small catalogue costs exactly one request).
+  or reaching `totalPages`/`totalRecords` ends the loop (a small catalogue costs exactly one
+  request).
 - Items with an unknown CJ cost are **skipped** (reported as `skippedNoCost` in the sync
   response) instead of being stored with a fabricated 0.00 cost, which would corrupt
   auto-pricing and margin floors.
@@ -308,9 +316,12 @@ Diagnostics (safe, no secret values):
 - The admin supplier detail page shows the same status: green when the variable is present,
   a red "Automation blocked" alert with the exact missing configuration otherwise.
 - Vercel note: environment variables are read at **request time** by the Node runtime but are
-  only **baked into a deployment at deploy time**. If you add `CJ_API_KEY` in the Vercel
-  dashboard, you must **redeploy Production** before the running server can see it; otherwise
-  diagnostics correctly report `valuePresent: false`.
+  **scoped per target environment (`Production`, `Preview`, `Development`)** and **baked into a
+  deployment at deploy time**. A variable added only to **Production** is NOT injected into
+  **Preview** branch deployments (`valuePresent: false, vercelEnv: preview`). To test CJ probe or
+  catalog sync on a Preview deployment, tick both **Production** and **Preview** (without a
+  branch restriction excluding your feature branch) in **Vercel → Project Settings → Environment
+  Variables**, then **Redeploy** the Preview deployment.
 
 Token lifecycle & self-healing (verified against CJ's current docs):
 - Access/refresh tokens live **180 days**, but CJ **server-side caches the same token per

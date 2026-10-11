@@ -134,7 +134,7 @@ export default async function ProductPage({ params }: Ctx) {
   };
 
   return (
-    <div className="container-store pb-28 pt-6 sm:py-8 lg:pb-8">
+    <div className="container-store pb-28 pt-6 sm:pt-8 lg:pb-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
@@ -149,6 +149,7 @@ export default async function ProductPage({ params }: Ctx) {
         <ProductGallery images={images} name={product.name} />
 
         <div className="space-y-5">
+          <div className="card space-y-5 p-5 sm:p-6">
           <div>
             {product.category && (
               <Link href={`/categories/${product.category.slug}`}>
@@ -175,6 +176,7 @@ export default async function ProductPage({ params }: Ctx) {
               variants={buyBoxVariants}
               lowStockThreshold={product.lowStockThreshold}
             />
+          </div>
           </div>
 
           <dl className="grid grid-cols-1 gap-2 rounded-xl border border-ink-900/10 bg-white p-4 text-sm sm:grid-cols-2">

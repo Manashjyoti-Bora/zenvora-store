@@ -79,11 +79,11 @@ export default async function CategoryPage({
           { label: category.name },
         ]}
       />
-      <header className="mb-6">
+      <header className="mb-6 rounded-2xl border border-ink-900/10 bg-gradient-to-br from-cream-100/80 via-white to-cream-50 p-5 shadow-hair sm:p-6">
         <p className="eyebrow">Category</p>
         <h1 className="display mt-1.5">{category.name}</h1>
         {category.description && (
-          <p className="mt-1 max-w-2xl text-sm text-ink-400">{category.description}</p>
+          <p className="mt-1 max-w-2xl text-sm text-ink-500">{category.description}</p>
         )}
         <p className="mt-1 text-sm tabular-nums text-ink-400">
           {result.total} product{result.total === 1 ? '' : 's'}

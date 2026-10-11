@@ -23,7 +23,7 @@ export default async function AdminCouponsPage() {
     <div className="space-y-5">
       <header>
         <h1>Coupons</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Discounts are always re-validated server-side at cart and checkout — codes shown in the UI
           can never be manipulated into larger discounts.
         </p>

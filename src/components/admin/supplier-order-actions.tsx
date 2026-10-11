@@ -101,7 +101,7 @@ export function SupplierOrderActions({
       >
         <div className="space-y-3">
           {error && <Alert tone="error">{error}</Alert>}
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-600">
             Use when the supplier shipped but tracking did not arrive automatically (or for manual
             fulfilment). This advances the customer order to SHIPPED and emails tracking details.
           </p>

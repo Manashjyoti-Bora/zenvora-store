@@ -34,7 +34,7 @@ export default async function AdminPricingRulesPage() {
     <div className="space-y-5">
       <header>
         <h1>Pricing rules</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Override margins per supplier, category or product without editing each product.
         </p>
       </header>

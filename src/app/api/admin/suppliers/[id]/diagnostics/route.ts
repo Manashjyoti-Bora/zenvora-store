@@ -28,10 +28,11 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
 
     const diag = diagnoseSupplierAdapter(supplier);
 
+    const envVarName = supplier.apiKeyEnvVar?.trim() || null;
     let valuePresent = false;
-    if (supplier.apiKeyEnvVar) {
-      const value = process.env[supplier.apiKeyEnvVar];
-      valuePresent = typeof value === 'string' && value.length > 0;
+    if (envVarName) {
+      const value = process.env[envVarName];
+      valuePresent = typeof value === 'string' && value.trim().length > 0;
     }
 
     return jsonOk({
@@ -42,8 +43,10 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
       configured: diag.ok,
       adapterError: diag.error,
       // Name of the env var only - the secret itself is never readable here.
-      apiKeyEnvVar: supplier.apiKeyEnvVar,
+      apiKeyEnvVar: envVarName,
       valuePresent,
+      vercelEnv: process.env.VERCEL_ENV?.trim() || null,
+      gitBranch: process.env.VERCEL_GIT_COMMIT_REF?.trim() || null,
     });
   })(req, ctx);
 }

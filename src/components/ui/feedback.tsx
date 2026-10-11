@@ -63,11 +63,11 @@ export function Card({
 }) {
   return (
     <section
-      className={cn('card', className)}
+      className={cn('card overflow-hidden', className)}
       aria-label={typeof title === 'string' ? title : undefined}
     >
       {(title || action) && (
-        <header className="flex items-center justify-between gap-3 border-b border-ink-900/10 px-4 py-3 sm:px-5">
+        <header className="flex items-center justify-between gap-3 border-b border-ink-900/10 bg-cream-50/40 px-4 py-3.5 sm:px-5">
           {title && <h2 className="text-base font-semibold text-ink-900">{title}</h2>}
           {action}
         </header>
@@ -93,7 +93,7 @@ export function EmptyState({
   const content = icon ?? <BoxIcon className="h-6 w-6" />;
   const isGlyph = typeof content === 'string';
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-ink-900/15 bg-cream-50 px-6 py-12 text-center">
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-ink-900/15 bg-cream-50/70 px-6 py-12 text-center">
       {isGlyph ? (
         <span aria-hidden="true" className="text-3xl">
           {content}
@@ -101,13 +101,13 @@ export function EmptyState({
       ) : (
         <span
           aria-hidden="true"
-          className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-ink-500 shadow-hair ring-1 ring-ink-900/10"
+          className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-brand-700 shadow-soft ring-1 ring-ink-900/10"
         >
           {content}
         </span>
       )}
-      <h3 className="mt-4 text-sm font-semibold text-ink-900">{title}</h3>
-      {description && <p className="mt-1 max-w-sm text-sm leading-relaxed text-ink-400">{description}</p>}
+      <h3 className="mt-4 text-base font-semibold text-ink-900">{title}</h3>
+      {description && <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-ink-400">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   );
@@ -128,14 +128,21 @@ export function StatCard({
     neutral: 'text-ink-900',
     positive: 'text-emerald-700',
     negative: 'text-red-700',
-    info: 'text-blue-700',
+    info: 'text-brand-700',
+  }[tone];
+  const barClass = {
+    neutral: 'bg-ink-900/15',
+    positive: 'bg-emerald-500',
+    negative: 'bg-red-500',
+    info: 'bg-brand-500',
   }[tone];
   return (
-    <div className="card p-4">
-      <dt className="truncate text-xs font-medium uppercase tracking-wide text-ink-400">
+    <div className="card relative overflow-hidden p-4 sm:p-5">
+      <span aria-hidden="true" className={cn('absolute inset-x-0 top-0 h-1', barClass)} />
+      <dt className="truncate text-[11px] font-semibold uppercase tracking-wider text-ink-400">
         {label}
       </dt>
-      <dd className={cn('mt-1 text-xl font-bold tabular-nums sm:text-2xl', toneClass)}>{value}</dd>
+      <dd className={cn('mt-1.5 text-xl font-bold tabular-nums sm:text-2xl', toneClass)}>{value}</dd>
       {sub && <dd className="mt-1 text-xs text-ink-400">{sub}</dd>}
     </div>
   );

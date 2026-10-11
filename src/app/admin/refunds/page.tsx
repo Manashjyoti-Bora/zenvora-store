@@ -46,7 +46,7 @@ export default async function AdminRefundsPage({
     <div className="space-y-5">
       <header>
         <h1>Refunds</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           All refund records. Gateway refunds are issued automatically via the provider API; TEST
           and manual refunds are settled here once money actually moves.
         </p>
@@ -68,7 +68,7 @@ export default async function AdminRefundsPage({
         </select>
         <button
           type="submit"
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          className="rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800"
         >
           Filter
         </button>
@@ -81,7 +81,7 @@ export default async function AdminRefundsPage({
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>Order</Th>
               <Th>Amount</Th>
@@ -93,33 +93,33 @@ export default async function AdminRefundsPage({
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {refunds.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">No refunds recorded.</Td>
+                <Td className="py-8 text-center text-ink-400">No refunds recorded.</Td>
               </tr>
             )}
             {refunds.map((r) => (
-              <tr key={r.id} className="hover:bg-gray-50/60">
+              <tr key={r.id} className="hover:bg-cream-50/70">
                 <Td>
                   <Link
                     href={`/admin/orders/${r.order.id}`}
-                    className="font-mono text-xs font-semibold text-gray-900 hover:text-brand-700"
+                    className="font-mono text-xs font-semibold text-ink-900 hover:text-brand-700"
                   >
                     {r.order.orderNumber}
                   </Link>
                   {r.returnRequest && (
-                    <span className="block text-[10px] text-gray-400">from return request</span>
+                    <span className="block text-[10px] text-ink-400">from return request</span>
                   )}
                 </Td>
                 <Td className="font-medium tabular-nums">{formatINR(toPaise(r.amount))}</Td>
-                <Td className="hidden max-w-[200px] truncate text-xs text-gray-500 md:table-cell">
+                <Td className="hidden max-w-[200px] truncate text-xs text-ink-400 md:table-cell">
                   {r.reason ?? '—'}
                 </Td>
-                <Td className="hidden max-w-[140px] truncate font-mono text-[11px] text-gray-500 lg:table-cell">
+                <Td className="hidden max-w-[140px] truncate font-mono text-[11px] text-ink-400 lg:table-cell">
                   {r.providerRefundId ?? '—'}
                   {r.provider && (
-                    <span className="block text-[10px] text-gray-400">{r.provider}</span>
+                    <span className="block text-[10px] text-ink-400">{r.provider}</span>
                   )}
                 </Td>
                 <Td>
@@ -133,10 +133,10 @@ export default async function AdminRefundsPage({
                     </span>
                   )}
                 </Td>
-                <Td className="hidden text-xs text-gray-500 md:table-cell">
+                <Td className="hidden text-xs text-ink-400 md:table-cell">
                   {r.initiatedBy.toLowerCase()}
                 </Td>
-                <Td className="hidden text-[11px] text-gray-400 md:table-cell">
+                <Td className="hidden text-[11px] text-ink-400 md:table-cell">
                   {fmt(r.createdAt)}
                 </Td>
                 <Td className="text-right">

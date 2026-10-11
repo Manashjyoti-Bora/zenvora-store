@@ -89,7 +89,7 @@ export default async function EditProductPage({ params }: Ctx) {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="line-clamp-1">Edit: {product.name}</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-ink-400">
             Last updated{' '}
             {new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(
               product.updatedAt

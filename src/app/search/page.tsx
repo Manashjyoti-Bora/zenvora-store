@@ -43,7 +43,7 @@ export default async function SearchPage({
 
   return (
     <div className="container-store py-6 sm:py-8">
-      <header className="mb-6 space-y-3">
+      <header className="mb-6 space-y-3 rounded-2xl border border-ink-900/10 bg-gradient-to-br from-cream-100/80 via-white to-cream-50 p-5 shadow-hair sm:p-6">
         <div>
           <p className="eyebrow">Search</p>
           <h1 className="display mt-1.5">{q ? `Search results for “${q}”` : 'Search products'}</h1>

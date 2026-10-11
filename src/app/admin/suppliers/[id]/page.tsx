@@ -62,8 +62,11 @@ export default async function SupplierDetailPage({ params }: Ctx) {
 
   // Server-side configuration diagnostics (never exposes secret values).
   const diag = diagnoseSupplierAdapter(supplier);
-  const envValue = supplier.apiKeyEnvVar ? process.env[supplier.apiKeyEnvVar] : undefined;
-  const envPresent = typeof envValue === 'string' && envValue.length > 0;
+  const envVarName = supplier.apiKeyEnvVar?.trim() || null;
+  const envValue = envVarName ? process.env[envVarName] : undefined;
+  const envPresent = typeof envValue === 'string' && envValue.trim().length > 0;
+  const vercelEnv = process.env.VERCEL_ENV?.trim() || null;
+  const gitBranch = process.env.VERCEL_GIT_COMMIT_REF?.trim() || null;
 
   return (
     <div className="space-y-5">
@@ -76,7 +79,7 @@ export default async function SupplierDetailPage({ params }: Ctx) {
             ← All suppliers
           </Link>
           <h1 className="mt-1">{supplier.name}</h1>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-400">
             <Badge
               tone={
                 supplier.type === 'HTTP_REST' || supplier.type === 'CJ'
@@ -102,7 +105,7 @@ export default async function SupplierDetailPage({ params }: Ctx) {
           />
           <Link
             href="/admin/suppliers"
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-ink-900/20 bg-white px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-cream-50/70"
           >
             Edit in list
           </Link>
@@ -140,9 +143,22 @@ export default async function SupplierDetailPage({ params }: Ctx) {
         </Alert>
       )}
 
-      {diag.ok && supplier.apiKeyEnvVar && envPresent && (
+      {diag.ok && envVarName && envPresent && (
         <Alert tone="success" title="API configuration OK">
-          Environment variable <code>{supplier.apiKeyEnvVar}</code> is present in this environment
+          Environment variable <code>{envVarName}</code> is present in this environment
+          {vercelEnv ? (
+            <>
+              {' '}
+              (<code>{vercelEnv}</code>
+              {gitBranch ? (
+                <>
+                  {' '}
+                  · <code>{gitBranch}</code>
+                </>
+              ) : null}
+              )
+            </>
+          ) : null}{' '}
           (value never displayed). Catalog sync and automatic forwarding are enabled.
         </Alert>
       )}
@@ -150,24 +166,26 @@ export default async function SupplierDetailPage({ params }: Ctx) {
         <Alert tone="error" title="Automation blocked — configuration problem">
           <p>{diag.error}</p>
           <p className="mt-2">
-            Fix this in Vercel → Settings → Environment Variables for the affected scope, then
-            redeploy (variables are only read at deploy time). Until fixed, catalog sync fails and
-            affected orders fall back to the manual queue — nothing pretends to be automated.
+            Fix this in Vercel → Project Settings → Environment Variables for the affected target
+            scope (enable both <strong>Production</strong> and <strong>Preview</strong> if testing on
+            preview branches), then redeploy (variables are baked into deployments at deploy time).
+            Until fixed, catalog sync fails and affected orders fall back to the manual queue —
+            nothing pretends to be automated.
           </p>
         </Alert>
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Mapped products</p>
+          <p className="text-xs uppercase tracking-wide text-ink-400">Mapped products</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{supplier._count.products}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Catalog entries</p>
+          <p className="text-xs uppercase tracking-wide text-ink-400">Catalog entries</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{supplier._count.supplierProducts}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Supplier orders</p>
+          <p className="text-xs uppercase tracking-wide text-ink-400">Supplier orders</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{supplier._count.supplierOrders}</p>
           <Link
             href={`/admin/supplier-orders?supplier=${supplier.id}`}
@@ -177,7 +195,7 @@ export default async function SupplierDetailPage({ params }: Ctx) {
           </Link>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Lead time</p>
+          <p className="text-xs uppercase tracking-wide text-ink-400">Lead time</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{supplier.leadTimeDays}d</p>
         </Card>
       </div>
@@ -185,7 +203,7 @@ export default async function SupplierDetailPage({ params }: Ctx) {
       {supplier.type === 'CJ' && <CjForensicProbePanel supplierId={supplier.id} />}
 
       <section aria-labelledby="catalog-mapping">
-        <h2 id="catalog-mapping" className="mb-3 text-lg font-semibold text-gray-900">
+        <h2 id="catalog-mapping" className="mb-3 text-lg font-semibold text-ink-900">
           Catalog &amp; mapping
         </h2>
         <SupplierProductMapper initial={rows} products={products} />

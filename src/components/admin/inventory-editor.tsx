@@ -23,7 +23,7 @@ export interface InventoryRow {
 function stockTone(stock: number, threshold = 5) {
   if (stock === 0) return 'text-red-600 font-bold';
   if (threshold > 0 && stock <= threshold) return 'text-amber-600 font-semibold';
-  return 'text-gray-800';
+  return 'text-ink-800';
 }
 
 export function InventoryEditor({ initial }: { initial: InventoryRow[] }) {
@@ -99,7 +99,7 @@ export function InventoryEditor({ initial }: { initial: InventoryRow[] }) {
   return (
     <ul className="space-y-3">
       {rows.length === 0 && (
-        <li className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-400">
+        <li className="rounded-xl border border-dashed border-ink-900/20 bg-white p-8 text-center text-sm text-ink-400">
           No products match this view.
         </li>
       )}
@@ -109,11 +109,11 @@ export function InventoryEditor({ initial }: { initial: InventoryRow[] }) {
             <div className="min-w-0">
               <Link
                 href={`/admin/products/${row.productId}`}
-                className="text-sm font-semibold text-gray-900 hover:text-brand-700"
+                className="text-sm font-semibold text-ink-900 hover:text-brand-700"
               >
                 {row.name}
               </Link>
-              <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-gray-400">
+              <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-ink-400">
                 <Badge
                   tone={
                     row.status === 'ACTIVE' ? 'green' : row.status === 'DRAFT' ? 'amber' : 'gray'
@@ -149,12 +149,12 @@ export function InventoryEditor({ initial }: { initial: InventoryRow[] }) {
               {row.variants.map((v) => (
                 <li
                   key={v.id}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-2"
+                  className="flex items-center justify-between gap-2 rounded-lg border border-ink-900/5 bg-cream-50/70 px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-medium text-gray-800">{v.name}</p>
+                    <p className="truncate text-xs font-medium text-ink-800">{v.name}</p>
                     <p
-                      className={`text-sm tabular-nums ${v.isActive ? stockTone(v.stock, row.lowStockThreshold) : 'text-gray-300 line-through'}`}
+                      className={`text-sm tabular-nums ${v.isActive ? stockTone(v.stock, row.lowStockThreshold) : 'text-ink-300 line-through'}`}
                     >
                       {v.stock} in stock
                     </p>
@@ -168,7 +168,7 @@ export function InventoryEditor({ initial }: { initial: InventoryRow[] }) {
               ))}
             </ul>
           ) : (
-            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-2">
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-ink-900/5 bg-cream-50/70 px-3 py-2">
               <p className={`text-sm tabular-nums ${stockTone(row.stock, row.lowStockThreshold)}`}>
                 {row.stock} in stock
                 {row.stock === 0 && (
@@ -183,13 +183,13 @@ export function InventoryEditor({ initial }: { initial: InventoryRow[] }) {
                 )}
               </p>
               <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1 text-xs text-gray-500">
+                <label className="flex items-center gap-1 text-xs text-ink-400">
                   low&nbsp;≤
                   <input
                     type="number"
                     min={0}
                     max={100000}
-                    className="w-16 rounded-md border border-gray-200 px-2 py-1 text-xs tabular-nums"
+                    className="w-16 rounded-md border border-ink-900/10 px-2 py-1 text-xs tabular-nums"
                     value={row.lowStockThreshold}
                     disabled={savingId === `thr-${row.productId}`}
                     onChange={(e) =>

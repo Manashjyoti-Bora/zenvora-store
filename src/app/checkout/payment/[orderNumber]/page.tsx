@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth/guards';
 import { findOrderForAccess } from '@/lib/orders/access';
 import { toPaise, formatINR } from '@/lib/money';
 import { PaymentFlow } from '@/components/checkout/payment-flow';
+import { CheckoutSteps } from '@/components/store/checkout-steps';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,8 +45,9 @@ export default async function PaymentPage({
   }
 
   return (
-    <div className="container-store max-w-xl py-10 sm:py-16">
-      <h1 className="text-center text-2xl">Complete your payment</h1>
+    <div className="container-store max-w-xl py-8 sm:py-12">
+      <CheckoutSteps current="checkout" />
+      <h1 className="display text-center text-2xl">Complete your payment</h1>
       <p className="mt-2 text-center text-sm text-ink-400">
         Order <span className="font-semibold text-ink-800">{order.orderNumber}</span> · Amount{' '}
         <span className="font-semibold tabular-nums text-ink-800">

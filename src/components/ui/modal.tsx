@@ -64,7 +64,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink-900/50 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink-950/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -75,25 +75,29 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          'max-h-[92vh] w-full animate-fade-in overflow-y-auto rounded-t-2xl bg-white shadow-xl sm:rounded-2xl',
+          'max-h-[92vh] w-full animate-scale-in overflow-y-auto rounded-t-2xl border border-ink-900/10 bg-white shadow-lift sm:rounded-2xl',
           wide ? 'sm:max-w-2xl' : 'sm:max-w-md'
         )}
       >
-        <header className="flex items-center justify-between border-b border-ink-900/10 px-4 py-3">
+        <header className="flex items-center justify-between border-b border-ink-900/10 bg-cream-50/50 px-5 py-3.5">
           <h2 className="text-base font-semibold text-ink-900">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="rounded-md p-1.5 text-ink-400 hover:bg-cream-100 hover:text-ink-500"
+            className="btn-press rounded-lg p-1.5 text-ink-400 hover:bg-cream-100 hover:text-ink-700"
           >
             <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
             </svg>
           </button>
         </header>
-        <div className="px-4 py-4">{children}</div>
-        {footer && <footer className="border-t border-ink-900/10 px-4 py-3">{footer}</footer>}
+        <div className="px-5 py-4">{children}</div>
+        {footer && (
+          <footer className="border-t border-ink-900/10 bg-cream-50/40 px-5 py-3.5">
+            {footer}
+          </footer>
+        )}
       </div>
     </div>
   );

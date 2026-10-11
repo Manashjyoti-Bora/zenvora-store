@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Supplier } from '@prisma/client';
+import { prisma } from '@/lib/db';
 import {
   CJDropshippingAdapter,
   classifyCjFailure,
+  extractCjProductPage,
   isUncertainTransportFailure,
   mapCjOrderStatus,
   mapCjTrackingStatus,
+  parseUsd,
 } from '@/lib/suppliers/cj';
 import { logger } from '@/lib/logger';
 import { diagnoseSupplierAdapter } from '@/lib/suppliers/registry';
@@ -1306,3 +1309,443 @@ describe('CJ forensic probe (safe; no secret material)', () => {
     expect(JSON.stringify(probe)).not.toContain('tok-auth-ok');
   });
 });
+
+describe('CJ My Products envelope + mapping regression (data.content / totalRecords / price ranges)', () => {
+  it('maps the documented CJ product/myProduct/query Spring Page envelope (data.content + totalRecords + productId + nameEn + sellPrice/freightTrial)', async () => {
+    const infoSpy = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    try {
+      const calls: CapturedCall[] = [];
+      stubFetch(
+        [
+          TOKEN_ROUTE,
+          {
+            match: 'myProduct/query',
+            body: {
+              code: 200,
+              result: true,
+              success: true,
+              message: 'Success',
+              requestId: 'req-myprod-2',
+              data: {
+                pageSize: 100,
+                pageNumber: 1,
+                totalRecords: 2,
+                totalPages: 1,
+                content: [
+                  {
+                    productId: '04182450-4636-4F18-996E-9B0B43E91234',
+                    nameEn: 'Portable USB Blender',
+                    sku: 'CJBL-001',
+                    bigImage: 'https://cf.cjdropshipping.com/img1.jpg',
+                    sellPrice: '8.50',
+                    freightTrial: '3.50',
+                    totalPrice: '12.00',
+                    areaId: '1',
+                    areaEn: 'China Warehouse',
+                    shopMethod: 'CJPacket Ordinary',
+                  },
+                  {
+                    productId: '98123450-4636-4F18-996E-9B0B43E95678',
+                    nameEn: 'Foldable LED Desk Lamp',
+                    sku: 'CJDL-002',
+                    bigImage: 'https://cf.cjdropshipping.com/img2.jpg',
+                    // Multi-variant price range string returned by CJ My Products
+                    sellPrice: '10.00 - 12.50',
+                    freightTrial: '4.00',
+                    totalPrice: '14.00 - 16.50',
+                  },
+                ],
+              },
+            },
+          },
+        ],
+        calls
+      );
+
+      const adapter = new CJDropshippingAdapter(makeSupplier());
+      const products = await adapter.getProducts({ limit: 200 });
+
+      expect(products).toHaveLength(2);
+      expect(products[0]).toMatchObject({
+        externalId: '04182450-4636-4F18-996E-9B0B43E91234',
+        sku: 'CJBL-001',
+        name: 'Portable USB Blender',
+        // 8.50 USD * 88 INR/USD * 100 paise = 74800
+        costPaise: 74800,
+        // 3.50 USD * 88 INR/USD * 100 paise = 30800
+        shippingPaise: 30800,
+      });
+      expect(products[1]).toMatchObject({
+        externalId: '98123450-4636-4F18-996E-9B0B43E95678',
+        sku: 'CJDL-002',
+        name: 'Foldable LED Desk Lamp',
+        // Upper bound of "10.00 - 12.50" = 12.50 USD * 88 * 100 = 110000
+        costPaise: 110000,
+        // 4.00 USD * 88 * 100 = 35200
+        shippingPaise: 35200,
+      });
+
+      // Only one page request needed when totalRecords=2, totalPages=1
+      expect(calls.filter((c) => c.url.includes('myProduct/query'))).toHaveLength(1);
+
+      // Safe structural log check: logs structure & counts, never token or key
+      const pageLog = infoSpy.mock.calls.find(
+        (c) => String(c[0]) === 'CJ myProduct/query page received'
+      );
+      expect(pageLog).toBeTruthy();
+      const ctx = pageLog![1] as Record<string, unknown>;
+      expect(ctx.listKey).toBe('content');
+      expect(ctx.totalReported).toBe(2);
+      expect(ctx.itemCount).toBe(2);
+      expect(ctx.dataKeys).toEqual([
+        'pageSize',
+        'pageNumber',
+        'totalRecords',
+        'totalPages',
+        'content',
+      ]);
+      expect(JSON.stringify(ctx)).not.toContain('tok-1');
+      expect(JSON.stringify(ctx)).not.toContain('cj-test-key');
+    } finally {
+      infoSpy.mockRestore();
+    }
+  });
+
+  it('deduplicates repeated SKUs or productIds across pages and handles server-capped pageSize via totalPages/totalRecords', async () => {
+    const calls: CapturedCall[] = [];
+    stubFetch(
+      [
+        TOKEN_ROUTE,
+        {
+          match: 'pageNum=1',
+          body: {
+            code: 200,
+            result: true,
+            data: {
+              pageSize: 2,
+              pageNumber: 1,
+              totalRecords: 3,
+              totalPages: 2,
+              content: [
+                { productId: 'PID-1', nameEn: 'Item One', sku: 'CJSKU-1', sellPrice: '5.00' },
+                { productId: 'PID-2', nameEn: 'Item Two', sku: 'CJSKU-2', sellPrice: '6.00' },
+              ],
+            },
+          },
+        },
+        {
+          match: 'pageNum=2',
+          body: {
+            code: 200,
+            result: true,
+            data: {
+              pageSize: 2,
+              pageNumber: 2,
+              totalRecords: 3,
+              totalPages: 2,
+              content: [
+                // Duplicate of page 1 item + one new item
+                { productId: 'PID-2', nameEn: 'Item Two Duplicate', sku: 'CJSKU-2', sellPrice: '6.00' },
+                { productId: 'PID-3', nameEn: 'Item Three', sku: 'CJSKU-3', sellPrice: '7.00' },
+              ],
+            },
+          },
+        },
+      ],
+      calls
+    );
+
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const products = await adapter.getProducts({ limit: 200 });
+    expect(products).toHaveLength(3);
+    expect(products.map((p) => p.sku)).toEqual(['CJSKU-1', 'CJSKU-2', 'CJSKU-3']);
+    expect(calls.filter((c) => c.url.includes('myProduct/query'))).toHaveLength(2);
+  });
+
+  it('handles empty My Products (content: [], totalRecords: 0) without inventing products and reports 0 in probe conclusion', async () => {
+    const calls: CapturedCall[] = [];
+    stubFetch(
+      [
+        TOKEN_ROUTE,
+        {
+          match: 'setting/get',
+          body: { code: 200, result: true, data: { root: 'GENERAL', isSandbox: false } },
+        },
+        {
+          match: 'myProduct/query',
+          body: {
+            code: 200,
+            result: true,
+            data: {
+              pageSize: 100,
+              pageNumber: 1,
+              totalRecords: 0,
+              totalPages: 0,
+              content: [],
+            },
+          },
+        },
+      ],
+      calls
+    );
+
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    const products = await adapter.getProducts({ limit: 200 });
+    expect(products).toEqual([]);
+    expect(calls.filter((c) => c.url.includes('myProduct/query'))).toHaveLength(1);
+
+    const probe = await adapter.probe();
+    expect(probe.myProductQuery.ok).toBe(true);
+    expect(probe.myProductQuery.total).toBe(0);
+    expect(probe.myProductQuery.returned).toBe(0);
+    expect(probe.myProductQuery.listKey).toBe('content');
+    expect(probe.conclusion).toMatch(/returned 0 products/);
+  });
+
+  it('surfaces classified API errors from product/myProduct/query (never silently returns empty list)', async () => {
+    stubFetch(
+      [
+        TOKEN_ROUTE,
+        {
+          match: 'myProduct/query',
+          body: {
+            code: 1600200,
+            result: false,
+            success: false,
+            message: 'Call frequency too fast, please try again later',
+          },
+        },
+      ],
+      []
+    );
+    const adapter = new CJDropshippingAdapter(makeSupplier());
+    await expect(adapter.getProducts()).rejects.toThrow(
+      /CJ product\/myProduct\/query failed:.*\(code 1600200\) \[RATE_LIMIT\]/
+    );
+  });
+
+  it('unit-tests parseUsd and extractCjProductPage across CJ formats', () => {
+    expect(parseUsd(8.79)).toBe(8.79);
+    expect(parseUsd('8.79')).toBe(8.79);
+    expect(parseUsd('$8.79')).toBe(8.79);
+    expect(parseUsd('8.79 - 12.50')).toBe(12.5);
+    expect(parseUsd('8.79 -- 12.50')).toBe(12.5);
+    expect(parseUsd('8.79~12.50')).toBe(12.5);
+    expect(parseUsd('')).toBeNull();
+    expect(parseUsd(null)).toBeNull();
+
+    const springPage = extractCjProductPage({
+      pageSize: 10,
+      pageNumber: 1,
+      totalRecords: 2,
+      totalPages: 1,
+      content: [{ productId: 'P1', nameEn: 'A', sku: 'S1' }],
+    });
+    expect(springPage.listKey).toBe('content');
+    expect(springPage.total).toBe(2);
+    expect(springPage.items).toHaveLength(1);
+  });
+
+  it('reports Vercel Preview scope and branch when CJ_API_KEY is scoped only to Production (and trims apiKeyEnvVar)', () => {
+    const prevVercelEnv = process.env.VERCEL_ENV;
+    const prevGitRef = process.env.VERCEL_GIT_COMMIT_REF;
+    process.env.VERCEL_ENV = 'preview';
+    process.env.VERCEL_GIT_COMMIT_REF = 'arena/feebfc6b-zenvora-store';
+    try {
+      const diag = diagnoseSupplierAdapter(
+        makeSupplier({ name: 'CJ Dropshipping', apiKeyEnvVar: 'CJ_API_KEY_PREVIEW_MISSING' })
+      );
+      expect(diag.ok).toBe(false);
+      expect(diag.error).toContain(
+        'envVarName: CJ_API_KEY_PREVIEW_MISSING, valuePresent: false, vercelEnv: preview, branch: arena/feebfc6b-zenvora-store'
+      );
+      expect(diag.error).toMatch(/Vercel Preview environment.*does not receive Production-only variables/);
+
+      // Trims accidental whitespace around apiKeyEnvVar on the supplier record
+      const trimmedDiag = diagnoseSupplierAdapter(
+        makeSupplier({ apiKeyEnvVar: '  CJ_TEST_API_KEY  ' })
+      );
+      expect(trimmedDiag.ok).toBe(true);
+
+      // Rejects whitespace-only env var values at construction time instead of sending empty key to CJ
+      process.env.CJ_WHITESPACE_ONLY_KEY = '   \n  ';
+      const wsDiag = diagnoseSupplierAdapter(
+        makeSupplier({ apiKeyEnvVar: 'CJ_WHITESPACE_ONLY_KEY' })
+      );
+      expect(wsDiag.ok).toBe(false);
+      expect(wsDiag.error).toContain('valuePresent: false');
+    } finally {
+      delete process.env.CJ_WHITESPACE_ONLY_KEY;
+      if (prevVercelEnv === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = prevVercelEnv;
+      if (prevGitRef === undefined) delete process.env.VERCEL_GIT_COMMIT_REF;
+      else process.env.VERCEL_GIT_COMMIT_REF = prevGitRef;
+    }
+  });
+
+  it('verifies DB Supplier (apiKeyEnvVar=CJ_API_KEY, fxRateInrPerUsd=88.5) probe + idempotent SupplierProduct catalog upsert', async () => {
+    const prevKey = process.env.CJ_API_KEY;
+    process.env.CJ_API_KEY = 'cj-live-like-test-key';
+    const slug = `cj-dropshipping-db-${Date.now()}`;
+    let supplierId: string | null = null;
+
+    try {
+      const dbSupplier = await prisma.supplier.create({
+        data: {
+          name: 'CJ Dropshipping',
+          slug,
+          type: 'CJ',
+          apiKeyEnvVar: 'CJ_API_KEY',
+          config: { fxRateInrPerUsd: 88.5 },
+          isActive: true,
+          leadTimeDays: 7,
+        },
+      });
+      supplierId = dbSupplier.id;
+
+      // 1. Verify diagnoseSupplierAdapter succeeds with CJ_API_KEY + fxRateInrPerUsd: 88.5
+      const diag = diagnoseSupplierAdapter(dbSupplier);
+      expect(diag.ok).toBe(true);
+      expect(diag.error).toBeNull();
+
+      // 2. Stub CJ endpoints for both probe (pageSize=1) and sync (pageSize=100)
+      const cjProducts = [
+        {
+          productId: 'CJ-PID-2001',
+          nameEn: 'Magnetic Wireless Power Bank',
+          sku: 'CJPB-2001',
+          sellPrice: '10.00',
+          freightTrial: '2.00',
+          totalPrice: '12.00',
+        },
+        {
+          productId: 'CJ-PID-2002',
+          nameEn: 'Ergonomic Laptop Stand',
+          sku: 'CJLS-2002',
+          sellPrice: '8.00 - 14.00',
+          freightTrial: '3.00',
+          totalPrice: '11.00 - 17.00',
+        },
+      ];
+
+      stubFetch(
+        [
+          TOKEN_ROUTE,
+          {
+            match: 'setting/get',
+            body: { code: 200, result: true, data: { root: 'GENERAL', isSandbox: false } },
+          },
+          {
+            match: 'pageSize=1&',
+            body: {
+              code: 200,
+              result: true,
+              data: {
+                pageSize: 1,
+                pageNumber: 1,
+                totalRecords: 2,
+                totalPages: 2,
+                content: [cjProducts[0]],
+              },
+            },
+          },
+          {
+            match: 'myProduct/query',
+            body: {
+              code: 200,
+              result: true,
+              data: {
+                pageSize: 100,
+                pageNumber: 1,
+                totalRecords: 2,
+                totalPages: 1,
+                content: cjProducts,
+              },
+            },
+          },
+        ],
+        []
+      );
+
+      const adapter = new CJDropshippingAdapter(dbSupplier);
+      const probe = await adapter.probe();
+      expect(probe.getAccessToken.ok).toBe(true);
+      expect(probe.authenticatedProbe.ok).toBe(true);
+      expect(probe.myProductQuery.ok).toBe(true);
+      expect(probe.myProductQuery.total).toBe(2);
+      expect(probe.myProductQuery.listKey).toBe('content');
+
+      // 3. Run sync pass #1 (creates 2 SupplierProduct rows)
+      const runSync = async () => {
+        const fetched = await adapter.getProducts({ limit: 200 });
+        let created = 0;
+        let updated = 0;
+        for (const p of fetched) {
+          const sku = p.sku.trim();
+          if (!sku || p.costPaise == null) continue;
+          const existing =
+            (await prisma.supplierProduct.findUnique({
+              where: { supplierId_supplierSku: { supplierId: dbSupplier.id, supplierSku: sku } },
+            })) ??
+            (p.externalId
+              ? await prisma.supplierProduct.findFirst({
+                  where: { supplierId: dbSupplier.id, externalId: p.externalId },
+                })
+              : null);
+          const data = {
+            supplierSku: sku,
+            externalId: p.externalId ?? null,
+            supplierCost: (p.costPaise / 100).toFixed(2),
+            supplierShippingCost:
+              p.shippingPaise != null ? (p.shippingPaise / 100).toFixed(2) : null,
+            inStock: p.inStock ?? null,
+            stockQty: p.qty ?? null,
+            raw: (p.raw ?? {}) as object,
+            lastSyncedAt: new Date(),
+          };
+          if (existing) {
+            await prisma.supplierProduct.update({ where: { id: existing.id }, data });
+            updated += 1;
+          } else {
+            await prisma.supplierProduct.create({
+              data: { supplierId: dbSupplier.id, ...data },
+            });
+            created += 1;
+          }
+        }
+        return { fetched: fetched.length, created, updated };
+      };
+
+      const firstRun = await runSync();
+      expect(firstRun).toEqual({ fetched: 2, created: 2, updated: 0 });
+
+      // 4. Run sync pass #2 (idempotent: updates the same 2 rows, 0 new rows, 0 duplicates)
+      const secondRun = await runSync();
+      expect(secondRun).toEqual({ fetched: 2, created: 0, updated: 2 });
+
+      const stored = await prisma.supplierProduct.findMany({
+        where: { supplierId: dbSupplier.id },
+        orderBy: { supplierSku: 'asc' },
+      });
+      expect(stored).toHaveLength(2);
+      // 14.00 USD * 88.5 = 1239.00 INR; shipping 3.00 USD * 88.5 = 265.50 INR
+      expect(stored[0].supplierSku).toBe('CJLS-2002');
+      expect(stored[0].externalId).toBe('CJ-PID-2002');
+      expect(Number(stored[0].supplierCost)).toBe(1239);
+      expect(Number(stored[0].supplierShippingCost)).toBe(265.5);
+      // 10.00 USD * 88.5 = 885.00 INR; shipping 2.00 USD * 88.5 = 177.00 INR
+      expect(stored[1].supplierSku).toBe('CJPB-2001');
+      expect(stored[1].externalId).toBe('CJ-PID-2001');
+      expect(Number(stored[1].supplierCost)).toBe(885);
+      expect(Number(stored[1].supplierShippingCost)).toBe(177);
+    } finally {
+      if (supplierId) {
+        await prisma.supplierProduct.deleteMany({ where: { supplierId } });
+        await prisma.supplier.delete({ where: { id: supplierId } }).catch(() => undefined);
+      }
+      if (prevKey === undefined) delete process.env.CJ_API_KEY;
+      else process.env.CJ_API_KEY = prevKey;
+    }
+  });
+});
+

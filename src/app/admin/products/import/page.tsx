@@ -10,7 +10,7 @@ export default function ImportPage() {
     <div className="space-y-5">
       <header>
         <h1>Bulk product import (CSV)</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Import or update products from a spreadsheet export. Nothing is published without your
           review.
         </p>

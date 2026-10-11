@@ -51,7 +51,7 @@ export default async function WebhookLogPage({
     <div className="space-y-5">
       <header>
         <h1>Webhook log</h1>
-        <p className="mt-1 text-sm tabular-nums text-gray-500">
+        <p className="mt-1 text-sm tabular-nums text-ink-400">
           {total} received event{total === 1 ? '' : 's'} (payment gateway + supplier webhooks).
           Every delivery is signature-verified before processing; duplicates are detected via
           provider event IDs.
@@ -100,7 +100,7 @@ export default async function WebhookLogPage({
         </select>
         <button
           type="submit"
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          className="rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800"
         >
           Filter
         </button>
@@ -113,7 +113,7 @@ export default async function WebhookLogPage({
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>Received</Th>
               <Th>Source</Th>
@@ -124,10 +124,10 @@ export default async function WebhookLogPage({
               <Th className="hidden md:table-cell">Error</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {events.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">
+                <Td className="py-8 text-center text-ink-400">
                   No webhook events yet — they appear once your gateway/supplier URLs are configured
                   and delivering.
                 </Td>
@@ -139,14 +139,14 @@ export default async function WebhookLogPage({
                 className={
                   e.status === 'REJECTED' || e.status === 'FAILED'
                     ? 'bg-red-50/40'
-                    : 'hover:bg-gray-50/60'
+                    : 'hover:bg-cream-50/70'
                 }
               >
-                <Td className="text-[11px] text-gray-500">{fmt(e.receivedAt)}</Td>
+                <Td className="text-[11px] text-ink-400">{fmt(e.receivedAt)}</Td>
                 <Td>
                   <Badge tone={e.source === 'PAYMENT' ? 'blue' : 'purple'}>{e.source}</Badge>
                 </Td>
-                <Td className="hidden font-mono text-[11px] text-gray-600 sm:table-cell">
+                <Td className="hidden font-mono text-[11px] text-ink-600 sm:table-cell">
                   {e.eventType}
                 </Td>
                 <Td>
@@ -154,7 +154,7 @@ export default async function WebhookLogPage({
                     {e.status}
                   </Badge>
                   {e.processedAt && (
-                    <span className="block text-[10px] text-gray-400">
+                    <span className="block text-[10px] text-ink-400">
                       processed {fmt(e.processedAt)}
                     </span>
                   )}
@@ -164,7 +164,7 @@ export default async function WebhookLogPage({
                     {e.signatureValid ? 'valid' : 'invalid'}
                   </Badge>
                 </Td>
-                <Td className="hidden font-mono text-[10px] text-gray-400 lg:table-cell">
+                <Td className="hidden font-mono text-[10px] text-ink-400 lg:table-cell">
                   {e.paymentId && <span className="block">pay: {e.paymentId}</span>}
                   {e.orderId && (
                     <Link
@@ -189,8 +189,8 @@ export default async function WebhookLogPage({
         </table>
       </TableWrap>
 
-      <Card className="p-4 text-xs text-gray-500">
-        <p className="font-medium text-gray-700">Privacy &amp; security note</p>
+      <Card className="p-4 text-xs text-ink-400">
+        <p className="font-medium text-ink-700">Privacy &amp; security note</p>
         <p className="mt-1">
           Stored payloads are the raw provider bodies (needed for idempotency and debugging) — they
           never contain card numbers, CVV or UPI PINs; gateways only send tokenised payment IDs.

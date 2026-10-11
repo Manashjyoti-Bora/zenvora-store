@@ -55,7 +55,7 @@ export default async function AuditLogPage({
     <div className="space-y-5">
       <header>
         <h1>Audit log</h1>
-        <p className="mt-1 text-sm tabular-nums text-gray-500">
+        <p className="mt-1 text-sm tabular-nums text-ink-400">
           {total} recorded action{total === 1 ? '' : 's'} — every admin mutation (orders, refunds,
           settings, users, suppliers, reports) with actor, hashed IP and payload summary. Entries
           are append-only.
@@ -92,7 +92,7 @@ export default async function AuditLogPage({
         />
         <button
           type="submit"
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          className="rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800"
         >
           Filter
         </button>
@@ -105,7 +105,7 @@ export default async function AuditLogPage({
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>When</Th>
               <Th>Actor</Th>
@@ -115,26 +115,26 @@ export default async function AuditLogPage({
               <Th className="hidden xl:table-cell">IP hash / UA</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {entries.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">No audit entries match.</Td>
+                <Td className="py-8 text-center text-ink-400">No audit entries match.</Td>
               </tr>
             )}
             {entries.map((e) => (
-              <tr key={e.id} className="hover:bg-gray-50/60">
-                <Td className="whitespace-nowrap text-[11px] text-gray-500">{fmt(e.createdAt)}</Td>
+              <tr key={e.id} className="hover:bg-cream-50/70">
+                <Td className="whitespace-nowrap text-[11px] text-ink-400">{fmt(e.createdAt)}</Td>
                 <Td className="text-xs">
                   {e.actorEmail ? (
-                    <span className="font-medium text-gray-800">{e.actorEmail}</span>
+                    <span className="font-medium text-ink-800">{e.actorEmail}</span>
                   ) : (
-                    <span className="text-gray-400">system</span>
+                    <span className="text-ink-400">system</span>
                   )}
                 </Td>
                 <Td>
                   <Badge tone="neutral">{e.action}</Badge>
                 </Td>
-                <Td className="hidden text-[11px] text-gray-500 md:table-cell">
+                <Td className="hidden text-[11px] text-ink-400 md:table-cell">
                   {e.entityType
                     ? `${e.entityType}${e.entityId ? ` · ${e.entityId.slice(0, 12)}` : ''}`
                     : '—'}
@@ -142,14 +142,14 @@ export default async function AuditLogPage({
                 <Td className="hidden max-w-[260px] lg:table-cell">
                   {e.data != null && (
                     <span
-                      className="block truncate font-mono text-[10px] text-gray-400"
+                      className="block truncate font-mono text-[10px] text-ink-400"
                       title={JSON.stringify(e.data)}
                     >
                       {JSON.stringify(e.data)}
                     </span>
                   )}
                 </Td>
-                <Td className="hidden max-w-[180px] text-[10px] text-gray-400 xl:table-cell">
+                <Td className="hidden max-w-[180px] text-[10px] text-ink-400 xl:table-cell">
                   {e.ipHash && (
                     <span
                       className="block truncate font-mono"

@@ -8,8 +8,9 @@ import { getSettings } from '@/lib/settings';
 import { prisma } from '@/lib/db';
 import { OrderDetailView } from '@/components/orders/order-detail';
 import { OrderActions } from '@/components/orders/order-actions';
+import { CheckoutSteps } from '@/components/store/checkout-steps';
 import { Alert } from '@/components/ui/feedback';
-import { BoxIcon, CheckIcon } from '@/components/ui/icons';
+import { BoxIcon, CheckIcon, ClockIcon } from '@/components/ui/icons';
 import { LinkButton } from '@/components/ui/button';
 
 export const dynamic = 'force-dynamic';
@@ -68,16 +69,17 @@ export default async function ConfirmationPage({
   return (
     <div className="container-store py-6 sm:py-10">
       <div className="mx-auto max-w-3xl">
+        <CheckoutSteps current="confirmation" />
         {/* Outcome header */}
         {needsPayment ? (
-          <div className="mb-6 text-center">
+          <div className="card mb-6 p-6 text-center">
             <span
-              className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-2xl"
+              className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-800 ring-1 ring-amber-300/60"
               aria-hidden="true"
             >
-              ⏳
+              <ClockIcon className="h-7 w-7" />
             </span>
-            <h1 className="mt-3">Your order is saved — payment pending</h1>
+            <h1 className="display mt-3">Your order is saved — payment pending</h1>
             <p className="mx-auto mt-2 max-w-md text-sm text-ink-400">
               Order <strong>{order.orderNumber}</strong> was created but payment is not complete
               yet. Finish the payment to confirm it; items stay reserved until then.

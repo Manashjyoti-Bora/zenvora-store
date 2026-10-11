@@ -4,23 +4,44 @@
 
 @layer base {
   :root {
-    /* Signature motion curve — the single easing identity of the storefront. */
+    /* Surface & Ink Palette Tokens */
+    --surface-canvas: #faf8f3;
+    --surface-subtle: #f5f1e7;
+    --surface-muted: #eae4d4;
+    --surface-card: #ffffff;
+    --surface-ink: #0a130f;
+
+    /* Hairline Border Tokens */
+    --border-hairline: rgba(16, 27, 22, 0.09);
+    --border-strong: rgba(16, 27, 22, 0.18);
+
+    /* Signature Motion System — single easing identity + duration scale */
     --ease-zenvora: cubic-bezier(0.22, 1, 0.36, 1);
+    --duration-fast: 150ms;
+    --duration-normal: 240ms;
+    --duration-slow: 450ms;
   }
+
   html {
     -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
   }
+
   body {
     @apply bg-cream-50 text-ink-900 antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
+
   ::selection {
     @apply bg-brand-600 text-white;
   }
-  /* Visible, consistent focus states (WCAG 2.4.7) */
+
+  /* Visible, consistent focus states across all interactive elements (WCAG 2.4.7) */
   :focus-visible {
     @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-cream-50;
   }
+
   h1 {
     @apply text-2xl font-bold tracking-display text-ink-900 sm:text-3xl;
   }
@@ -36,43 +57,66 @@
   .container-store {
     @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
   }
+
+  /* Primary elevated card surface */
   .card {
     @apply rounded-xl border border-ink-900/10 bg-white shadow-soft;
   }
+
+  /* Recessed warm paper surface for secondary/nested callouts */
+  .card-inset {
+    @apply rounded-xl border border-ink-900/10 bg-cream-50/80 shadow-hair;
+  }
+
   /* Card interaction: subtle lift + deeper layer on hover (pointer devices only,
-     so mobile doesn't get sticky hover states). */
+     so mobile touch screens never get sticky hover states). */
   .card-hover {
-    @apply transition-[transform,box-shadow] duration-200 ease-out;
+    transition:
+      transform var(--duration-normal) var(--ease-zenvora),
+      box-shadow var(--duration-normal) var(--ease-zenvora),
+      border-color var(--duration-normal) var(--ease-zenvora);
   }
   @media (hover: hover) {
     .card-hover:hover {
-      @apply -translate-y-0.5 shadow-lift;
+      @apply -translate-y-0.5 border-ink-900/20 shadow-lift;
     }
   }
+
   /* Button press feedback (physicality without gimmicks). */
   .btn-press {
-    @apply transition-[transform,box-shadow,background-color,border-color,color] duration-150 ease-out active:translate-y-px active:scale-[0.985];
+    transition:
+      transform var(--duration-fast) var(--ease-zenvora),
+      box-shadow var(--duration-fast) var(--ease-zenvora),
+      background-color var(--duration-fast) ease-out,
+      border-color var(--duration-fast) ease-out,
+      color var(--duration-fast) ease-out;
+    @apply active:translate-y-px active:scale-[0.985];
   }
+
   .label-text {
     @apply block text-sm font-medium text-ink-700;
   }
+
   .input-base {
     /* text-base (16px) at ALL breakpoints: iOS Safari auto-zooms on focus for
        inputs below 16px - includes landscape. Never reduce to text-sm here. */
-    @apply block w-full rounded-lg border border-ink-900/20 bg-white px-3 py-2 text-base text-ink-900 shadow-sm placeholder:text-ink-300 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:cursor-not-allowed disabled:bg-cream-100;
+    @apply block w-full rounded-lg border border-ink-900/20 bg-white px-3.5 py-2 text-base text-ink-900 shadow-sm transition-colors duration-150 placeholder:text-ink-300 hover:border-ink-900/30 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-cream-100 disabled:text-ink-400;
   }
+
   .link-primary {
-    @apply text-brand-700 underline decoration-brand-300 underline-offset-2 hover:text-brand-800 hover:decoration-brand-500;
+    @apply font-medium text-brand-700 underline decoration-brand-300 underline-offset-4 transition-colors duration-150 hover:text-brand-800 hover:decoration-brand-600;
   }
+
   .table-base {
     @apply w-full min-w-full divide-y divide-ink-900/10 text-left text-sm;
   }
   .table-th {
-    @apply whitespace-nowrap px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink-400;
+    @apply whitespace-nowrap bg-cream-50/90 px-3.5 py-3 text-[11px] font-semibold uppercase tracking-wider text-ink-500;
   }
   .table-td {
-    @apply px-3 py-2.5 align-middle text-ink-700;
+    @apply px-3.5 py-3 align-middle text-ink-700;
   }
+
   /* Typography identity */
   .eyebrow {
     @apply text-[11px] font-semibold uppercase tracking-eyebrow text-brand-700;
@@ -80,6 +124,12 @@
   .display {
     @apply font-extrabold tracking-display;
   }
+
+  /* Interactive filter/tab pill */
+  .pill-tab {
+    @apply btn-press inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors;
+  }
+
   /* Skeleton shimmer for client-side waiting states (no root loading.tsx —
      that would reintroduce the known soft-404 regression). */
   .skeleton {
@@ -89,15 +139,16 @@
     @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/70 to-transparent;
     content: '';
   }
+
   /* Desktop-only image zoom (fine pointer + hover capability): touch devices
      never receive a sticky zoom state. Transform-only: no layout shift. */
   .zoom-hover {
     cursor: zoom-in;
-    transition: transform 0.45s var(--ease-zenvora);
+    transition: transform var(--duration-slow) var(--ease-zenvora);
   }
   @media (hover: hover) and (pointer: fine) {
     .zoom-hover:hover {
-      transform: scale(1.12);
+      transform: scale(1.1);
     }
   }
 

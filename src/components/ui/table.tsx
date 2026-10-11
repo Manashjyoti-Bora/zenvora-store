@@ -6,7 +6,10 @@ import type { ReactNode } from 'react';
 export function TableWrap({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={cn('w-full overflow-x-auto rounded-xl border border-ink-900/10 bg-white', className)}
+      className={cn(
+        'w-full overflow-x-auto rounded-xl border border-ink-900/10 bg-white shadow-soft',
+        className
+      )}
     >
       {children}
     </div>

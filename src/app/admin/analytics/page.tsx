@@ -109,7 +109,7 @@ export default async function AdminAnalyticsPage({
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1>Analytics</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-ink-400">
             {new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(range.from)} →{' '}
             {new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(range.to)} · confirmed
             orders only (pending / failed / cancelled excluded)
@@ -122,8 +122,8 @@ export default async function AdminAnalyticsPage({
               href={`/admin/analytics?days=${d}`}
               className={`rounded-full px-3 py-1.5 text-xs font-medium ${
                 !sp.from && Number(sp.days ?? 30) === d
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
+                  ? 'bg-ink-900 text-white'
+                  : 'bg-white text-ink-600 ring-1 ring-ink-900/10 hover:bg-cream-50/70'
               }`}
             >
               Last {d} days
@@ -146,7 +146,7 @@ export default async function AdminAnalyticsPage({
             />
             <button
               type="submit"
-              className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
+              className="rounded-lg bg-ink-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-ink-800"
             >
               Apply
             </button>
@@ -194,7 +194,7 @@ export default async function AdminAnalyticsPage({
       </section>
 
       <section aria-label="Cost breakdown">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">Where the money went</h2>
+        <h2 className="mb-3 text-lg font-semibold text-ink-900">Where the money went</h2>
         <Card className="p-4">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm lg:grid-cols-3">
             {[
@@ -206,9 +206,9 @@ export default async function AdminAnalyticsPage({
             ].map(([label, val]) => (
               <div
                 key={label as string}
-                className="flex justify-between gap-2 border-b border-dashed border-gray-100 pb-1"
+                className="flex justify-between gap-2 border-b border-dashed border-ink-900/5 pb-1"
               >
-                <dt className="text-gray-500">{label}</dt>
+                <dt className="text-ink-400">{label}</dt>
                 <dd className="font-medium tabular-nums">{inr(val as number)}</dd>
               </div>
             ))}
@@ -216,12 +216,12 @@ export default async function AdminAnalyticsPage({
               <dt>Total costs</dt>
               <dd className="tabular-nums">{inr(totals.totalCostsPaise)}</dd>
             </div>
-            <div className="flex justify-between gap-2 text-gray-500">
+            <div className="flex justify-between gap-2 text-ink-400">
               <dt>Discounts given (incl. in revenue)</dt>
               <dd className="tabular-nums">{inr(totals.discountsPaise)}</dd>
             </div>
           </dl>
-          <p className="mt-3 text-[11px] text-gray-400">
+          <p className="mt-3 text-[11px] text-ink-400">
             Actual profit = net revenue − total costs + COD fee income, computed per-order by the
             finance engine at confirmation and finalised on delivery/refund.
           </p>
@@ -231,7 +231,7 @@ export default async function AdminAnalyticsPage({
       <section aria-label="Trends" className="grid gap-4 lg:grid-cols-2">
         <Card className="p-4">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">Revenue by day</h2>
+            <h2 className="text-sm font-semibold text-ink-900">Revenue by day</h2>
             <a
               href={exportUrl('daily')}
               className="text-xs font-medium text-brand-700 hover:underline"
@@ -247,8 +247,8 @@ export default async function AdminAnalyticsPage({
         </Card>
         <Card className="p-4">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">Actual profit by day (₹)</h2>
-            <span className="text-[10px] text-gray-400">
+            <h2 className="text-sm font-semibold text-ink-900">Actual profit by day (₹)</h2>
+            <span className="text-[10px] text-ink-400">
               negative days = refunds/costs exceeded revenue
             </span>
           </div>
@@ -262,7 +262,7 @@ export default async function AdminAnalyticsPage({
       <section aria-label="Top products" className="grid gap-4 lg:grid-cols-2">
         <Card className="p-4">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">Top products by revenue</h2>
+            <h2 className="text-sm font-semibold text-ink-900">Top products by revenue</h2>
             <a
               href={exportUrl('products')}
               className="text-xs font-medium text-brand-700 hover:underline"
@@ -273,17 +273,17 @@ export default async function AdminAnalyticsPage({
           </div>
           <TableWrap className="rounded-none border-0">
             <table className="table-base">
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-ink-900/5">
                 {top.length === 0 && (
                   <tr>
-                    <Td className="py-6 text-center text-gray-400">No sales in this period.</Td>
+                    <Td className="py-6 text-center text-ink-400">No sales in this period.</Td>
                   </tr>
                 )}
                 {top.map((p, i) => (
                   <tr key={p.productId ?? i}>
-                    <Td className="w-6 text-xs text-gray-400">{i + 1}</Td>
-                    <Td className="text-xs font-medium text-gray-800">{p.name}</Td>
-                    <Td className="text-xs tabular-nums text-gray-500">{p.units} sold</Td>
+                    <Td className="w-6 text-xs text-ink-400">{i + 1}</Td>
+                    <Td className="text-xs font-medium text-ink-800">{p.name}</Td>
+                    <Td className="text-xs tabular-nums text-ink-400">{p.units} sold</Td>
                     <Td className="text-right font-medium tabular-nums">{inr(p.revenuePaise)}</Td>
                   </tr>
                 ))}
@@ -294,7 +294,7 @@ export default async function AdminAnalyticsPage({
 
         <Card className="p-4">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">Top customers</h2>
+            <h2 className="text-sm font-semibold text-ink-900">Top customers</h2>
             <a
               href={exportUrl('customers')}
               className="text-xs font-medium text-brand-700 hover:underline"
@@ -305,21 +305,21 @@ export default async function AdminAnalyticsPage({
           </div>
           <TableWrap className="rounded-none border-0">
             <table className="table-base">
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-ink-900/5">
                 {topCustomers.length === 0 && (
                   <tr>
-                    <Td className="py-6 text-center text-gray-400">No customers yet.</Td>
+                    <Td className="py-6 text-center text-ink-400">No customers yet.</Td>
                   </tr>
                 )}
                 {topCustomers.map(([email, v]) => (
                   <tr key={email}>
                     <Td className="text-xs">
-                      <span className="font-medium text-gray-800">{email}</span>
-                      <span className="ml-2 text-gray-400">{v.orders} orders</span>
+                      <span className="font-medium text-ink-800">{email}</span>
+                      <span className="ml-2 text-ink-400">{v.orders} orders</span>
                     </Td>
                     <Td className="text-right text-xs tabular-nums">
                       <span className="font-medium">{inr(v.revenuePaise)}</span>
-                      <span className="ml-2 text-gray-400">profit {inr(v.profitPaise)}</span>
+                      <span className="ml-2 text-ink-400">profit {inr(v.profitPaise)}</span>
                     </Td>
                   </tr>
                 ))}
@@ -331,7 +331,7 @@ export default async function AdminAnalyticsPage({
 
       <section aria-label="Operations" className="grid gap-4 lg:grid-cols-3">
         <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">Order status mix (period)</h2>
+          <h2 className="mb-3 text-sm font-semibold text-ink-900">Order status mix (period)</h2>
           <ul className="space-y-1.5">
             {statusGroups.map((g) => (
               <li key={g.status} className="flex items-center justify-between gap-2 text-xs">
@@ -340,11 +340,11 @@ export default async function AdminAnalyticsPage({
                 >
                   {g.status.replace(/_/g, ' ')}
                 </Badge>
-                <span className="tabular-nums text-gray-600">{g._count._all}</span>
+                <span className="tabular-nums text-ink-600">{g._count._all}</span>
               </li>
             ))}
             {statusGroups.length === 0 && (
-              <li className="text-xs text-gray-400">No orders in this period.</li>
+              <li className="text-xs text-ink-400">No orders in this period.</li>
             )}
           </ul>
           <a
@@ -357,9 +357,9 @@ export default async function AdminAnalyticsPage({
         </Card>
 
         <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">Coupon usage (period)</h2>
+          <h2 className="mb-3 text-sm font-semibold text-ink-900">Coupon usage (period)</h2>
           {couponUsage.length === 0 ? (
-            <p className="text-xs text-gray-400">No coupon orders in this period.</p>
+            <p className="text-xs text-ink-400">No coupon orders in this period.</p>
           ) : (
             <ul className="space-y-1.5">
               {couponUsage.map((c) => (
@@ -367,8 +367,8 @@ export default async function AdminAnalyticsPage({
                   key={c.couponCode ?? ''}
                   className="flex items-center justify-between gap-2 text-xs"
                 >
-                  <span className="font-mono font-medium text-gray-800">{c.couponCode}</span>
-                  <span className="tabular-nums text-gray-500">
+                  <span className="font-mono font-medium text-ink-800">{c.couponCode}</span>
+                  <span className="tabular-nums text-ink-400">
                     {c._count._all}× · {inr(toPaise(c._sum.discountTotal ?? 0))} off
                   </span>
                 </li>
@@ -378,26 +378,26 @@ export default async function AdminAnalyticsPage({
         </Card>
 
         <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">
+          <h2 className="mb-3 text-sm font-semibold text-ink-900">
             Refunds &amp; returns (period)
           </h2>
           <p className="text-sm tabular-nums">
-            <span className="font-semibold text-gray-900">{refundStats._count._all ?? 0}</span>
-            <span className="text-gray-500"> refunds · </span>
-            <span className="font-semibold text-gray-900">
+            <span className="font-semibold text-ink-900">{refundStats._count._all ?? 0}</span>
+            <span className="text-ink-400"> refunds · </span>
+            <span className="font-semibold text-ink-900">
               {inr(toPaise(refundStats._sum.amount ?? 0))}
             </span>
-            <span className="text-gray-500"> total refunded</span>
+            <span className="text-ink-400"> total refunded</span>
           </p>
           <ul className="mt-2 space-y-1.5">
             {returnStats.map((r) => (
               <li key={r.status} className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-gray-600">{r.status.toLowerCase()} returns</span>
+                <span className="text-ink-600">{r.status.toLowerCase()} returns</span>
                 <span className="font-medium tabular-nums">{r._count._all}</span>
               </li>
             ))}
             {returnStats.length === 0 && (
-              <li className="text-xs text-gray-400">No return requests.</li>
+              <li className="text-xs text-ink-400">No return requests.</li>
             )}
           </ul>
         </Card>

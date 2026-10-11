@@ -75,25 +75,27 @@ export function ProductCard({ product }: { product: ProductCardData }) {
           </div>
         )}
 
-        <div className="absolute left-2.5 top-2.5 flex flex-col items-start gap-1.5">
+        <div className="absolute left-2 top-2 flex flex-col items-start gap-1 sm:left-2.5 sm:top-2.5 sm:gap-1.5">
           {discount != null && !soldOut && (
-            <span className="rounded-full bg-accent-600 px-2 py-0.5 text-[11px] font-bold leading-4 text-white shadow-soft">
+            <span className="rounded-full bg-accent-600 px-2 py-0.5 text-[10px] font-bold leading-4 text-white shadow-soft sm:text-[11px]">
               −{discount}%
             </span>
           )}
           {lowStock && (
-            <span className="rounded-full bg-ink-950/85 px-2 py-0.5 text-[11px] font-semibold leading-4 text-brass-200 backdrop-blur-sm">
+            <span className="rounded-full bg-ink-950/85 px-2 py-0.5 text-[10px] font-semibold leading-4 text-brass-200 backdrop-blur-sm sm:text-[11px]">
               Only {product.stock} left
             </span>
           )}
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-1.5 p-4">
+      <div className="flex flex-1 flex-col gap-1 p-3 sm:gap-1.5 sm:p-4">
         {product.categoryName && (
-          <p className="eyebrow text-ink-400">{product.categoryName}</p>
+          <p className="eyebrow truncate text-[10px] text-ink-400 sm:text-[11px]">
+            {product.categoryName}
+          </p>
         )}
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-ink-900">
+        <h3 className="line-clamp-2 text-[13px] font-semibold leading-snug text-ink-900 sm:text-sm">
           <Link
             href={`/products/${product.slug}`}
             className="transition-colors after:absolute after:inset-0 after:content-[''] hover:text-brand-700"
@@ -101,19 +103,24 @@ export function ProductCard({ product }: { product: ProductCardData }) {
             {product.name}
           </Link>
         </h3>
-        <div className="mt-auto flex items-end justify-between gap-2 pt-2.5">
-          <div className="min-w-0">
-            <p className="text-[17px] font-bold leading-6 tabular-nums text-ink-900">
+        <div className="mt-auto flex flex-col gap-2 pt-2 sm:flex-row sm:items-end sm:justify-between sm:pt-2.5">
+          <div className=" flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 sm:block">
+            <p className="text-sm font-bold leading-5 tabular-nums text-ink-900 sm:text-[17px] sm:leading-6">
               {formatINR(product.pricePaise)}
             </p>
             {onSale && (
-              <p className="mt-0.5 text-xs tabular-nums text-ink-400 line-through">
+              <p className="text-[11px] tabular-nums text-ink-400 line-through sm:mt-0.5 sm:text-xs">
                 {formatINR(product.compareAtPricePaise!)}
               </p>
             )}
           </div>
           <div className="relative z-10">
-            <AddToCartButton productId={product.id} disabled={soldOut} compact />
+            <AddToCartButton
+              productId={product.id}
+              disabled={soldOut}
+              compact
+              className="w-full sm:w-auto"
+            />
           </div>
         </div>
       </div>

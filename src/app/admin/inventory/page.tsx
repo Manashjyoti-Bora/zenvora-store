@@ -73,7 +73,7 @@ export default async function AdminInventoryPage({
     <div className="space-y-5">
       <header>
         <h1>Inventory &amp; fulfilment status</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Quick stock corrections and publish/unpublish. Supplier-synced products receive stock from
           supplier webhooks/syncs — manual values are overwritten on the next sync.
         </p>
@@ -87,8 +87,8 @@ export default async function AdminInventoryPage({
               href={`/admin/inventory?view=${t.key}${sp.q ? `&q=${encodeURIComponent(sp.q)}` : ''}`}
               className={`rounded-full px-3 py-1.5 text-xs font-medium ${
                 view === t.key
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
+                  ? 'bg-ink-900 text-white'
+                  : 'bg-white text-ink-600 ring-1 ring-ink-900/10 hover:bg-cream-50/70'
               }`}
             >
               {t.label}
@@ -107,7 +107,7 @@ export default async function AdminInventoryPage({
           />
           <button
             type="submit"
-            className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
+            className="rounded-lg bg-ink-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-ink-800"
           >
             Search
           </button>

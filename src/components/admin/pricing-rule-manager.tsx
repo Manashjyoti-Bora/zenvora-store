@@ -182,7 +182,7 @@ export function PricingRuleManager({
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>Rule</Th>
               <Th>Applies to</Th>
@@ -194,32 +194,32 @@ export function PricingRuleManager({
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {rows.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">
+                <Td className="py-8 text-center text-ink-400">
                   No pricing rules — products use their own pricing fields.
                 </Td>
               </tr>
             )}
             {rows.map((r) => (
-              <tr key={r.id} className="hover:bg-gray-50/60">
-                <Td className="font-medium text-gray-900">{r.name}</Td>
+              <tr key={r.id} className="hover:bg-cream-50/70">
+                <Td className="font-medium text-ink-900">{r.name}</Td>
                 <Td>
                   <Badge tone={r.scope === 'GLOBAL' ? 'blue' : 'purple'}>{r.scope}</Badge>{' '}
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-ink-400">
                     {r.scope !== 'GLOBAL' ? target(r) : ''}
                   </span>
                 </Td>
-                <Td className="text-xs text-gray-600">
+                <Td className="text-xs text-ink-600">
                   {r.mode === 'PERCENT_MARKUP'
                     ? `markup ${r.percentMarkup ?? '?'}%`
                     : `margin ₹${r.fixedMargin ?? '?'}`}
                 </Td>
-                <Td className="hidden text-xs tabular-nums text-gray-600 md:table-cell">
+                <Td className="hidden text-xs tabular-nums text-ink-600 md:table-cell">
                   {r.minProfit != null ? `₹${r.minProfit}` : '—'}
                 </Td>
-                <Td className="hidden text-xs text-gray-500 md:table-cell">
+                <Td className="hidden text-xs text-ink-400 md:table-cell">
                   {r.roundingRule.replace(/_/g, ' ').toLowerCase()}
                 </Td>
                 <Td className="hidden text-xs tabular-nums lg:table-cell">{r.priority}</Td>

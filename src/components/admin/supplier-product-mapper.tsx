@@ -144,7 +144,7 @@ export function SupplierProductMapper({
             <p className="font-semibold text-emerald-900">Pricing engine result after mapping</p>
             <button
               type="button"
-              className="text-xs text-gray-500 hover:text-gray-700"
+              className="text-xs text-ink-400 hover:text-ink-700"
               onClick={() => setLastPricing(null)}
             >
               dismiss
@@ -152,30 +152,30 @@ export function SupplierProductMapper({
           </div>
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
             <div>
-              <dt className="text-xs text-gray-500">Previous price</dt>
+              <dt className="text-xs text-ink-400">Previous price</dt>
               <dd className="tabular-nums">₹{(lastPricing.oldPricePaise / 100).toFixed(2)}</dd>
             </div>
             <div>
-              <dt className="text-xs text-gray-500">New price</dt>
+              <dt className="text-xs text-ink-400">New price</dt>
               <dd className="font-semibold tabular-nums">
                 ₹{(lastPricing.newPricePaise / 100).toFixed(2)}
                 {lastPricing.applied ? '' : ' (unchanged)'}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-gray-500">Gross margin</dt>
+              <dt className="text-xs text-ink-400">Gross margin</dt>
               <dd className="tabular-nums">{lastPricing.marginPercent.toFixed(2)}%</dd>
             </div>
             <div>
-              <dt className="text-xs text-gray-500">Min safe price</dt>
+              <dt className="text-xs text-ink-400">Min safe price</dt>
               <dd className="tabular-nums">₹{(lastPricing.minSafePricePaise / 100).toFixed(2)}</dd>
             </div>
             <div>
-              <dt className="text-xs text-gray-500">Max safe discount</dt>
+              <dt className="text-xs text-ink-400">Max safe discount</dt>
               <dd className="tabular-nums">₹{(lastPricing.maxSafeDiscountPaise / 100).toFixed(2)}</dd>
             </div>
             <div>
-              <dt className="text-xs text-gray-500">Rule applied</dt>
+              <dt className="text-xs text-ink-400">Rule applied</dt>
               <dd>
                 {lastPricing.ruleName ?? 'product defaults'}
                 {lastPricing.ruleScope ? ` (${lastPricing.ruleScope})` : ''}
@@ -189,7 +189,7 @@ export function SupplierProductMapper({
               ))}
             </ul>
           )}
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-2 text-xs text-ink-400">
             Gross margin — not net profit (payment fees and other costs are estimated inside the
             engine breakdown). Deterministic result; the minimum-margin floor is never reduced
             silently.
@@ -213,15 +213,15 @@ export function SupplierProductMapper({
               onClick={() => setFilter(f)}
               className={`rounded-full px-3 py-1.5 text-xs font-medium ${
                 filter === f
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50'
+                  ? 'bg-ink-900 text-white'
+                  : 'bg-white text-ink-600 ring-1 ring-ink-900/10 hover:bg-cream-50/70'
               }`}
             >
               {f === 'ALL' ? 'All' : f === 'UNMAPPED' ? 'Unmapped' : 'Mapped'}
             </button>
           ))}
         </div>
-        <p className="ml-auto text-xs tabular-nums text-gray-400">
+        <p className="ml-auto text-xs tabular-nums text-ink-400">
           {visible.length} shown{rows.length > 200 ? ` (of ${rows.length})` : ''}
         </p>
       </div>
@@ -234,7 +234,7 @@ export function SupplierProductMapper({
       ) : (
         <TableWrap>
           <table className="table-base">
-            <thead className="bg-gray-50">
+            <thead className="bg-cream-50">
               <tr>
                 <Th>Supplier SKU</Th>
                 {showSupplierColumn && <Th className="hidden md:table-cell">Supplier</Th>}
@@ -245,27 +245,27 @@ export function SupplierProductMapper({
                 <Th className="text-right">Actions</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-ink-900/5">
               {visible.map((r) => (
                 <tr
                   key={r.id}
                   className={
-                    r.productId ? 'hover:bg-gray-50/60' : 'bg-amber-50/30 hover:bg-amber-50/60'
+                    r.productId ? 'hover:bg-cream-50/70' : 'bg-amber-50/30 hover:bg-amber-50/60'
                   }
                 >
                   <Td>
-                    <p className="font-mono text-xs font-semibold text-gray-900">{r.supplierSku}</p>
+                    <p className="font-mono text-xs font-semibold text-ink-900">{r.supplierSku}</p>
                     {r.externalId && (
-                      <p className="text-[10px] text-gray-400">ext: {r.externalId}</p>
+                      <p className="text-[10px] text-ink-400">ext: {r.externalId}</p>
                     )}
                   </Td>
                   {showSupplierColumn && (
-                    <Td className="hidden text-xs text-gray-600 md:table-cell">{r.supplierName}</Td>
+                    <Td className="hidden text-xs text-ink-600 md:table-cell">{r.supplierName}</Td>
                   )}
                   <Td className="tabular-nums">
                     ₹{r.supplierCost.toLocaleString('en-IN')}
                     {r.supplierShippingCost != null && (
-                      <span className="block text-[10px] text-gray-400">
+                      <span className="block text-[10px] text-ink-400">
                         +₹{r.supplierShippingCost.toLocaleString('en-IN')} ship
                       </span>
                     )}
@@ -276,7 +276,7 @@ export function SupplierProductMapper({
                         className={
                           r.stockQty === 0
                             ? 'font-semibold text-red-600'
-                            : 'tabular-nums text-gray-700'
+                            : 'tabular-nums text-ink-700'
                         }
                       >
                         {r.stockQty}
@@ -286,10 +286,10 @@ export function SupplierProductMapper({
                         {r.inStock ? 'in stock' : 'out'}
                       </Badge>
                     ) : (
-                      <span className="text-gray-300">unknown</span>
+                      <span className="text-ink-300">unknown</span>
                     )}
                   </Td>
-                  <Td className="hidden text-[11px] text-gray-400 lg:table-cell">
+                  <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
                     {fmt(r.lastSyncedAt)}
                   </Td>
                   <Td>
@@ -391,7 +391,7 @@ export function SupplierProductMapper({
               />
             )}
           </Field>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-ink-400">
             Need a brand-new catalog product for this SKU? Create it under{' '}
             <Link href="/admin/products/new" className="link-primary">
               Products → New

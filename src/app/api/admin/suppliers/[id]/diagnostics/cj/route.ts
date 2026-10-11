@@ -36,10 +36,16 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     // Configuration gate first: a record/env problem is Zenvora-side and the
     // probe cannot even run without the credential.
     const diag = diagnoseSupplierAdapter(supplier);
-    if (!diag.ok || !supplier.apiKeyEnvVar) {
+    const envVarName = supplier.apiKeyEnvVar?.trim() || null;
+    const vercelEnv = process.env.VERCEL_ENV?.trim() || null;
+    const gitBranch = process.env.VERCEL_GIT_COMMIT_REF?.trim() || null;
+    if (!diag.ok || !envVarName) {
       return jsonOk({
         zenvoraSide: true,
         configured: false,
+        apiKeyEnvVar: envVarName,
+        vercelEnv,
+        gitBranch,
         adapterError: diag.error,
         conclusion:
           'Zenvora-side configuration problem (see adapterError). Fix this before probing CJ.',
@@ -51,7 +57,9 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     return jsonOk({
       zenvoraSide: false,
       configured: true,
-      apiKeyEnvVar: supplier.apiKeyEnvVar,
+      apiKeyEnvVar: envVarName,
+      vercelEnv,
+      gitBranch,
       ...probe,
     });
   })(req, ctx);

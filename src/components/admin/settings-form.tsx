@@ -152,8 +152,8 @@ function Section({
 }) {
   return (
     <Card className="p-5">
-      <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
-      {description && <p className="mt-0.5 text-xs text-gray-500">{description}</p>}
+      <h2 className="text-sm font-semibold text-ink-900">{title}</h2>
+      {description && <p className="mt-0.5 text-xs text-ink-400">{description}</p>}
       <div className="mt-4 grid gap-4 sm:grid-cols-2">{children}</div>
     </Card>
   );
@@ -171,16 +171,16 @@ function Toggle({
   hint?: string;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3 sm:col-span-2">
+    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-ink-900/10 p-3 sm:col-span-2">
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+        className="mt-0.5 h-4 w-4 rounded border-ink-900/20 text-brand-600 focus:ring-brand-500"
       />
       <span>
-        <span className="block text-sm font-medium text-gray-800">{label}</span>
-        {hint && <span className="block text-xs text-gray-500">{hint}</span>}
+        <span className="block text-sm font-medium text-ink-800">{label}</span>
+        {hint && <span className="block text-xs text-ink-400">{hint}</span>}
       </span>
     </label>
   );
@@ -648,9 +648,9 @@ export function SettingsForm({ initial }: { initial: StoreSettings }) {
         </Field>
       </Section>
 
-      <div className="sticky bottom-0 -mx-4 border-t border-gray-200 bg-white/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+      <div className="sticky bottom-0 -mx-4 border-t border-ink-900/10 bg-white/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-ink-400">
             Changes apply storefront-wide immediately (30s settings cache).
           </p>
           <Button onClick={save} loading={saving}>

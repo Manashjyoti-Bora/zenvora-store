@@ -20,12 +20,27 @@ import { Badge } from '@/components/ui/badge';
 
 /** The route answers with the probe result, or a Zenvora-side config gate. */
 type ProbeResponse =
-  | ({ zenvoraSide: true; configured: false; adapterError?: string | null; conclusion: string } &
-      Partial<CjProbeResult>)
-  | ({ zenvoraSide: false; configured: true; apiKeyEnvVar: string | null } & CjProbeResult);
+  | ({
+      zenvoraSide: true;
+      configured: false;
+      apiKeyEnvVar?: string | null;
+      vercelEnv?: string | null;
+      gitBranch?: string | null;
+      adapterError?: string | null;
+      conclusion: string;
+    } & Partial<CjProbeResult>)
+  | ({
+      zenvoraSide: false;
+      configured: true;
+      apiKeyEnvVar: string | null;
+      vercelEnv?: string | null;
+      gitBranch?: string | null;
+    } & CjProbeResult);
 export function CjForensicProbePanel({ supplierId }: { supplierId: string }) {
   const [busy, setBusy] = useState(false);
-  const [probe, setProbe] = useState<CjProbeResult | null>(null);
+  const [probe, setProbe] = useState<
+    (CjProbeResult & { vercelEnv?: string | null; gitBranch?: string | null }) | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
 
   async function run() {
@@ -44,11 +59,15 @@ export function CjForensicProbePanel({ supplierId }: { supplierId: string }) {
         return;
       }
       setProbe(result);
+      const hasProducts =
+        (result.myProductQuery?.returned ?? 0) > 0 || (result.myProductQuery?.total ?? 0) > 0;
       toast(
         result.classification === null
-          ? 'CJ probe: all three steps succeeded.'
+          ? hasProducts
+            ? 'CJ probe: all three steps succeeded and My Products returned items.'
+            : 'CJ probe: auth & endpoints succeeded, but My Products returned 0 items.'
           : `CJ probe finished — failing step classified as ${result.classification}.`,
-        result.classification === null ? 'success' : 'error'
+        result.classification === null ? (hasProducts ? 'success' : 'info') : 'error'
       );
     } catch (err) {
       const message = err instanceof ApiClientError ? err.message : 'CJ probe failed to run.';
@@ -62,14 +81,14 @@ export function CjForensicProbePanel({ supplierId }: { supplierId: string }) {
   return (
     <section aria-labelledby="cj-forensic-probe" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="cj-forensic-probe" className="text-lg font-semibold text-gray-900">
+        <h2 id="cj-forensic-probe" className="text-lg font-semibold text-ink-900">
           CJ connection diagnostics
         </h2>
         <Button size="sm" onClick={run} loading={busy}>
           Run CJ forensic probe
         </Button>
       </div>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-ink-400">
         Three read-only calls to CJ: credential exchange, <code>setting/get</code> and{' '}
         <code>product/myProduct/query</code>. No logout, no retries, no secrets in the result —
         token and API key appear only as lengths and sha256 fingerprints (safe to share with CJ
@@ -88,8 +107,12 @@ export function CjForensicProbePanel({ supplierId }: { supplierId: string }) {
               <Badge tone={probe.classification === null ? 'green' : 'red'}>
                 {probe.classification ?? 'ALL STEPS OK'}
               </Badge>
-              <span className="text-xs text-gray-500">
-                total {probe.elapsedMs} ms · API key:{' '}
+              <span className="text-xs text-ink-400">
+                total {probe.elapsedMs} ms
+                {probe.vercelEnv
+                  ? ` · env: ${probe.vercelEnv}${probe.gitBranch ? ` (${probe.gitBranch})` : ''}`
+                  : ''}{' '}
+                · API key:{' '}
                 {probe.apiKeyPresent ? (
                   <span className="font-mono">
                     {probe.apiKeyLength} chars · {probe.apiKeyFingerprint}
@@ -99,7 +122,7 @@ export function CjForensicProbePanel({ supplierId }: { supplierId: string }) {
                 )}
               </span>
             </div>
-            <p className="mt-2 text-sm text-gray-700">{probe.conclusion}</p>
+            <p className="mt-2 text-sm text-ink-700">{probe.conclusion}</p>
           </Card>
 
           <div className="grid gap-3 md:grid-cols-3">
@@ -130,6 +153,9 @@ export function CjForensicProbePanel({ supplierId }: { supplierId: string }) {
                 <span className="font-mono">
                   total={probe.myProductQuery.total ?? '—'} · returned=
                   {probe.myProductQuery.returned ?? '—'}
+                  {probe.myProductQuery.listKey
+                    ? ` · key=${probe.myProductQuery.listKey}`
+                    : ''}
                 </span>
               }
             />
@@ -157,10 +183,10 @@ function ProbeStepCard({ title, step, extra }: ProbeStepCardProps) {
   return (
     <Card className="p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-gray-900">{title}</p>
+        <p className="text-sm font-medium text-ink-900">{title}</p>
         <Badge tone={step.ok ? 'green' : 'red'}>{step.ok ? 'OK' : 'FAILED'}</Badge>
       </div>
-      <dl className="mt-2 space-y-1 text-xs text-gray-600">
+      <dl className="mt-2 space-y-1 text-xs text-ink-600">
         <div className="flex justify-between gap-2">
           <dt>CJ code</dt>
           <dd className="font-mono">{step.code ?? '—'}</dd>

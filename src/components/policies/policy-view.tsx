@@ -22,8 +22,9 @@ export function PolicyView({
 }) {
   return (
     <div className="container-store max-w-3xl py-8 sm:py-12">
-      <header className="mb-6">
-        <h1>{title}</h1>
+      <header className="mb-6 rounded-2xl border border-ink-900/10 bg-gradient-to-br from-cream-100/80 via-white to-cream-50 p-6 shadow-hair sm:p-7">
+        <p className="eyebrow">Store Governance &amp; Legal</p>
+        <h1 className="display mt-1">{title}</h1>
         <p className="mt-2 text-xs text-ink-400">
           Last updated: {lastUpdated} · Applies to orders placed on {settings.storeName}
         </p>
@@ -36,16 +37,16 @@ export function PolicyView({
         orders. Nothing here is legal advice.
       </Alert>
 
-      <div className="space-y-7 text-sm leading-relaxed text-ink-700 sm:text-[15px]">
+      <div className="space-y-4 text-sm leading-relaxed text-ink-700 sm:text-[15px]">
         {sections.map((s, i) => (
-          <section key={s.heading} aria-labelledby={`policy-${i}`}>
+          <section key={s.heading} className="card p-5 sm:p-6" aria-labelledby={`policy-${i}`}>
             <h2 id={`policy-${i}`}>
               {i + 1}. {s.heading}
             </h2>
             <div className="mt-2 space-y-2">{s.body}</div>
           </section>
         ))}
-        <section aria-labelledby="policy-contact">
+        <section className="card p-5 sm:p-6" aria-labelledby="policy-contact">
           <h2 id="policy-contact">Contact</h2>
           <p className="mt-2">
             Questions about this policy? Email{' '}

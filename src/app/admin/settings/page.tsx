@@ -12,7 +12,7 @@ export default async function AdminSettingsPage() {
     <div className="space-y-5">
       <header>
         <h1>Store settings</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-400">
           Storefront behaviour, business details, shipping/tax defaults and policy windows — stored
           in the database, effective immediately.
         </p>

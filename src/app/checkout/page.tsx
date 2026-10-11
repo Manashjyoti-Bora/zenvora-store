@@ -6,6 +6,7 @@ import { getSettings } from '@/lib/settings';
 import { describePaymentProvider } from '@/lib/payments';
 import { prisma } from '@/lib/db';
 import { CheckoutForm } from '@/components/checkout/checkout-form';
+import { CheckoutSteps } from '@/components/store/checkout-steps';
 import { EmptyState } from '@/components/ui/feedback';
 import { LinkButton } from '@/components/ui/button';
 import { CartIcon } from '@/components/ui/icons';
@@ -53,8 +54,10 @@ export default async function CheckoutPage() {
 
   return (
     <div className="container-store py-6 sm:py-8">
+      <CheckoutSteps current="checkout" />
       <header className="mb-6">
-        <h1>Checkout</h1>
+        <p className="eyebrow">Secure Checkout</p>
+        <h1 className="display mt-1">Checkout</h1>
         <p className="mt-1 text-sm text-ink-400">
           Review your details below. Prices are final and include applicable taxes.
           {user ? (

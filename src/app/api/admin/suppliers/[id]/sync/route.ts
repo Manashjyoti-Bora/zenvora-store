@@ -41,18 +41,43 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     let created = 0;
     let updated = 0;
     let skippedNoCost = 0;
+    let skippedNoSku = 0;
+    const seenSkus = new Set<string>();
+    const seenExternalIds = new Set<string>();
+
     for (const p of products) {
-      if (!p.sku) continue;
+      const sku = typeof p.sku === 'string' ? p.sku.trim() : '';
+      if (!sku) {
+        skippedNoSku += 1;
+        continue;
+      }
+      const skuKey = sku.toLowerCase();
+      const extKey = p.externalId ? p.externalId.trim().toLowerCase() : '';
+      if (seenSkus.has(skuKey) || (extKey && seenExternalIds.has(extKey))) {
+        continue;
+      }
+      seenSkus.add(skuKey);
+      if (extKey) seenExternalIds.add(extKey);
+
       // Never record a fabricated 0.00 cost: an unknown supplier cost would
       // poison auto-pricing (price suggested from cost 0) and margin floors.
       if (p.costPaise == null || !Number.isFinite(p.costPaise)) {
         skippedNoCost += 1;
         continue;
       }
-      const existing = await prisma.supplierProduct.findUnique({
-        where: { supplierId_supplierSku: { supplierId: supplier.id, supplierSku: p.sku } },
-      });
+
+      const existing =
+        (await prisma.supplierProduct.findUnique({
+          where: { supplierId_supplierSku: { supplierId: supplier.id, supplierSku: sku } },
+        })) ??
+        (p.externalId
+          ? await prisma.supplierProduct.findFirst({
+              where: { supplierId: supplier.id, externalId: p.externalId },
+            })
+          : null);
+
       const data = {
+        supplierSku: sku,
         externalId: p.externalId ?? null,
         supplierCost: ((p.costPaise ?? 0) / 100).toFixed(2),
         supplierShippingCost: p.shippingPaise != null ? (p.shippingPaise / 100).toFixed(2) : null,
@@ -66,7 +91,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
         updated += 1;
       } else {
         await prisma.supplierProduct.create({
-          data: { supplierId: supplier.id, supplierSku: p.sku, ...data },
+          data: { supplierId: supplier.id, ...data },
         });
         created += 1;
       }
@@ -77,7 +102,7 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
       action: 'supplier.catalog_synced',
       entityType: 'Supplier',
       entityId: supplier.id,
-      data: { created, updated, skippedNoCost },
+      data: { total: products.length, created, updated, skippedNoCost, skippedNoSku },
       req,
     });
     const hints: string[] = [];
@@ -91,11 +116,16 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
         `${skippedNoCost} item(s) skipped: CJ did not return a buyable cost for them, and importing a product with an unknown cost would corrupt pricing.`
       );
     }
+    if (skippedNoSku > 0) {
+      hints.push(`${skippedNoSku} item(s) skipped: missing supplier SKU/productId.`);
+    }
     return jsonOk({
+      synced: created + updated > 0,
       created,
       updated,
       total: products.length,
       skippedNoCost,
+      skippedNoSku,
       message: hints.length > 0 ? hints.join(' ') : undefined,
     });
   })(req, ctx);

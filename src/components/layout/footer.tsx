@@ -14,8 +14,8 @@ export async function Footer() {
         <div className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4 lg:grid-cols-5">
           <div className="col-span-2 lg:col-span-2">
             <Link href="/" className="group inline-flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-sm font-black text-white transition-transform duration-200 group-hover:-rotate-6">
-                Z
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-ink-900 text-sm font-black text-brass-300 ring-1 ring-brass-300/35 transition-transform duration-200 group-hover:-rotate-6">
+                {settings.storeName.slice(0, 1).toUpperCase()}
               </span>
               <span className="text-lg font-extrabold uppercase tracking-[0.18em] text-cream-100">
                 {settings.storeName}
@@ -80,9 +80,12 @@ export async function Footer() {
                 ))}
               </ul>
             ) : (
-              <p className="mt-3 text-xs text-cream-500">
+              <p className="mt-3 text-xs leading-relaxed text-cream-400">
                 Categories appear once products are added.{' '}
-                <Link href="/shop" className="link-primary">
+                <Link
+                  href="/shop"
+                  className="font-semibold text-brass-200 underline decoration-brass-300/50 underline-offset-2 transition-colors hover:text-white"
+                >
                   Browse all products
                 </Link>
                 .

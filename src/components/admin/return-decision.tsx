@@ -127,7 +127,7 @@ export function ReturnDecisionButton({
               </Select>
             )}
           </Field>
-          <p className="text-xs text-gray-500">{DECISION_INFO[decision].hint}</p>
+          <p className="text-xs text-ink-400">{DECISION_INFO[decision].hint}</p>
           {decision === 'APPROVE' && (
             <Field
               label="Refund amount (₹)"

@@ -55,7 +55,7 @@ export default async function JobsLogPage({
     <div className="space-y-5">
       <header>
         <h1>Job queue</h1>
-        <p className="mt-1 text-sm tabular-nums text-gray-500">
+        <p className="mt-1 text-sm tabular-nums text-ink-400">
           Background automation: supplier fulfilment, status syncs, cancellations and notification
           emails. {pendingCount} pending/running · {failedCount} failed.
         </p>
@@ -100,7 +100,7 @@ export default async function JobsLogPage({
         </select>
         <button
           type="submit"
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          className="rounded-lg bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800"
         >
           Filter
         </button>
@@ -113,7 +113,7 @@ export default async function JobsLogPage({
 
       <TableWrap>
         <table className="table-base">
-          <thead className="bg-gray-50">
+          <thead className="bg-cream-50">
             <tr>
               <Th>Type</Th>
               <Th>Status</Th>
@@ -125,18 +125,18 @@ export default async function JobsLogPage({
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-ink-900/5">
             {jobs.length === 0 && (
               <tr>
-                <Td className="py-8 text-center text-gray-400">No jobs match.</Td>
+                <Td className="py-8 text-center text-ink-400">No jobs match.</Td>
               </tr>
             )}
             {jobs.map((j) => (
               <tr
                 key={j.id}
-                className={j.status === 'FAILED' ? 'bg-red-50/40' : 'hover:bg-gray-50/60'}
+                className={j.status === 'FAILED' ? 'bg-red-50/40' : 'hover:bg-cream-50/70'}
               >
-                <Td className="text-[11px] font-medium text-gray-700">
+                <Td className="text-[11px] font-medium text-ink-700">
                   {j.type.replace(/_/g, ' ')}
                 </Td>
                 <Td>
@@ -146,19 +146,19 @@ export default async function JobsLogPage({
                 </Td>
                 <Td className="hidden max-w-[180px] md:table-cell">
                   <span
-                    className="block truncate font-mono text-[10px] text-gray-400"
+                    className="block truncate font-mono text-[10px] text-ink-400"
                     title={j.dedupeKey ?? undefined}
                   >
                     {j.dedupeKey ?? '—'}
                   </span>
                 </Td>
-                <Td className="hidden text-xs tabular-nums text-gray-500 sm:table-cell">
+                <Td className="hidden text-xs tabular-nums text-ink-400 sm:table-cell">
                   {j.attempts}/{j.maxAttempts}
                 </Td>
-                <Td className="hidden text-[11px] text-gray-400 lg:table-cell">
+                <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
                   {fmt(j.nextRunAt)}
                 </Td>
-                <Td className="hidden text-[11px] text-gray-400 lg:table-cell">
+                <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
                   {fmt(j.completedAt)}
                 </Td>
                 <Td className="hidden max-w-[220px] md:table-cell">
