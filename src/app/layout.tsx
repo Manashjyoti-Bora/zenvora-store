@@ -53,6 +53,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body className="no-page-overflow flex min-h-screen flex-col">
+        {/* Marks script availability BEFORE any reveal content is parsed or
+            painted. Must stay the first child of <body>: the browser executes
+            it synchronously while parsing, so the `.js .reveal` hidden state
+            (globals.css) is in force from the very first paint - while the
+            server-rendered HTML itself stays fully visible. Without this the
+            homepage product grids ship as opacity:0 until hydration, which
+            delays LCP and can blank the storefront on a slow connection. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "document.documentElement.classList.add('js')",
+          }}
+        />
         {/* No-JS fallback: scroll-reveal elements must never stay hidden without script. */}
         <noscript>
           <style>{`.reveal{opacity:1 !important;transform:none !important;}.reveal .stagger>*{opacity:1 !important;transform:none !important;animation:none !important;}`}</style>

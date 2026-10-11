@@ -4,6 +4,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 /**
  * One-shot scroll reveal. Progressive-enhancement rules:
+ *  - the hidden state lives under `.js .reveal` in globals.css, so the
+ *    server-rendered HTML is always visible (LCP-safe) and only becomes
+ *    animatable once the inline `<body>` script marks script support;
  *  - prefers-reduced-motion OR no IntersectionObserver ⇒ visible immediately;
  *  - fires once, then disconnects (no scroll listeners, no layout thrash);
  *  - pure wrapper div — server-rendered children are untouched.

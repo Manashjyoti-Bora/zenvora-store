@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { focusablesIn, lockBodyScroll, nextFocusTarget } from '@/lib/a11y/focus';
 
 /**
  * Accessible modal dialog: role=dialog + aria-modal, ESC to close, click on
@@ -28,34 +29,27 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
     previouslyFocused.current = document.activeElement as HTMLElement | null;
-    const focusTarget = ref.current?.querySelector<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    focusTarget?.focus();
+    focusablesIn(ref.current)[0]?.focus();
 
+    // Focus trap + scroll lock shared with <MobileMenu> (src/lib/a11y/focus.ts)
+    // so every overlay in the app behaves identically for keyboard users.
+    const releaseScrollLock = lockBodyScroll();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'Tab' && ref.current) {
-        const focusables = ref.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        if (focusables.length === 0) return;
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
+      if (e.key === 'Escape') {
+        onClose();
+        return;
       }
+      if (e.key !== 'Tab') return;
+      const target = nextFocusTarget(focusablesIn(ref.current), document.activeElement, e.shiftKey);
+      if (!target) return;
+      e.preventDefault();
+      target.focus();
     };
     document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
+
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
+      releaseScrollLock();
       previouslyFocused.current?.focus();
     };
   }, [open, onClose]);

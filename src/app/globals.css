@@ -163,41 +163,49 @@
   }
 
   /* Scroll reveal (paired with the <Reveal> client component).
-     Default state is hidden ONLY when JS drives it; reduced-motion users and
-     no-JS contexts are handled below / by the component. */
-  .reveal {
+     The hidden state is scoped to `.js` — a class set by the tiny blocking
+     inline script that is the FIRST child of <body> in layout.tsx, so it runs
+     before any reveal content is parsed or painted. Consequences:
+       - Server-rendered HTML and every pre-hydration frame are fully visible,
+         so reveal-wrapped product grids stay LCP candidates (browsers exclude
+         opacity:0 content from LCP) and never flash blank on a slow network.
+       - No-JS, and the rare CSP-blocked-inline-script case, degrade to plain
+         visible content with no animation — the intended progressive
+         enhancement, not a broken page.
+     No `will-change` hint: it is only useful DURING a transition, and leaving
+     it on every card for the whole session wastes compositor memory. */
+  .js .reveal {
     opacity: 0;
     transform: translateY(14px);
     transition:
-      opacity 0.5s var(--ease-zenvora),
-      transform 0.5s var(--ease-zenvora);
-    will-change: opacity, transform;
+      opacity var(--duration-slow) var(--ease-zenvora),
+      transform var(--duration-slow) var(--ease-zenvora);
   }
-  .reveal.is-visible {
+  .js .reveal.is-visible {
     opacity: 1;
     transform: none;
   }
 
   /* Staggered grid choreography (CSS-only). A `.stagger` container inside a
      `.reveal` animates its children in 45ms steps once the reveal fires.
-     Safety: hidden state exists ONLY under `.reveal` (noscript + reduced-motion
-     overrides below keep content visible); delay is capped at 8 steps so large
-     grids don't crawl. */
-  .reveal .stagger > * {
+     Safety: as with `.reveal`, the hidden state exists ONLY under `.js`, so the
+     noscript + reduced-motion overrides below keep content visible; delay is
+     capped at 8 steps so large grids don't crawl. */
+  .js .reveal .stagger > * {
     opacity: 0;
     transform: translateY(12px);
   }
-  .reveal.is-visible .stagger > * {
+  .js .reveal.is-visible .stagger > * {
     animation: fade-up 0.45s var(--ease-zenvora) both;
   }
-  .reveal.is-visible .stagger > *:nth-child(2) { animation-delay: 45ms; }
-  .reveal.is-visible .stagger > *:nth-child(3) { animation-delay: 90ms; }
-  .reveal.is-visible .stagger > *:nth-child(4) { animation-delay: 135ms; }
-  .reveal.is-visible .stagger > *:nth-child(5) { animation-delay: 180ms; }
-  .reveal.is-visible .stagger > *:nth-child(6) { animation-delay: 225ms; }
-  .reveal.is-visible .stagger > *:nth-child(7) { animation-delay: 270ms; }
-  .reveal.is-visible .stagger > *:nth-child(8) { animation-delay: 315ms; }
-  .reveal.is-visible .stagger > *:nth-child(n + 9) { animation-delay: 360ms; }
+  .js .reveal.is-visible .stagger > *:nth-child(2) { animation-delay: 45ms; }
+  .js .reveal.is-visible .stagger > *:nth-child(3) { animation-delay: 90ms; }
+  .js .reveal.is-visible .stagger > *:nth-child(4) { animation-delay: 135ms; }
+  .js .reveal.is-visible .stagger > *:nth-child(5) { animation-delay: 180ms; }
+  .js .reveal.is-visible .stagger > *:nth-child(6) { animation-delay: 225ms; }
+  .js .reveal.is-visible .stagger > *:nth-child(7) { animation-delay: 270ms; }
+  .js .reveal.is-visible .stagger > *:nth-child(8) { animation-delay: 315ms; }
+  .js .reveal.is-visible .stagger > *:nth-child(n + 9) { animation-delay: 360ms; }
 }
 
 @layer utilities {

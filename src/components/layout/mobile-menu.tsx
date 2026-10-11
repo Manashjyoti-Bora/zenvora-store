@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { focusablesIn, lockBodyScroll, nextFocusTarget } from '@/lib/a11y/focus';
 import type { SessionUser } from '@/lib/auth/session';
 
 export function MobileMenu({
@@ -12,15 +14,47 @@ export function MobileMenu({
   user: SessionUser | null;
 }) {
   const [open, setOpen] = useState(false);
+  const navRef = useRef<HTMLElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const pathname = usePathname();
 
+  // Keyboard + scroll behaviour while the disclosure is open, mirroring the
+  // app's <Modal>: focus enters the panel, Tab cycles inside it, Escape
+  // closes, and the page behind it cannot scroll.
   useEffect(() => {
     if (!open) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    const nav = navRef.current;
+    // Snapshot the trigger: refs can change before cleanup runs (React 19).
+    const trigger = triggerRef.current;
+    nav?.focus();
+
+    const releaseScrollLock = lockBodyScroll();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const target = nextFocusTarget(focusablesIn(nav), document.activeElement, e.shiftKey);
+      if (!target) return;
+      e.preventDefault();
+      target.focus();
+    };
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      releaseScrollLock();
+      // Return focus to the control that opened the panel.
+      trigger?.focus();
+    };
   }, [open]);
+
+  // Any navigation (link click, back/forward, programmatic) closes the panel.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   const catalogLinks = [
     { href: '/shop', label: 'All products' },
@@ -38,6 +72,7 @@ export function MobileMenu({
   return (
     <div className="lg:hidden">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="btn-press flex h-10 w-10 items-center justify-center rounded-lg text-ink-800 transition-colors hover:bg-ink-900/5 hover:text-ink-950"
@@ -73,9 +108,11 @@ export function MobileMenu({
             className="fixed inset-x-0 bottom-0 top-14 z-30 h-screen bg-ink-950/30 backdrop-blur-[1px]"
           />
           <nav
+            ref={navRef}
             id="mobile-nav"
             aria-label="Mobile navigation"
-            className="absolute inset-x-0 top-full z-40 max-h-[78vh] animate-fade-in overflow-y-auto border-b border-ink-900/15 bg-cream-50 px-4 py-4 shadow-lift"
+            tabIndex={-1}
+            className="absolute inset-x-0 top-full z-40 max-h-[78vh] animate-fade-in overflow-y-auto border-b border-ink-900/15 bg-cream-50 px-4 py-4 shadow-lift focus:outline-none"
           >
             {user ? (
               <div className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-ink-900/10 bg-white p-3 shadow-hair">
