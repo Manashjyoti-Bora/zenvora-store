@@ -62,8 +62,11 @@ export default async function SupplierDetailPage({ params }: Ctx) {
 
   // Server-side configuration diagnostics (never exposes secret values).
   const diag = diagnoseSupplierAdapter(supplier);
-  const envValue = supplier.apiKeyEnvVar ? process.env[supplier.apiKeyEnvVar] : undefined;
-  const envPresent = typeof envValue === 'string' && envValue.length > 0;
+  const envVarName = supplier.apiKeyEnvVar?.trim() || null;
+  const envValue = envVarName ? process.env[envVarName] : undefined;
+  const envPresent = typeof envValue === 'string' && envValue.trim().length > 0;
+  const vercelEnv = process.env.VERCEL_ENV?.trim() || null;
+  const gitBranch = process.env.VERCEL_GIT_COMMIT_REF?.trim() || null;
 
   return (
     <div className="space-y-5">
@@ -140,9 +143,22 @@ export default async function SupplierDetailPage({ params }: Ctx) {
         </Alert>
       )}
 
-      {diag.ok && supplier.apiKeyEnvVar && envPresent && (
+      {diag.ok && envVarName && envPresent && (
         <Alert tone="success" title="API configuration OK">
-          Environment variable <code>{supplier.apiKeyEnvVar}</code> is present in this environment
+          Environment variable <code>{envVarName}</code> is present in this environment
+          {vercelEnv ? (
+            <>
+              {' '}
+              (<code>{vercelEnv}</code>
+              {gitBranch ? (
+                <>
+                  {' '}
+                  · <code>{gitBranch}</code>
+                </>
+              ) : null}
+              )
+            </>
+          ) : null}{' '}
           (value never displayed). Catalog sync and automatic forwarding are enabled.
         </Alert>
       )}
@@ -150,9 +166,11 @@ export default async function SupplierDetailPage({ params }: Ctx) {
         <Alert tone="error" title="Automation blocked — configuration problem">
           <p>{diag.error}</p>
           <p className="mt-2">
-            Fix this in Vercel → Settings → Environment Variables for the affected scope, then
-            redeploy (variables are only read at deploy time). Until fixed, catalog sync fails and
-            affected orders fall back to the manual queue — nothing pretends to be automated.
+            Fix this in Vercel → Project Settings → Environment Variables for the affected target
+            scope (enable both <strong>Production</strong> and <strong>Preview</strong> if testing on
+            preview branches), then redeploy (variables are baked into deployments at deploy time).
+            Until fixed, catalog sync fails and affected orders fall back to the manual queue —
+            nothing pretends to be automated.
           </p>
         </Alert>
       )}

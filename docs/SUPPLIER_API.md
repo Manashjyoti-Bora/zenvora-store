@@ -316,9 +316,12 @@ Diagnostics (safe, no secret values):
 - The admin supplier detail page shows the same status: green when the variable is present,
   a red "Automation blocked" alert with the exact missing configuration otherwise.
 - Vercel note: environment variables are read at **request time** by the Node runtime but are
-  only **baked into a deployment at deploy time**. If you add `CJ_API_KEY` in the Vercel
-  dashboard, you must **redeploy Production** before the running server can see it; otherwise
-  diagnostics correctly report `valuePresent: false`.
+  **scoped per target environment (`Production`, `Preview`, `Development`)** and **baked into a
+  deployment at deploy time**. A variable added only to **Production** is NOT injected into
+  **Preview** branch deployments (`valuePresent: false, vercelEnv: preview`). To test CJ probe or
+  catalog sync on a Preview deployment, tick both **Production** and **Preview** (without a
+  branch restriction excluding your feature branch) in **Vercel → Project Settings → Environment
+  Variables**, then **Redeploy** the Preview deployment.
 
 Token lifecycle & self-healing (verified against CJ's current docs):
 - Access/refresh tokens live **180 days**, but CJ **server-side caches the same token per

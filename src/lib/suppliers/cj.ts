@@ -242,7 +242,8 @@ export class CJDropshippingAdapter implements SupplierAdapter {
   constructor(private supplier: Supplier) {
     this.label = `CJ Dropshipping: ${supplier.name}`;
     this.config = (supplier.config ?? {}) as CjConfig;
-    if (!supplier.apiKeyEnvVar) {
+    const envVarName = supplier.apiKeyEnvVar?.trim() ?? '';
+    if (!envVarName) {
       // Distinct cause 1: the DB record is missing the env-var NAME.
       throw new UnsupportedSupplierOperation(
         `CJ supplier "${supplier.name}": apiKeyEnvVar is not set on the supplier record. Set it to the NAME of the environment variable holding the CJ API key (e.g. CJ_API_KEY) - never the key itself.`
@@ -250,11 +251,21 @@ export class CJDropshippingAdapter implements SupplierAdapter {
     }
     if (!this.apiKey) {
       // Distinct cause 2: the named variable is absent/empty in THIS runtime.
-      // Never include the value; only the name and presence. Env vars on
-      // Vercel are baked in at deploy time, so a freshly added variable also
-      // requires a redeploy before the running server can see it.
+      // Never include the value; only the name, presence, and non-sensitive
+      // deployment scope (VERCEL_ENV / branch). Env vars on Vercel are scoped
+      // per environment (Production vs Preview vs Development) and baked in at
+      // deploy time.
+      const vercelEnv = process.env.VERCEL_ENV?.trim() || null;
+      const gitRef = process.env.VERCEL_GIT_COMMIT_REF?.trim() || null;
+      const scopeMeta = vercelEnv
+        ? `, vercelEnv: ${vercelEnv}${gitRef ? `, branch: ${gitRef}` : ''}`
+        : '';
+      const scopeHint =
+        vercelEnv === 'preview'
+          ? `This deployment is running in the Vercel Preview environment${gitRef ? ` (branch: ${gitRef})` : ''}, which does not receive Production-only variables. Enable ${envVarName} for the Preview environment (with no branch filter excluding ${gitRef ?? 'this branch'}) in Vercel → Project Settings → Environment Variables and redeploy; until then catalog sync and automatic CJ forwarding stay disabled.`
+          : `Add it in Vercel → Project Settings → Environment Variables (enable both Production and Preview scopes) and redeploy; until then catalog sync and automatic CJ forwarding stay disabled.`;
       throw new UnsupportedSupplierOperation(
-        `CJ supplier "${supplier.name}": environment variable ${supplier.apiKeyEnvVar} is not present in this environment (envVarName: ${supplier.apiKeyEnvVar}, valuePresent: false). Add it in Vercel → Settings → Environment Variables (Production) and redeploy; until then catalog sync and automatic CJ forwarding stay disabled.`
+        `CJ supplier "${supplier.name}": environment variable ${envVarName} is not present in this environment (envVarName: ${envVarName}, valuePresent: false${scopeMeta}). ${scopeHint}`
       );
     }
     if (!this.config.fxRateInrPerUsd || this.config.fxRateInrPerUsd <= 0) {
@@ -265,7 +276,12 @@ export class CJDropshippingAdapter implements SupplierAdapter {
   }
 
   private get apiKey(): string | undefined {
-    return this.supplier.apiKeyEnvVar ? process.env[this.supplier.apiKeyEnvVar] : undefined;
+    const envVarName = this.supplier.apiKeyEnvVar?.trim();
+    if (!envVarName) return undefined;
+    const raw = process.env[envVarName];
+    if (typeof raw !== 'string') return undefined;
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
   }
 
   // --- Catalogue ------------------------------------------------------------

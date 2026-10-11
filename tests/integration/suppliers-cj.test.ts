@@ -1544,5 +1544,42 @@ describe('CJ My Products envelope + mapping regression (data.content / totalReco
     expect(springPage.total).toBe(2);
     expect(springPage.items).toHaveLength(1);
   });
+
+  it('reports Vercel Preview scope and branch when CJ_API_KEY is scoped only to Production (and trims apiKeyEnvVar)', () => {
+    const prevVercelEnv = process.env.VERCEL_ENV;
+    const prevGitRef = process.env.VERCEL_GIT_COMMIT_REF;
+    process.env.VERCEL_ENV = 'preview';
+    process.env.VERCEL_GIT_COMMIT_REF = 'arena/feebfc6b-zenvora-store';
+    try {
+      const diag = diagnoseSupplierAdapter(
+        makeSupplier({ name: 'CJ Dropshipping', apiKeyEnvVar: 'CJ_API_KEY_PREVIEW_MISSING' })
+      );
+      expect(diag.ok).toBe(false);
+      expect(diag.error).toContain(
+        'envVarName: CJ_API_KEY_PREVIEW_MISSING, valuePresent: false, vercelEnv: preview, branch: arena/feebfc6b-zenvora-store'
+      );
+      expect(diag.error).toMatch(/Vercel Preview environment.*does not receive Production-only variables/);
+
+      // Trims accidental whitespace around apiKeyEnvVar on the supplier record
+      const trimmedDiag = diagnoseSupplierAdapter(
+        makeSupplier({ apiKeyEnvVar: '  CJ_TEST_API_KEY  ' })
+      );
+      expect(trimmedDiag.ok).toBe(true);
+
+      // Rejects whitespace-only env var values at construction time instead of sending empty key to CJ
+      process.env.CJ_WHITESPACE_ONLY_KEY = '   \n  ';
+      const wsDiag = diagnoseSupplierAdapter(
+        makeSupplier({ apiKeyEnvVar: 'CJ_WHITESPACE_ONLY_KEY' })
+      );
+      expect(wsDiag.ok).toBe(false);
+      expect(wsDiag.error).toContain('valuePresent: false');
+    } finally {
+      delete process.env.CJ_WHITESPACE_ONLY_KEY;
+      if (prevVercelEnv === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = prevVercelEnv;
+      if (prevGitRef === undefined) delete process.env.VERCEL_GIT_COMMIT_REF;
+      else process.env.VERCEL_GIT_COMMIT_REF = prevGitRef;
+    }
+  });
 });
 

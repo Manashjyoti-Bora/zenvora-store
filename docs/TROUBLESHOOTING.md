@@ -34,6 +34,7 @@ Symptom → cause → fix. Everything here was hit and solved during development
   Renamed extensions of other files are rejected on purpose.
 
 ## CJ Dropshipping
+- **Preview deployment shows `environment variable CJ_API_KEY is not present in this environment (envVarName: CJ_API_KEY, valuePresent: false)` while Production works** — Vercel scopes environment variables separately for **Production**, **Preview**, and **Development**, and bakes them into each deployment at build/deploy time. If `CJ_API_KEY` was added with only **Production** ticked (or added after the Preview deployment was built, or added to the other Vercel project `zenvorastore` vs `zenvora-store`), Preview branch deployments will not have `process.env.CJ_API_KEY`. Fix: in **Vercel → Project Settings → Environment Variables**, edit `CJ_API_KEY` (or add it) with **Preview** enabled (and no branch restriction excluding the preview branch), save, and click **Redeploy** on the Preview deployment.
 - **`getAccessToken` succeeds but `setting/get` / `product/myProduct/query` return 401
   (CJ code `1600001`)** — *confirmed root cause, fixed 2026-10-11.* The token was passed
   through the display helper `str()` (500-char cap) on its way into the in-memory cache:
