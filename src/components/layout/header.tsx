@@ -33,23 +33,23 @@ export async function Header() {
   ]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-ink-900/10 bg-cream-50/95 shadow-hair backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-ink-900/10 bg-cream-50/95 shadow-hair backdrop-blur-md">
       <div className="container-store">
-        <div className="flex h-14 items-center gap-3">
+        <div className="flex h-14 items-center gap-2 sm:gap-3">
           <MobileMenu categories={categories} user={user} />
 
           <Link
             href="/"
-            className="group flex shrink-0 items-center gap-2"
+            className="group flex min-w-0 shrink-0 items-center gap-2"
             aria-label={`${settings.storeName} home`}
           >
             <span
               aria-hidden="true"
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-black text-white transition-transform duration-200 ease-zenvora [@media(hover:hover)]:group-hover:-rotate-6"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink-950 text-sm font-black text-brass-300 ring-1 ring-brass-300/35 transition-transform duration-200 ease-zenvora [@media(hover:hover)]:group-hover:-rotate-6"
             >
               {settings.storeName.slice(0, 1).toUpperCase()}
             </span>
-            <span className="hidden text-base font-extrabold uppercase tracking-[0.18em] text-ink-900 sm:block">
+            <span className="max-w-[130px] truncate text-sm font-extrabold uppercase tracking-[0.14em] text-ink-900 sm:max-w-none sm:text-base sm:tracking-[0.18em]">
               {settings.storeName}
             </span>
           </Link>
@@ -85,20 +85,20 @@ export async function Header() {
             <SearchForm />
           </div>
 
-          <div className="ml-auto flex items-center gap-1 md:ml-2">
+          <div className="ml-auto flex shrink-0 items-center gap-1 md:ml-2">
             <AccountMenu user={user} />
 
             <Link
               href="/cart"
-              className="btn-press relative rounded-lg p-2 text-ink-700 transition-colors hover:bg-ink-900/5 hover:text-ink-900"
+              className="btn-press relative flex h-10 w-10 items-center justify-center rounded-lg text-ink-800 transition-colors hover:bg-ink-900/5 hover:text-ink-950"
               aria-label={`Cart, ${cartCount} item${cartCount === 1 ? '' : 's'}`}
             >
               <svg
-                className="h-6 w-6"
+                className="h-5 w-5 sm:h-6 sm:w-6"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
-                strokeWidth={1.7}
+                strokeWidth={1.75}
                 aria-hidden="true"
               >
                 <path
@@ -108,7 +108,7 @@ export async function Header() {
                 />
               </svg>
               {cartCount > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-500 px-1 text-[11px] font-bold text-white shadow-soft">
+                <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-500 px-1 text-[10px] font-bold text-white shadow-soft">
                   {cartCount > 99 ? '99+' : cartCount}
                 </span>
               )}
@@ -116,7 +116,7 @@ export async function Header() {
           </div>
         </div>
 
-        <div className="pb-2 md:hidden">
+        <div className="pb-2.5 md:hidden">
           <SearchForm />
         </div>
       </div>
