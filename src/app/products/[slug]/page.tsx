@@ -17,6 +17,9 @@ import { CreditCardIcon, ReceiptIcon } from '@/components/ui/icons';
 import { AddToCartButton } from '@/components/store/add-to-cart-button';
 import { jsonLdScript } from '@/lib/utils';
 
+import { RecentlyViewedRecorder } from '@/components/store/recently-viewed-recorder';
+import { RecentlyViewedCarousel } from '@/components/store/recently-viewed-carousel';
+
 export const dynamic = 'force-dynamic';
 
 type Ctx = { params: Promise<{ slug: string }> };
@@ -321,6 +324,16 @@ export default async function ProductPage({ params }: Ctx) {
       </p>
 
       {/* Mobile sticky buy bar — real price, real stock state, no fabricated urgency */}
+      <RecentlyViewedRecorder 
+        product={{ 
+          slug: product.slug, 
+          name: product.name, 
+          price: formatINR(basePricePaise), 
+          imageUrl: images[0]?.url || null 
+        }} 
+      />
+      <RecentlyViewedCarousel currentSlug={product.slug} />
+
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-900/10 bg-white/95 px-3 pt-2 shadow-lift backdrop-blur-md safe-bottom lg:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-3">
           {images[0]?.url ? (

@@ -183,6 +183,15 @@ export function MobileMenu({
               <div className="border-t border-ink-900/10 pt-3">
                 <p className="eyebrow px-2 text-ink-400">Orders &amp; support</p>
                 <ul className="mt-1.5 grid grid-cols-2 gap-1">
+                  <li>
+                    <Link
+                      href="/wishlist"
+                      onClick={() => setOpen(false)}
+                      className="block rounded-lg bg-white/80 px-2.5 py-2 text-xs font-semibold text-brand-700 ring-1 ring-ink-900/5 transition-colors hover:bg-white hover:text-brand-800"
+                    >
+                      My Wishlist
+                    </Link>
+                  </li>
                   {supportLinks.map((l) => (
                     <li key={l.href}>
                       <Link

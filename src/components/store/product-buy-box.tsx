@@ -5,6 +5,7 @@ import { formatINR, formatDiscountPercent } from '@/lib/money';
 import { QuantityStepper } from './quantity-stepper';
 import { AddToCartButton } from './add-to-cart-button';
 import { WishlistButton } from './wishlist-button';
+import { ShareButton } from './share-button';
 import { Badge } from '@/components/ui/badge';
 import type { Availability, AvailabilityState } from '@/lib/catalog/availability';
 
@@ -179,6 +180,7 @@ export function ProductBuyBox({
           />
         )}
         <WishlistButton productId={productId} />
+        <ShareButton title={`Check out this product on Zenvora`} url={typeof window !== 'undefined' ? window.location.href : ''} />
       </div>
     </div>
   );
