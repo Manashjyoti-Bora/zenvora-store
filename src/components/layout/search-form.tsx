@@ -36,7 +36,7 @@ export function SearchForm() {
     }
     
     setShowDropdown(false);
-    router.push(term ? \`/search?q=\${encodeURIComponent(term)}\` : '/shop');
+    router.push(term ? `/search?q=${encodeURIComponent(term)}` : '/shop');
   }
 
   return (
