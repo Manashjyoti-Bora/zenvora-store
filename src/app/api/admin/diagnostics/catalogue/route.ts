@@ -172,8 +172,8 @@ export async function GET() {
       prisma.setting.findUnique({ where: { key: 'store' } }),
     ]);
 
-    // Parse CJ supplier config status (non-secret)
-    const cjSuppliers = suppliers.filter((s) => s.type === 'CJ').map((s) => {
+    // Parse CJ supplier config status (non-secret config fields only)
+    const cjSuppliers = suppliers.filter((s: typeof suppliers[number]) => s.type === 'CJ').map((s: typeof suppliers[number]) => {
       const config = (s.config ?? {}) as Record<string, unknown>;
       return {
         id: s.id,
@@ -198,7 +198,7 @@ export async function GET() {
       }
       if (suppliers.length === 0) {
         diagnosis.push('NO_SUPPLIERS: No active suppliers are configured. Create a CJ supplier record and configure the API key.');
-      } else if (cjSuppliers.some((s) => !s.apiKeyEnvVarConfigured)) {
+      } else if (cjSuppliers.some((s: typeof cjSuppliers[number]) => !s.apiKeyEnvVarConfigured)) {
         diagnosis.push('CJ_NO_ENV_VAR: CJ supplier exists but apiKeyEnvVar is not set on the supplier record.');
       }
     } else {
@@ -242,12 +242,12 @@ export async function GET() {
         categories: categories.length,
         activePricingRules: pricingRules.length,
       },
-      categories: categories.map((c) => ({
+      categories: categories.map((c: typeof categories[number]) => ({
         name: c.name,
         slug: c.slug,
         eligibleProductCount: c._count.products,
       })),
-      suppliers: suppliers.map((s) => ({
+      suppliers: suppliers.map((s: typeof suppliers[number]) => ({
         name: s.name,
         type: s.type,
         productCount: s._count.products,

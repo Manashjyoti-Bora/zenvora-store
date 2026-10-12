@@ -205,7 +205,7 @@ async function main() {
         console.log('  → No suppliers are configured.');
         console.log('  → ACTION: Create a CJ supplier and configure the API key.');
       } else {
-        const cjSupplier = suppliers.find((s) => s.type === 'CJ');
+        const cjSupplier = suppliers.find((s: typeof suppliers[number]) => s.type === 'CJ');
         if (cjSupplier && !cjSupplier.apiKeyEnvVar?.trim()) {
           console.log('  → CJ supplier exists but apiKeyEnvVar is not set.');
           console.log('  → ACTION: Set apiKeyEnvVar on the supplier record.');
