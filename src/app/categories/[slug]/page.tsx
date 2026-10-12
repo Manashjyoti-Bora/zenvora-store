@@ -9,6 +9,15 @@ import {
   parseSort,
   parsePriceBound,
 } from '@/lib/catalog/storefront';
+import {
+  breadcrumbJsonLd,
+  carryListingQuery,
+  isFilteredListing,
+  itemListJsonLd,
+  listingDescription,
+  listingSeo,
+  listingTitle,
+} from '@/lib/seo/listing';
 import { ProductGrid } from '@/components/store/product-grid';
 import { FilterSidebar } from '@/components/store/filter-sidebar';
 import { ListingControls } from '@/components/store/listing-controls';
@@ -20,18 +29,29 @@ export const dynamic = 'force-dynamic';
 
 type Ctx = { params: Promise<{ slug: string }> };
 
-export async function generateMetadata({ params }: Ctx): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: Ctx & { searchParams: Promise<Record<string, string | undefined>> }): Promise<Metadata> {
   const { slug } = await params;
   const category = await getCategoryBySlug(slug);
   // Throw (not fallback metadata) so the response status is a real 404.
   if (!category) notFound();
+  // Same listing policy as /shop: filtered combinations consolidate onto the
+  // clean category URL (canonical + noindex); paginated pages keep distinct
+  // titles so they never share metadata with page 1.
+  const seo = listingSeo(`/categories/${category.slug}`, await searchParams);
+  const baseTitle = category.seoTitle || category.name;
+  const baseDescription =
+    category.seoDescription ||
+    category.description ||
+    `Shop ${category.name} online. Quality products at transparent prices.`;
+  const effectivePage = seo.filtered ? 1 : seo.page;
   return {
-    title: category.seoTitle || category.name,
-    description:
-      category.seoDescription ||
-      category.description ||
-      `Shop ${category.name} online. Quality products at transparent prices.`,
-    alternates: { canonical: `/categories/${category.slug}` },
+    title: listingTitle(baseTitle, effectivePage),
+    description: listingDescription(baseDescription, effectivePage),
+    alternates: { canonical: seo.canonical },
+    ...(seo.robots ? { robots: seo.robots } : {}),
   };
 }
 
@@ -58,13 +78,32 @@ export default async function CategoryPage({
     listActiveCategories(),
   ]);
 
+  const cleanPath = `/categories/${category.slug}`;
+  const filtered = isFilteredListing(sp);
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: category.name,
     description: category.description ?? undefined,
-    url: `${env.APP_URL}/categories/${category.slug}`,
+    url: `${env.APP_URL}${cleanPath}`,
   };
+
+  // Visible breadcrumbs and BreadcrumbList JSON-LD share one source of truth.
+  const crumbs = [
+    { label: 'Home', href: '/' },
+    { label: 'Shop', href: '/shop' },
+    ...(category.parent
+      ? [{ label: category.parent.name, href: `/categories/${category.parent.slug}` }]
+      : []),
+    { label: category.name },
+  ];
+
+  const itemList = itemListJsonLd(
+    env.APP_URL,
+    result.items.map((p) => ({ name: p.name, slug: p.slug })),
+    category.name
+  );
 
   return (
     <div className="container-store py-6 sm:py-8">
@@ -72,16 +111,17 @@ export default async function CategoryPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
-      <Breadcrumbs
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Shop', href: '/shop' },
-          ...(category.parent
-            ? [{ label: category.parent.name, href: `/categories/${category.parent.slug}` }]
-            : []),
-          { label: category.name },
-        ]}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbJsonLd(env.APP_URL, crumbs)) }}
       />
+      {itemList && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(itemList) }}
+        />
+      )}
+      <Breadcrumbs items={crumbs} />
       <header className="mb-6 rounded-2xl border border-ink-900/10 bg-gradient-to-br from-cream-100/80 via-white to-cream-50 p-5 shadow-hair sm:p-6">
         <p className="eyebrow">{category.parent ? 'Subcategory' : 'Category'}</p>
         <h1 className="display mt-1.5">{category.name}</h1>
@@ -111,22 +151,26 @@ export default async function CategoryPage({
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[220px_1fr]">
         <div className="order-2 lg:order-1">
+          {/* Filters stay in-category (basePath is this category page) while
+              category links navigate the canonical /categories/* URLs. */}
           <FilterSidebar
             categories={categories}
-            basePath="/shop"
+            basePath={cleanPath}
             activeCategory={category.slug}
             searchParams={sp}
+            allHref={`/shop${carryListingQuery(sp)}`}
+            categoryHref={(s) => `/categories/${s}${carryListingQuery(sp)}`}
           />
         </div>
         <div className="order-1 min-w-0 lg:order-2">
           <div className="mb-4">
             <ListingControls />
           </div>
-          <ProductGrid products={result.items} />
+          <ProductGrid products={result.items} clearHref={filtered ? cleanPath : undefined} />
           <Pagination
             page={result.page}
             totalPages={result.totalPages}
-            basePath={`/categories/${category.slug}`}
+            basePath={cleanPath}
             searchParams={{ sort: sp.sort, min: sp.min, max: sp.max, stock: sp.stock }}
           />
           <p className="mt-6 text-xs text-ink-400">

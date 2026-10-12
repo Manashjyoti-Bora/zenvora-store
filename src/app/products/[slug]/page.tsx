@@ -10,6 +10,7 @@ import { toPublicProductDto } from '@/lib/catalog/public-dto';
 import { toPaise, formatINR } from '@/lib/money';
 import { ProductGallery } from '@/components/store/product-gallery';
 import { ProductBuyBox, type BuyBoxVariant } from '@/components/store/product-buy-box';
+import { absoluteUrl } from '@/lib/seo/listing';
 import { ProductGrid } from '@/components/store/product-grid';
 import { Breadcrumbs } from '@/components/store/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
@@ -41,7 +42,7 @@ export async function generateMetadata({ params }: Ctx): Promise<Metadata> {
       type: 'website',
       url: `${env.APP_URL}/products/${product.slug}`,
       images: product.images.slice(0, 1).map((i) => ({
-        url: i.url.startsWith('http') ? i.url : `${env.APP_URL}${i.url}`,
+        url: absoluteUrl(env.APP_URL, i.url),
         alt: i.alt || product.name,
       })),
     },
@@ -49,9 +50,7 @@ export async function generateMetadata({ params }: Ctx): Promise<Metadata> {
       card: 'summary_large_image',
       title,
       description,
-      images: product.images.slice(0, 1).map((i) =>
-        i.url.startsWith('http') ? i.url : `${env.APP_URL}${i.url}`
-      ),
+      images: product.images.slice(0, 1).map((i) => absoluteUrl(env.APP_URL, i.url)),
     },
   };
 }
@@ -106,7 +105,9 @@ export default async function ProductPage({ params }: Ctx) {
     description: publicProduct.shortDescription || publicProduct.description.slice(0, 300),
     sku: publicProduct.sku ?? undefined,
     brand: publicProduct.brand ? { '@type': 'Brand', name: publicProduct.brand } : undefined,
-    image: images.map((i) => (i.url.startsWith('http') ? i.url : `${env.APP_URL}${i.url}`)),
+    // Omit `image` when the product has no imagery: schema.org consumers
+    // treat an empty array as a (broken) claim, while omitting it is honest.
+    ...(images.length > 0 ? { image: images.map((i) => absoluteUrl(env.APP_URL, i.url)) } : {}),
     url: `${env.APP_URL}/products/${publicProduct.slug}`,
     offers:
       variantPrices.length > 1

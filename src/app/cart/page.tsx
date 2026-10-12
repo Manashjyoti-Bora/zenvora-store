@@ -8,7 +8,9 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Your cart',
-  alternates: { canonical: '/cart' },
+  // No canonical: a canonical URL on a noindex page is a conflicting signal.
+  // Private/utility pages stay crawlable (so the noindex is seen) but never
+  // declare themselves canonical landing pages.
   robots: { index: false },
 };
 

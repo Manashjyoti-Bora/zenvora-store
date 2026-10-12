@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Your Wishlist',
   description: 'Saved products in your wishlist.',
-  alternates: { canonical: '/wishlist' },
+  // No canonical: a canonical URL on a noindex page is a conflicting signal.
   robots: { index: false },
 };
 

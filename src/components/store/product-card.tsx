@@ -78,8 +78,9 @@ export function ProductCard({ product }: { product: ProductCardData }) {
         )}
 
         <div className="absolute left-2 top-2 flex flex-col items-start gap-1 sm:left-2.5 sm:top-2.5 sm:gap-1.5">
+          {/* Discount badge uses accent-700: 10px white text needs ≥4.5:1 contrast. */}
           {discount != null && !soldOut && (
-            <span className="rounded-full bg-accent-600 px-2 py-0.5 text-[10px] font-bold leading-4 text-white shadow-soft sm:text-[11px]">
+            <span className="rounded-full bg-accent-700 px-2 py-0.5 text-[10px] font-bold leading-4 text-white shadow-soft sm:text-[11px]">
               −{discount}%
             </span>
           )}
