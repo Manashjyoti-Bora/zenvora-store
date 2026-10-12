@@ -8,6 +8,7 @@ import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { DemoBanner } from '@/components/layout/demo-banner';
 import { CookieConsent } from '@/components/layout/cookie-consent';
+import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav';
 import { Toaster } from '@/components/ui/toaster';
 import { jsonLdScript } from '@/lib/utils';
 
@@ -128,10 +129,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </div>
             )}
             <Header />
-            <main id="main-content" className="flex-1">
+            <main id="main-content" className="flex-1 pb-16 lg:pb-0">
               {children}
             </main>
             <Footer />
+            <MobileBottomNav />
             <CookieConsent storeName={settings.storeName} />
             <Toaster />
           </>
