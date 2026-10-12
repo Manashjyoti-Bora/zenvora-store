@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isSitemapEligible, SITEMAP_PRODUCT_WHERE, SITEMAP_MIN_PRICE_PAISE } from '@/lib/catalog/eligibility';
-import { toCardData, type ProductCardData } from '@/lib/catalog/storefront';
 import { toPaise } from '@/lib/money';
-import { resolveAvailability } from '@/lib/catalog/availability';
 
 /**
  * Storefront listing regression tests.
@@ -148,7 +146,7 @@ describe('Price formatting consistency', () => {
     // Prisma Decimal objects have a mul method that the toPaise function uses.
     // This tests the Decimal-like path of the toPaise function.
     const mockDecimal = {
-      mul: (n: number) => ({
+      mul: (_n: number) => ({
         round: () => ({
           toNumber: () => 9900,
         }),
