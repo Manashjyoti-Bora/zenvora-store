@@ -171,7 +171,9 @@ export default async function CategoryPage({
             page={result.page}
             totalPages={result.totalPages}
             basePath={cleanPath}
-            searchParams={{ sort: sp.sort, min: sp.min, max: sp.max, stock: sp.stock }}
+            // `q` is part of this listing's query (see listStorefrontProducts
+            // above): dropping it here would silently un-search page 2+.
+            searchParams={{ q: sp.q, sort: sp.sort, min: sp.min, max: sp.max, stock: sp.stock }}
           />
           <p className="mt-6 text-xs text-ink-400">
             Looking for something else?{' '}

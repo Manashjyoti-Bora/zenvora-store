@@ -83,10 +83,14 @@ export function listingSeo(cleanPath: string, sp: ListingQuery): ListingSeo {
 
   if (filtered) {
     // Legacy shop filter URLs consolidate onto the canonical category page.
-    const category = (sp.category ?? '').trim();
+    // The raw query value is lowercased + encoded: real slugs are created
+    // lowercase (see `slugify`), and an unencoded value could emit a
+    // malformed canonical (`?category=foo bar`) or a path that normalizes
+    // away from /categories (`?category=../admin` → `/admin`).
+    const category = (sp.category ?? '').trim().toLowerCase();
     if (cleanPath === '/shop' && category !== '') {
       return {
-        canonical: `/categories/${category}`,
+        canonical: `/categories/${encodeURIComponent(category)}`,
         robots: { index: false, follow: true },
         page,
         filtered,

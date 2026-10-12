@@ -92,13 +92,15 @@ export function ProductGallery({
         </span>
       </button>
       {images.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Product images">
+        // Plain group (not tablist/tabs): there are no tabpanels, so tab
+        // semantics would be a lie to assistive tech. `aria-pressed` marks
+        // the selected thumbnail; arrow keys still work via onThumbKey.
+        <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Product images">
           {images.map((img, i) => (
             <button
               key={img.url + i}
               type="button"
-              role="tab"
-              aria-selected={i === active}
+              aria-pressed={i === active}
               aria-label={`View image ${i + 1} of ${images.length}`}
               onClick={() => setActive(i)}
               onKeyDown={(e) => onThumbKey(e, i)}

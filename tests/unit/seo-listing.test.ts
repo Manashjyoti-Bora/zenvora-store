@@ -92,6 +92,19 @@ describe('listingSeo', () => {
     expect(seo.canonical).toBe('/categories/shoes');
     expect(seo.robots).toEqual({ index: false, follow: true });
   });
+
+  it('normalizes hostile category input so the canonical stays on /categories/*', () => {
+    // Real slugs are lowercase: uppercase input canonicalizes to the real URL.
+    expect(listingSeo('/shop', { category: '  Shoes ' }).canonical).toBe('/categories/shoes');
+    // Spaces are encoded, never emitted raw into the canonical.
+    expect(listingSeo('/shop', { category: 'red shoes' }).canonical).toBe(
+      '/categories/red%20shoes'
+    );
+    // Path traversal is neutralized: the canonical must not resolve to /admin.
+    const traversal = listingSeo('/shop', { category: '../admin' }).canonical;
+    expect(traversal).toBe('/categories/..%2Fadmin');
+    expect(new URL(traversal, 'https://shop.test').pathname).toBe('/categories/..%2Fadmin');
+  });
 });
 
 describe('listingTitle / listingDescription', () => {
