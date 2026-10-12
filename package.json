@@ -28,7 +28,8 @@
     "audit:deps": "npm audit --audit-level=moderate",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
     "db:promote-admin": "tsx scripts/promote-admin.ts",
-    "db:reset-admin-password": "tsx scripts/reset-admin-password.ts"
+    "db:reset-admin-password": "tsx scripts/reset-admin-password.ts",
+    "diagnose:catalogue": "tsx --env-file=.env src/scripts/catalogue-diagnostic.ts"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"

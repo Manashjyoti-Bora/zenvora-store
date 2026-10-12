@@ -8,13 +8,13 @@ export async function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="relative mt-auto overflow-hidden bg-ink-950 text-cream-300">
+    <footer className="relative mt-auto overflow-hidden bg-brand-800 text-cream-300">
       <div className="grain" aria-hidden="true" />
       <div className="container-store py-12 sm:py-14">
         <div className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4 lg:grid-cols-5">
           <div className="col-span-2 lg:col-span-2">
             <Link href="/" className="group inline-flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-ink-900 text-sm font-black text-brass-300 ring-1 ring-brass-300/35 transition-transform duration-200 group-hover:-rotate-6">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-700 text-sm font-black text-accent-300 ring-1 ring-accent-400/30 transition-transform duration-200 group-hover:-rotate-6">
                 {settings.storeName.slice(0, 1).toUpperCase()}
               </span>
               <span className="text-lg font-extrabold uppercase tracking-[0.18em] text-cream-100">
@@ -27,9 +27,9 @@ export async function Footer() {
             {settings.supportEmail && (
               <a
                 href={`mailto:${settings.supportEmail}`}
-                className="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/15 px-3.5 py-2 text-sm font-medium text-cream-200 transition-colors hover:border-brass-300/50 hover:text-white"
+                className="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/15 px-3.5 py-2 text-sm font-medium text-cream-200 transition-colors hover:border-accent-400/50 hover:text-white"
               >
-                <svg className="h-4 w-4 text-brass-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
+                <svg className="h-4 w-4 text-accent-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
                   <rect x="3" y="5.5" width="18" height="13" rx="2" />
                   <path d="m3.5 7 8.5 6 8.5-6" />
                 </svg>
@@ -39,7 +39,7 @@ export async function Footer() {
           </div>
 
           <nav aria-label="Shop">
-            <h3 className="eyebrow text-brass-200">Shop</h3>
+            <h3 className="eyebrow text-accent-300">Shop</h3>
             <ul className="mt-3 space-y-2 text-sm">
               <li>
                 <Link href="/shop" className="transition-colors hover:text-white">
@@ -65,7 +65,7 @@ export async function Footer() {
           </nav>
 
           <nav aria-label="Product categories">
-            <h3 className="eyebrow text-brass-200">Categories</h3>
+            <h3 className="eyebrow text-accent-300">Categories</h3>
             {categories.length > 0 ? (
               <ul className="mt-3 space-y-2 text-sm">
                 {categories.map((category) => (
@@ -84,7 +84,7 @@ export async function Footer() {
                 Categories appear once products are added.{' '}
                 <Link
                   href="/shop"
-                  className="font-semibold text-brass-200 underline decoration-brass-300/50 underline-offset-2 transition-colors hover:text-white"
+                  className="font-semibold text-accent-300 underline decoration-accent-400/50 underline-offset-2 transition-colors hover:text-white"
                 >
                   Browse all products
                 </Link>
@@ -94,7 +94,7 @@ export async function Footer() {
           </nav>
 
           <nav aria-label="Help">
-            <h3 className="eyebrow text-brass-200">Help</h3>
+            <h3 className="eyebrow text-accent-300">Help</h3>
             <ul className="mt-3 space-y-2 text-sm">
               <li>
                 <Link href="/faq" className="transition-colors hover:text-white">
@@ -120,7 +120,7 @@ export async function Footer() {
           </nav>
 
           <nav aria-label="Legal and account" className="col-span-2 md:col-span-1">
-            <h3 className="eyebrow text-brass-200">Legal &amp; account</h3>
+            <h3 className="eyebrow text-accent-300">Legal &amp; account</h3>
             <ul className="mt-3 space-y-2 text-sm">
               <li>
                 <Link href="/policies/privacy" className="transition-colors hover:text-white">
@@ -152,8 +152,8 @@ export async function Footer() {
         </div>
       </div>
 
-      <div className="border-t border-white/10 py-5">
-        <div className="container-store flex flex-col items-center justify-between gap-2 text-xs text-cream-500 sm:flex-row">
+      <div className="border-t border-white/[0.07] py-5">
+        <div className="container-store flex flex-col items-center justify-between gap-2 text-xs text-cream-400/60 sm:flex-row">
           <p>
             © {year} {settings.storeName}. All rights reserved.
           </p>

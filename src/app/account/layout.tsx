@@ -18,7 +18,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
           <div className="mb-4 flex items-center gap-3 rounded-xl border border-ink-900/10 bg-white p-3.5 shadow-hair">
             <span
               aria-hidden="true"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink-950 text-xs font-bold text-brass-300"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink-950 text-xs font-bold text-accent-300"
             >
               {(user.name || user.email || 'U').slice(0, 1).toUpperCase()}
             </span>

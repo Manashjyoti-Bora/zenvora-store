@@ -193,7 +193,7 @@ const CACHE_TTL_MS = 30_000;
 let cache: { data: StoreSettings; at: number } | null = null;
 
 const FALLBACK: StoreSettings = settingsSchema.parse({
-  storeName: process.env.APP_NAME ?? 'Resellix',
+  storeName: process.env.APP_NAME ?? 'Zenvora',
   supportEmail: 'support@example.com',
   currency: 'INR',
 });

@@ -84,7 +84,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
             </span>
           )}
           {lowStock && (
-            <span className="rounded-full bg-ink-950/85 px-2 py-0.5 text-[10px] font-semibold leading-4 text-brass-200 backdrop-blur-sm sm:text-[11px]">
+            <span className="rounded-full bg-ink-950/85 px-2 py-0.5 text-[10px] font-semibold leading-4 text-accent-300 backdrop-blur-sm sm:text-[11px]">
               {lowStockQty != null ? `Only ${lowStockQty} left` : 'Low stock'}
             </span>
           )}

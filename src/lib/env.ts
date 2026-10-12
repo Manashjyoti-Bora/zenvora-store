@@ -18,7 +18,7 @@ const optionalNonEmpty = (schema: z.ZodTypeAny) =>
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   APP_URL: z.string().url().default('http://localhost:3000'),
-  APP_NAME: z.string().min(1).default('Resellix'),
+  APP_NAME: z.string().min(1).default('Zenvora'),
 
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
 
@@ -55,7 +55,7 @@ const envSchema = z.object({
   SMTP_SECURE: boolStr,
   SMTP_USER: optionalNonEmpty(z.string()),
   SMTP_PASS: optionalNonEmpty(z.string()),
-  EMAIL_FROM: z.string().default('Resellix <no-reply@resellix.local>'),
+  EMAIL_FROM: z.string().default('Zenvora <no-reply@zenvora.local>'),
   EMAIL_REPLY_TO: optionalNonEmpty(z.string()),
 });
 

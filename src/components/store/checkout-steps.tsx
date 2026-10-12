@@ -27,7 +27,7 @@ export function CheckoutSteps({ current }: { current: CheckoutStepId }) {
               className={cn(
                 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-colors',
                 isCompleted && 'bg-brand-600 text-white',
-                isCurrent && 'bg-ink-950 text-brass-300 ring-2 ring-brass-300/40',
+                isCurrent && 'bg-ink-950 text-accent-300 ring-2 ring-accent-300/40',
                 !isCompleted && !isCurrent && 'bg-cream-100 text-ink-400 ring-1 ring-ink-900/10'
               )}
             >

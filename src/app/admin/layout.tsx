@@ -16,10 +16,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="min-h-screen bg-cream-50 lg:flex">
       {/* Sidebar: off-canvas on mobile via details-like toggle, static on lg */}
       <aside className="print-hide border-b border-ink-900/10 bg-white shadow-hair lg:sticky lg:top-0 lg:h-screen lg:w-60 lg:shrink-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
-        <div className="flex items-center justify-between gap-2 border-b border-ink-900/10 bg-ink-950 px-4 py-3.5 text-cream-50">
+        <div className="flex items-center justify-between gap-2 border-b border-ink-900/10 bg-brand-800 px-4 py-3.5 text-cream-50">
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-cream-50">{settings.storeName}</p>
-            <p className="text-[10px] font-semibold uppercase tracking-eyebrow text-brass-300">
+            <p className="text-[10px] font-semibold uppercase tracking-eyebrow text-accent-300">
               Admin Console
             </p>
           </div>

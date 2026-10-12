@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { getSettings } from '@/lib/settings';
 import { env } from '@/lib/env';
@@ -9,6 +10,14 @@ import { DemoBanner } from '@/components/layout/demo-banner';
 import { CookieConsent } from '@/components/layout/cookie-consent';
 import { Toaster } from '@/components/ui/toaster';
 import { jsonLdScript } from '@/lib/utils';
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+  // Only load the weights actually used in the design system
+  weight: ['400', '500', '600', '700', '800'],
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +51,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#20573c',
+  themeColor: '#174B3A',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -51,8 +60,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const isAdminArea = (h.get('x-pathname') ?? '').startsWith('/admin');
 
   return (
-    <html lang="en">
-      <body className="no-page-overflow flex min-h-screen flex-col">
+    <html lang="en" className={inter.variable}>
+      <body className={`${inter.className} no-page-overflow flex min-h-screen flex-col`}>
         {/* Marks script availability BEFORE any reveal content is parsed or
             painted. Must stay the first child of <body>: the browser executes
             it synchronously while parsing, so the `.js .reveal` hidden state
@@ -113,8 +122,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             />
             <DemoBanner demoMode={settings.demoMode} />
             {settings.announcement?.enabled && settings.announcement.text && (
-              <div className="bg-ink-950 px-4 py-2 text-center text-xs font-medium tracking-wide text-cream-100">
-                <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-brass-300 align-middle" aria-hidden="true" />
+              <div className="bg-brand-700 px-4 py-2 text-center text-xs font-medium tracking-wide text-cream-100">
+                <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-accent-300 align-middle" aria-hidden="true" />
                 {settings.announcement.text}
               </div>
             )}

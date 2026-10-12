@@ -16,7 +16,7 @@ export async function Header() {
   const pathname = (await headers()).get('x-pathname') ?? '';
   const under = (active: boolean) =>
     active
-      ? 'relative font-semibold text-ink-900 after:absolute after:-bottom-1.5 after:left-0 after:h-[2px] after:w-full after:rounded-full after:bg-brass-300'
+      ? 'relative font-semibold text-ink-900 after:absolute after:-bottom-1.5 after:left-0 after:h-[2px] after:w-full after:rounded-full after:bg-accent-300'
       : '';
   const isShop = pathname === '/shop' || pathname.startsWith('/shop/');
   const isTrack = pathname === '/track' || pathname.startsWith('/track/');
@@ -35,7 +35,7 @@ export async function Header() {
   ]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-ink-900/10 bg-cream-50/95 shadow-hair backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-ink-900/[0.06] bg-cream-50/95 shadow-hair backdrop-blur-md">
       <div className="container-store">
         <div className="flex h-14 items-center gap-2 sm:gap-3">
           <MobileMenu categories={categories} user={user} />
@@ -47,7 +47,7 @@ export async function Header() {
           >
             <span
               aria-hidden="true"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink-950 text-sm font-black text-brass-300 ring-1 ring-brass-300/35 transition-transform duration-200 ease-zenvora [@media(hover:hover)]:group-hover:-rotate-6"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-700 text-sm font-black text-accent-300 ring-1 ring-accent-400/30 transition-transform duration-200 ease-zenvora [@media(hover:hover)]:group-hover:-rotate-6"
             >
               {settings.storeName.slice(0, 1).toUpperCase()}
             </span>

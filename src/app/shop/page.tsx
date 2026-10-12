@@ -56,10 +56,10 @@ export default async function ShopPage({
 
   return (
     <div className="container-store py-6 sm:py-8">
-      <header className="mb-6 rounded-2xl border border-ink-900/10 bg-gradient-to-br from-cream-100/80 via-white to-cream-50 p-5 shadow-hair sm:p-6">
+      <header className="mb-6 rounded-2xl border border-ink-900/[0.06] bg-gradient-to-br from-sage-100/60 via-white to-cream-50 p-5 shadow-card sm:p-6">
         <p className="eyebrow">Catalogue</p>
         <h1 className="display mt-1.5">Shop all products</h1>
-        <p className="mt-1 text-sm tabular-nums text-ink-400">
+        <p className="mt-1.5 text-sm tabular-nums text-ink-400">
           {result.total} product{result.total === 1 ? '' : 's'}
           {params.category ? ` in ${params.category}` : ''}
         </p>

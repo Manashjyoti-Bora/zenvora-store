@@ -133,7 +133,7 @@ export function MobileMenu({
                     <Link
                       href="/admin"
                       onClick={() => setOpen(false)}
-                      className="btn-press rounded-lg bg-ink-950 px-2.5 py-1.5 text-xs font-semibold text-brass-200"
+                      className="btn-press rounded-lg bg-brand-700 px-2.5 py-1.5 text-xs font-semibold text-accent-300"
                     >
                       Admin
                     </Link>
@@ -152,7 +152,7 @@ export function MobileMenu({
                 <Link
                   href="/auth/register"
                   onClick={() => setOpen(false)}
-                  className="btn-press rounded-lg bg-brand-600 px-3 py-2.5 text-center text-sm font-semibold text-white shadow-soft transition-colors hover:bg-brand-700"
+                  className="btn-press rounded-lg bg-brand-700 px-3 py-2.5 text-center text-sm font-semibold text-white shadow-soft transition-colors hover:bg-brand-800"
                 >
                   Sign up
                 </Link>

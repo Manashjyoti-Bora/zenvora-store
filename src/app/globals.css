@@ -2,24 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   ZENVORA DESIGN SYSTEM — Premium Indian E-Commerce
+   Forest green · Warm ivory · Champagne accent · Clean typography
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @layer base {
   :root {
-    /* Surface & Ink Palette Tokens */
-    --surface-canvas: #faf8f3;
-    --surface-subtle: #f5f1e7;
-    --surface-muted: #eae4d4;
-    --surface-card: #ffffff;
-    --surface-ink: #0a130f;
+    /* ── Surface & Ink Palette Tokens ── */
+    --surface-canvas:  #F8F7F2;
+    --surface-subtle:  #F1EFEA;
+    --surface-muted:   #E6E3DA;
+    --surface-card:    #FFFFFF;
+    --surface-ink:     #0D0F0D;
+    --surface-sage:    #EAF2EC;
 
-    /* Hairline Border Tokens */
-    --border-hairline: rgba(16, 27, 22, 0.09);
-    --border-strong: rgba(16, 27, 22, 0.18);
+    /* ── Hairline Border Tokens ── */
+    --border-hairline: rgba(24, 26, 24, 0.07);
+    --border-strong:   rgba(24, 26, 24, 0.15);
 
-    /* Signature Motion System — single easing identity + duration scale */
-    --ease-zenvora: cubic-bezier(0.22, 1, 0.36, 1);
-    --duration-fast: 150ms;
+    /* ── Signature Motion System ── */
+    --ease-zenvora:    cubic-bezier(0.22, 1, 0.36, 1);
+    --duration-fast:   150ms;
     --duration-normal: 240ms;
-    --duration-slow: 450ms;
+    --duration-slow:   450ms;
+
+    /* ── Brand Colors (CSS custom properties for runtime access) ── */
+    --color-brand-primary: #174B3A;
+    --color-brand-deep:    #10392D;
+    --color-accent:        #C6A66B;
+    --color-text-muted:    #6B726C;
   }
 
   html {
@@ -34,7 +46,7 @@
   }
 
   ::selection {
-    @apply bg-brand-600 text-white;
+    @apply bg-brand-700 text-white;
   }
 
   /* Visible, consistent focus states across all interactive elements (WCAG 2.4.7) */
@@ -42,14 +54,21 @@
     @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-cream-50;
   }
 
+  /* ── Heading Hierarchy (editorial, tight tracking) ── */
   h1 {
-    @apply text-2xl font-bold tracking-display text-ink-900 sm:text-3xl;
+    @apply text-2xl font-extrabold tracking-tight text-ink-900 sm:text-3xl;
+    letter-spacing: -0.024em;
   }
   h2 {
-    @apply text-xl font-semibold tracking-display text-ink-900;
+    @apply text-xl font-bold tracking-tight text-ink-900;
+    letter-spacing: -0.02em;
   }
   h3 {
     @apply text-lg font-semibold text-ink-900;
+    letter-spacing: -0.01em;
+  }
+  h4 {
+    @apply text-base font-semibold text-ink-900;
   }
 }
 
@@ -58,18 +77,15 @@
     @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
   }
 
-  /* Primary elevated card surface */
+  /* ── Card System ── */
   .card {
-    @apply rounded-xl border border-ink-900/10 bg-white shadow-soft;
+    @apply rounded-xl border border-ink-900/[0.06] bg-white shadow-card;
   }
 
-  /* Recessed warm paper surface for secondary/nested callouts */
   .card-inset {
-    @apply rounded-xl border border-ink-900/10 bg-cream-50/80 shadow-hair;
+    @apply rounded-xl border border-ink-900/[0.06] bg-sage-100/60 shadow-hair;
   }
 
-  /* Card interaction: subtle lift + deeper layer on hover (pointer devices only,
-     so mobile touch screens never get sticky hover states). */
   .card-hover {
     transition:
       transform var(--duration-normal) var(--ease-zenvora),
@@ -78,11 +94,11 @@
   }
   @media (hover: hover) {
     .card-hover:hover {
-      @apply -translate-y-0.5 border-ink-900/20 shadow-lift;
+      @apply -translate-y-0.5 border-ink-900/15 shadow-lift;
     }
   }
 
-  /* Button press feedback (physicality without gimmicks). */
+  /* ── Button System ── */
   .btn-press {
     transition:
       transform var(--duration-fast) var(--ease-zenvora),
@@ -93,31 +109,33 @@
     @apply active:translate-y-px active:scale-[0.985];
   }
 
+  /* ── Form Controls ── */
   .label-text {
     @apply block text-sm font-medium text-ink-700;
   }
 
   .input-base {
     /* text-base (16px) at ALL breakpoints: iOS Safari auto-zooms on focus for
-       inputs below 16px - includes landscape. Never reduce to text-sm here. */
-    @apply block w-full rounded-lg border border-ink-900/20 bg-white px-3.5 py-2 text-base text-ink-900 shadow-sm transition-colors duration-150 placeholder:text-ink-300 hover:border-ink-900/30 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-cream-100 disabled:text-ink-400;
+       inputs below 16px - includes landscape. */
+    @apply block w-full rounded-lg border border-ink-900/15 bg-white px-3.5 py-2 text-base text-ink-900 shadow-sm transition-colors duration-150 placeholder:text-ink-300 hover:border-ink-900/25 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-cream-100 disabled:text-ink-400;
   }
 
   .link-primary {
-    @apply font-medium text-brand-700 underline decoration-brand-300 underline-offset-4 transition-colors duration-150 hover:text-brand-800 hover:decoration-brand-600;
+    @apply font-medium text-brand-700 underline decoration-brand-300/60 underline-offset-4 transition-colors duration-150 hover:text-brand-800 hover:decoration-brand-600;
   }
 
+  /* ── Table System ── */
   .table-base {
-    @apply w-full min-w-full divide-y divide-ink-900/10 text-left text-sm;
+    @apply w-full min-w-full divide-y divide-ink-900/[0.06] text-left text-sm;
   }
   .table-th {
-    @apply whitespace-nowrap bg-cream-50/90 px-3.5 py-3 text-[11px] font-semibold uppercase tracking-wider text-ink-500;
+    @apply whitespace-nowrap bg-cream-50/90 px-3.5 py-3 text-[11px] font-semibold uppercase tracking-wider text-ink-400;
   }
   .table-td {
-    @apply px-3.5 py-3 align-middle text-ink-700;
+    @apply px-3.5 py-3 align-middle text-ink-600;
   }
 
-  /* Typography identity */
+  /* ── Typography Identity ── */
   .eyebrow {
     @apply text-[11px] font-semibold uppercase tracking-eyebrow text-brand-700;
   }
@@ -125,13 +143,12 @@
     @apply font-extrabold tracking-display;
   }
 
-  /* Interactive filter/tab pill */
+  /* ── Interactive Elements ── */
   .pill-tab {
     @apply btn-press inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors;
   }
 
-  /* Skeleton shimmer for client-side waiting states (no root loading.tsx —
-     that would reintroduce the known soft-404 regression). */
+  /* ── Skeleton Shimmer ── */
   .skeleton {
     @apply relative overflow-hidden rounded-md bg-cream-200;
   }
@@ -140,8 +157,7 @@
     content: '';
   }
 
-  /* Desktop-only image zoom (fine pointer + hover capability): touch devices
-     never receive a sticky zoom state. Transform-only: no layout shift. */
+  /* ── Image Zoom (desktop fine pointer only) ── */
   .zoom-hover {
     cursor: zoom-in;
     transition: transform var(--duration-slow) var(--ease-zenvora);
@@ -152,28 +168,16 @@
     }
   }
 
-  /* Subtle film-grain overlay for dark hero/editorial surfaces.
-     Pure inline-SVG noise: zero requests, zero JS, static (motion-safe). */
+  /* ── Film Grain Overlay ── */
   .grain {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    opacity: 0.06;
+    opacity: 0.05;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
-  /* Scroll reveal (paired with the <Reveal> client component).
-     The hidden state is scoped to `.js` — a class set by the tiny blocking
-     inline script that is the FIRST child of <body> in layout.tsx, so it runs
-     before any reveal content is parsed or painted. Consequences:
-       - Server-rendered HTML and every pre-hydration frame are fully visible,
-         so reveal-wrapped product grids stay LCP candidates (browsers exclude
-         opacity:0 content from LCP) and never flash blank on a slow network.
-       - No-JS, and the rare CSP-blocked-inline-script case, degrade to plain
-         visible content with no animation — the intended progressive
-         enhancement, not a broken page.
-     No `will-change` hint: it is only useful DURING a transition, and leaving
-     it on every card for the whole session wastes compositor memory. */
+  /* ── Scroll Reveal System ── */
   .js .reveal {
     opacity: 0;
     transform: translateY(14px);
@@ -186,11 +190,7 @@
     transform: none;
   }
 
-  /* Staggered grid choreography (CSS-only). A `.stagger` container inside a
-     `.reveal` animates its children in 45ms steps once the reveal fires.
-     Safety: as with `.reveal`, the hidden state exists ONLY under `.js`, so the
-     noscript + reduced-motion overrides below keep content visible; delay is
-     capped at 8 steps so large grids don't crawl. */
+  /* ── Staggered Grid Choreography ── */
   .js .reveal .stagger > * {
     opacity: 0;
     transform: translateY(12px);
@@ -226,8 +226,7 @@
   }
 }
 
-/* Defined explicitly (identical to the Tailwind config keyframe) so stagger
-   choreography never depends on another page happening to use animate-fade-up. */
+/* ── Keyframe Definitions ── */
 @keyframes fade-up {
   from {
     opacity: 0;
@@ -239,7 +238,7 @@
   }
 }
 
-/* One global kill-switch: reduced motion wins over every animation/transition. */
+/* ── Reduced Motion: respect user preference ── */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -260,6 +259,7 @@
   }
 }
 
+/* ── Print Styles ── */
 @media print {
   .print-hide {
     display: none !important;

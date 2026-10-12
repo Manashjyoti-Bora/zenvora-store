@@ -123,7 +123,7 @@ export function AdminNav() {
                         className={cn(
                           'block rounded-lg px-3 py-1.5 text-sm transition-colors',
                           active
-                            ? 'bg-brand-600 font-semibold text-white'
+                            ? 'bg-brand-700 font-semibold text-white'
                             : 'text-ink-600 hover:bg-cream-100 hover:text-ink-900'
                         )}
                       >

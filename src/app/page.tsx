@@ -119,15 +119,15 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* ============ Hero — layered ink surface, real data only ============ */}
-      <section className="relative overflow-hidden bg-ink-950 text-cream-50">
+      {/* ============ Hero — layered forest surface, real data only ============ */}
+      <section className="relative overflow-hidden bg-brand-800 text-cream-50">
         {/* Brand depth: two soft radial washes, pure CSS, no images. */}
         <div
           className="pointer-events-none absolute inset-0"
           aria-hidden="true"
           style={{
             background:
-              'radial-gradient(52rem 28rem at 88% -10%, rgba(53, 136, 93, 0.28), transparent 62%), radial-gradient(36rem 22rem at -8% 108%, rgba(198, 167, 92, 0.14), transparent 60%)',
+              'radial-gradient(52rem 28rem at 88% -10%, rgba(23, 75, 58, 0.35), transparent 62%), radial-gradient(36rem 22rem at -8% 108%, rgba(198, 166, 107, 0.12), transparent 60%)',
           }}
         />
         {/* Film grain: kills the "flat CSS gradient" look. Static, zero-cost. */}
@@ -135,14 +135,14 @@ export default async function HomePage() {
         <div className="container-store relative py-9 sm:py-16 lg:py-22">
           <div className="grid items-center gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:gap-14">
             <div className="animate-fade-up">
-              <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-brass-300/25 bg-white/[0.04] px-3 py-1 backdrop-blur-sm">
+              <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-accent-300/25 bg-white/[0.04] px-3 py-1 backdrop-blur-sm">
                 <span
                   className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                    activeCount > 0 ? 'bg-emerald-400' : 'bg-brass-300'
+                    activeCount > 0 ? 'bg-emerald-400' : 'bg-accent-300'
                   }`}
                   aria-hidden="true"
                 />
-                <p className="eyebrow truncate text-[10px] text-brass-300 sm:text-[11px]">
+                <p className="eyebrow truncate text-[10px] text-accent-300 sm:text-[11px]">
                   {settings.storeName}
                   {activeCount > 0
                     ? ` · ${activeCount} product${activeCount === 1 ? '' : 's'} live`
@@ -150,7 +150,7 @@ export default async function HomePage() {
                 </p>
               </div>
 
-              <h1 className="display mt-3.5 text-[1.85rem] leading-[1.08] text-cream-50 sm:mt-4 sm:text-5xl lg:text-[3.35rem]">
+              <h1 className="display mt-3.5 text-[1.85rem] leading-[1.08] text-cream-50 sm:mt-4 sm:text-5xl lg:text-[3.35rem]" style={{ letterSpacing: '-0.028em' }}>
                 {settings.storeTagline || 'Quality products, delivered across India'}
               </h1>
               <p className="mt-3.5 max-w-xl text-sm leading-relaxed text-cream-100/80 sm:mt-5 sm:text-base">
@@ -164,16 +164,16 @@ export default async function HomePage() {
                 </LinkButton>
                 <Link
                   href="/track"
-                  className="btn-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-cream-100/25 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-cream-50 transition-colors hover:border-brass-300/60 hover:bg-white/10 sm:w-auto sm:px-5"
+                  className="btn-press inline-flex min-h-[44px] w-full items-center justify-center rounded-lg border border-cream-100/25 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-cream-50 transition-colors hover:border-accent-300/60 hover:bg-white/10 sm:w-auto sm:px-5"
                 >
                   Track an order
                 </Link>
               </div>
 
               {/* Trust row — every claim is read from real settings/provider state. */}
-              <ul className="mt-7 grid grid-cols-1 gap-2 rounded-2xl border border-cream-100/12 bg-white/[0.03] p-3 text-xs text-cream-100/85 backdrop-blur-sm sm:mt-9 sm:grid-cols-3 sm:gap-3.5 sm:p-4 sm:text-[13px]">
+              <ul className="mt-7 grid grid-cols-1 gap-2 rounded-2xl border border-cream-100/10 bg-white/[0.03] p-3 text-xs text-cream-100/85 backdrop-blur-sm sm:mt-9 sm:grid-cols-3 sm:gap-3.5 sm:p-4 sm:text-[13px]">
                 <li className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brass-300/15 text-brass-300">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-300/15 text-accent-300">
                     <TruckIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                   </span>
                   <span className="leading-snug">
@@ -183,7 +183,7 @@ export default async function HomePage() {
                   </span>
                 </li>
                 <li className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brass-300/15 text-brass-300">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-300/15 text-accent-300">
                     <LockIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                   </span>
                   <span className="leading-snug">
@@ -192,7 +192,7 @@ export default async function HomePage() {
                   </span>
                 </li>
                 <li className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brass-300/15 text-brass-300">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-300/15 text-accent-300">
                     <ReturnIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                   </span>
                   <span className="leading-snug">
@@ -258,12 +258,12 @@ export default async function HomePage() {
                           <p className="truncate text-sm font-bold text-cream-50">
                             {settings.storeName}
                           </p>
-                          <p className="text-[11px] text-brass-300">
+                          <p className="text-[11px] text-accent-300">
                             Storefront Standards &amp; Terms
                           </p>
                         </div>
                       </div>
-                      <span className="rounded-full border border-brass-300/30 bg-brass-300/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brass-200">
+                      <span className="rounded-full border border-accent-300/30 bg-accent-300/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent-300">
                         INR (₹)
                       </span>
                     </div>
@@ -313,7 +313,7 @@ export default async function HomePage() {
           </div>
         </div>
         {/* Hairline base for a clean surface handoff */}
-        <div className="h-px w-full bg-gradient-to-r from-transparent via-brass-300/40 to-transparent" aria-hidden="true" />
+        <div className="h-px w-full bg-gradient-to-r from-transparent via-accent-300/40 to-transparent" aria-hidden="true" />
       </section>
 
       {settings.demoMode && (
@@ -335,7 +335,7 @@ export default async function HomePage() {
                   className="card card-hover btn-press group flex w-48 shrink-0 snap-start items-center gap-3 p-3.5 sm:w-auto sm:shrink sm:p-4"
                 >
                   <span
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink-950 text-sm font-bold text-brass-300 ring-1 ring-brass-300/30 transition-colors group-hover:bg-brand-700 group-hover:text-white"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-700 text-sm font-bold text-accent-300 ring-1 ring-accent-300/30 transition-colors group-hover:bg-brand-800 group-hover:text-white"
                     aria-hidden="true"
                   >
                     {c.name.slice(0, 1).toUpperCase()}
@@ -394,7 +394,7 @@ export default async function HomePage() {
           <div className="card overflow-hidden border border-ink-900/10 bg-white p-5 shadow-soft sm:p-8">
             <div className="mx-auto max-w-2xl text-center">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-cream-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-ink-600 ring-1 ring-ink-900/10">
-                <span className="h-1.5 w-1.5 rounded-full bg-brass-400" aria-hidden="true" />
+                <span className="h-1.5 w-1.5 rounded-full bg-accent-400" aria-hidden="true" />
                 Catalog Status · Pre-Launch
               </span>
               <h2 id="catalog-setup-heading" className="mt-3 text-xl font-bold text-ink-900 sm:text-2xl">
@@ -487,7 +487,7 @@ export default async function HomePage() {
                 className="card relative flex items-start gap-3.5 p-4 text-left sm:flex-col sm:gap-0 sm:p-5"
               >
                 <span
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-ink-950 text-xs font-bold text-brass-300 shadow-soft sm:h-10 sm:w-10"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-700 text-xs font-bold text-accent-300 shadow-soft sm:h-10 sm:w-10"
                   aria-hidden="true"
                 >
                   {s.n}
