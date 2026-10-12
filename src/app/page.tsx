@@ -226,9 +226,10 @@ export default async function HomePage() {
                         className="object-cover transition-transform duration-500 ease-zenvora [@media(hover:hover)]:group-hover:scale-[1.04]"
                         priority
                       />
+                      {/* "On sale" uses accent-700: 11px white text needs ≥4.5:1 contrast. */}
                       {heroProduct.compareAtPricePaise != null &&
                         heroProduct.compareAtPricePaise > heroProduct.pricePaise && (
-                          <span className="absolute left-3 top-3 rounded-full bg-accent-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-soft">
+                          <span className="absolute left-3 top-3 rounded-full bg-accent-700 px-2.5 py-1 text-[11px] font-bold text-white shadow-soft">
                             On sale
                           </span>
                         )}

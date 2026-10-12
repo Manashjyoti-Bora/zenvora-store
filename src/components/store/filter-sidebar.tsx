@@ -13,21 +13,37 @@ const PRICE_BANDS = [
 /**
  * Server-rendered filter sidebar. All filters are plain links (no JS
  * required), preserving the current query where sensible.
+ *
+ * Category navigation targets the canonical category URLs
+ * (`/categories/:slug`) via `categoryHref` so listings never fork into
+ * duplicate `?category=` indexables; the shop/search `?category=` param is
+ * still accepted for legacy/shared links but canonicalizes away (see
+ * `listingSeo`). Changing any filter resets pagination (`page` is never
+ * carried) so sidebar links cannot land on an out-of-range empty page.
  */
 export function FilterSidebar({
   categories,
   basePath,
   activeCategory,
   searchParams,
+  allHref,
+  categoryHref,
 }: {
   categories: CategoryTile[];
   basePath: string;
   activeCategory: string | null;
   searchParams: Record<string, string | undefined>;
+  /** Override for the "All products" link (default: same listing, category cleared). */
+  allHref?: string;
+  /** Override for per-category links (default: same listing, category set). */
+  categoryHref?: (slug: string) => string;
 }) {
   const preserve = (over: Record<string, string | null>) => {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(searchParams)) {
+      // `page` is intentionally never carried: a new filter selection always
+      // starts back at page 1 (mirrors <ListingControls> behaviour).
+      if (k === 'page') continue;
       if (v && !(k in over)) p.set(k, v);
     }
     for (const [k, v] of Object.entries(over)) {
@@ -52,7 +68,7 @@ export function FilterSidebar({
         <ul className="space-y-1">
           <li>
             <Link
-              href={preserve({ category: null })}
+              href={allHref ?? preserve({ category: null })}
               className={cn(
                 'block rounded-lg px-3 py-1.5 text-sm transition-colors',
                 !activeCategory
@@ -66,7 +82,7 @@ export function FilterSidebar({
           {categories.map((c) => (
             <li key={c.id}>
               <Link
-                href={preserve({ category: c.slug })}
+                href={categoryHref ? categoryHref(c.slug) : preserve({ category: c.slug })}
                 className={cn(
                   'flex items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors',
                   activeCategory === c.slug

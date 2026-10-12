@@ -7,8 +7,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = env.APP_URL.replace(/\/$/, '');
-  const now = new Date();
 
+  // Static routes intentionally carry NO lastModified: stamping "now" on every
+  // regeneration would claim the page changed when it did not. Product and
+  // category entries below use their real updatedAt timestamps.
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${base}/`, changeFrequency: 'daily', priority: 1 },
     { url: `${base}/shop`, changeFrequency: 'daily', priority: 0.9 },
@@ -23,9 +25,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const [categories, products] = await Promise.all([
+    // Only categories that actually list purchasable products: an empty
+    // category page is thin content and must not be advertised to crawlers.
+    // Parent categories also render their children's products (see the
+    // storefront query), so children's eligible counts roll up here.
     prisma.category.findMany({
       where: { isActive: true },
-      select: { slug: true, updatedAt: true },
+      select: {
+        slug: true,
+        updatedAt: true,
+        _count: { select: { products: { where: SITEMAP_PRODUCT_WHERE } } },
+        children: {
+          where: { isActive: true },
+          select: { _count: { select: { products: { where: SITEMAP_PRODUCT_WHERE } } } },
+        },
+      },
     }),
     // Only published products with a real price: an unpriced/unpublished page
     // must not be advertised to crawlers. Same predicate as the query (shared
@@ -40,12 +54,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticRoutes,
-    ...categories.map((c) => ({
-      url: `${base}/categories/${c.slug}`,
-      lastModified: c.updatedAt,
-      changeFrequency: 'weekly' as const,
-      priority: 0.7,
-    })),
+    ...categories
+      .filter(
+        (c) =>
+          c._count.products + c.children.reduce((sum, child) => sum + child._count.products, 0) > 0
+      )
+      .map((c) => ({
+        url: `${base}/categories/${c.slug}`,
+        lastModified: c.updatedAt,
+        changeFrequency: 'weekly' as const,
+        priority: 0.7,
+      })),
     ...products
       .filter((p) =>
         isSitemapEligible({
@@ -59,8 +78,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: 'weekly' as const,
         priority: 0.8,
       })),
-  ].map((entry) => ({
-    ...entry,
-    lastModified: (entry as { lastModified?: Date }).lastModified ?? now,
-  }));
+  ];
 }

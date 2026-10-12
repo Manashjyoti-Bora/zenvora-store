@@ -25,6 +25,14 @@ export function Modal({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  // Every caller passes an inline `onClose` arrow, so its identity changes on
+  // each parent render. Reading it through a ref keeps this effect keyed on
+  // `open` only: without this, any re-render while open (e.g. stepping gallery
+  // images) would re-run the effect, yank focus back to the first control,
+  // and re-capture `previouslyFocused` from inside the dialog (breaking
+  // focus restoration on close).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -36,7 +44,7 @@ export function Modal({
     const releaseScrollLock = lockBodyScroll();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -52,7 +60,7 @@ export function Modal({
       releaseScrollLock();
       previouslyFocused.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

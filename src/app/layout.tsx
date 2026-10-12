@@ -23,6 +23,14 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSettings();
+  // Default social card (product pages override with the real product photo).
+  // Wordless brand tile — see scripts/generate-social-assets.mjs.
+  const defaultOgImage = {
+    url: `${env.APP_URL}/og-default.png`,
+    width: 1200,
+    height: 630,
+    alt: settings.storeName,
+  };
   return {
     metadataBase: new URL(env.APP_URL),
     title: {
@@ -38,11 +46,13 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: settings.storeName,
       locale: 'en_IN',
       url: env.APP_URL,
+      images: [defaultOgImage],
     },
     twitter: {
       card: 'summary_large_image',
       title: settings.storeName,
       description: settings.storeTagline || undefined,
+      images: [defaultOgImage.url],
     },
     robots: { index: true, follow: true },
   };

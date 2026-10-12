@@ -5,6 +5,7 @@ import {
   parseSort,
   parsePriceBound,
 } from '@/lib/catalog/storefront';
+import { isFilteredListing } from '@/lib/seo/listing';
 import { ProductGrid } from '@/components/store/product-grid';
 import { FilterSidebar } from '@/components/store/filter-sidebar';
 import { ListingControls } from '@/components/store/listing-controls';
@@ -71,7 +72,10 @@ export default async function SearchPage({
           <div className="mb-4">
             <ListingControls />
           </div>
-          <ProductGrid products={result.items} />
+          <ProductGrid
+            products={result.items}
+            clearHref={isFilteredListing(sp) ? '/search' : undefined}
+          />
           <Pagination
             page={result.page}
             totalPages={result.totalPages}

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { env } from '@/lib/env';
 import { getSettings } from '@/lib/settings';
 import {
   listStorefrontProducts,
@@ -6,19 +7,40 @@ import {
   parseSort,
   parsePriceBound,
 } from '@/lib/catalog/storefront';
+import {
+  breadcrumbJsonLd,
+  carryListingQuery,
+  isFilteredListing,
+  itemListJsonLd,
+  listingDescription,
+  listingSeo,
+  listingTitle,
+} from '@/lib/seo/listing';
 import { ProductGrid } from '@/components/store/product-grid';
 import { FilterSidebar } from '@/components/store/filter-sidebar';
 import { ListingControls } from '@/components/store/listing-controls';
 import { Pagination } from '@/components/ui/table';
+import { jsonLdScript } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<ListingSearchParams>;
+}): Promise<Metadata> {
   const settings = await getSettings();
+  const sp = await searchParams;
+  // Filtered combinations are crawled for discovery but never indexed as
+  // their own landing pages (canonical + noindex); paginated pages keep
+  // distinct titles so they never share metadata with page 1.
+  const seo = listingSeo('/shop', sp);
+  const baseDescription = `Browse the full ${settings.storeName} catalog. Transparent ₹ pricing, secure checkout and pan-India delivery.`;
   return {
-    title: 'Shop all products',
-    description: `Browse the full ${settings.storeName} catalog. Transparent ₹ pricing, secure checkout and pan-India delivery.`,
-    alternates: { canonical: '/shop' },
+    title: listingTitle('Shop all products', seo.filtered ? 1 : seo.page),
+    description: listingDescription(baseDescription, seo.filtered ? 1 : seo.page),
+    alternates: { canonical: seo.canonical },
+    ...(seo.robots ? { robots: seo.robots } : {}),
   };
 }
 
@@ -54,8 +76,26 @@ export default async function ShopPage({
     listActiveCategories(),
   ]);
 
+  const filtered = isFilteredListing(params);
+  const crumbs = [{ label: 'Home', href: '/' }, { label: 'Shop' }];
+  const itemList = itemListJsonLd(
+    env.APP_URL,
+    result.items.map((p) => ({ name: p.name, slug: p.slug })),
+    'Shop all products'
+  );
+
   return (
     <div className="container-store py-6 sm:py-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbJsonLd(env.APP_URL, crumbs)) }}
+      />
+      {itemList && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(itemList) }}
+        />
+      )}
       <header className="mb-6 rounded-2xl border border-ink-900/[0.06] bg-gradient-to-br from-sage-100/60 via-white to-cream-50 p-5 shadow-card sm:p-6">
         <p className="eyebrow">Catalogue</p>
         <h1 className="display mt-1.5">Shop all products</h1>
@@ -72,13 +112,14 @@ export default async function ShopPage({
             basePath="/shop"
             activeCategory={params.category ?? null}
             searchParams={params}
+            categoryHref={(slug) => `/categories/${slug}${carryListingQuery(params)}`}
           />
         </div>
         <div className="order-1 min-w-0 lg:order-2">
           <div className="mb-4 flex items-center justify-between gap-3">
             <ListingControls />
           </div>
-          <ProductGrid products={result.items} />
+          <ProductGrid products={result.items} clearHref={filtered ? '/shop' : undefined} />
           <Pagination
             page={result.page}
             totalPages={result.totalPages}
