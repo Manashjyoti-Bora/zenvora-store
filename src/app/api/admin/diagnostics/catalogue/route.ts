@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth/guards';
+import { ApiError } from '@/lib/errors';
 
 /**
  * Catalogue Diagnostics — Read-only admin endpoint that reports exact
@@ -35,8 +36,10 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     await requireAdmin();
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unauthorized';
+    const status = err instanceof ApiError ? err.statusCode : 401;
+    return NextResponse.json({ error: message }, { status });
   }
 
   try {
@@ -76,9 +79,9 @@ export async function GET() {
       // 5. ARCHIVED products
       prisma.product.count({ where: { status: 'ARCHIVED' } }),
 
-      // 6. Products with zero or missing sellingPrice
+      // 6. Products with zero sellingPrice (field is non-nullable with default 0)
       prisma.product.count({
-        where: { OR: [{ sellingPrice: { lte: '0' } }, { sellingPrice: undefined }] },
+        where: { sellingPrice: { lte: '0' } },
       }),
 
       // 7. Total SupplierProduct records
@@ -100,6 +103,8 @@ export async function GET() {
       }),
 
       // 11. Active suppliers (grouped by type)
+      // NOTE: config is loaded server-side but NEVER sent to the client —
+      // it may contain platformToken or other supplier credentials.
       prisma.supplier.findMany({
         where: { isActive: true },
         select: {
@@ -107,7 +112,7 @@ export async function GET() {
           name: true,
           type: true,
           apiKeyEnvVar: true,
-          config: true,
+          config: true, // parsed server-side, stripped before response
           _count: {
             select: {
               products: true,
