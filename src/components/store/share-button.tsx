@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useToast } from '@/components/ui/toaster';
+// The toast system exposes a module-level `toast()` emitter (see toaster.tsx);
+// there is no `useToast` hook. Importing one broke `tsc` and red-lined CI.
+import { toast } from '@/components/ui/toaster';
 
 export function ShareButton({ title, url }: { title: string; url: string }) {
   const [sharing, setSharing] = useState(false);
-  const { toast } = useToast();
 
   const handleShare = async () => {
     setSharing(true);
@@ -17,12 +18,12 @@ export function ShareButton({ title, url }: { title: string; url: string }) {
         });
       } else {
         await navigator.clipboard.writeText(url);
-        toast('Link copied to clipboard!');
+        toast('Link copied to clipboard!', 'success');
       }
-    } catch (e) {
-      if (e instanceof Error && e.name !== 'AbortError') {
-        toast('Failed to share.');
-      }
+    } catch (error) {
+      // A user dismissing the native share sheet is not a failure worth reporting.
+      const aborted = error instanceof Error && error.name === 'AbortError';
+      if (!aborted) toast('Failed to share.', 'error');
     } finally {
       setSharing(false);
     }

@@ -15,8 +15,12 @@ export function SearchForm() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setRecent(JSON.parse(stored));
-    } catch (e) {}
+      if (stored) setRecent(JSON.parse(stored) as string[]);
+    } catch {
+      // localStorage unavailable (private mode) or a corrupt payload. Recent
+      // searches are a progressive enhancement, so failing to read them must
+      // never break the search box.
+    }
   }, []);
 
   function onSubmit(e?: FormEvent, termOverride?: string) {
@@ -32,7 +36,10 @@ export function SearchForm() {
         items = items.slice(0, 5);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
         setRecent(items);
-      } catch (e) {}
+      } catch {
+        // Storage can be unavailable or over quota. The search still submits,
+        // so swallow it rather than surfacing a storage error to the shopper.
+      }
     }
     
     setShowDropdown(false);
