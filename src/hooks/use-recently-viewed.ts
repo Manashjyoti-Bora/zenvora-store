@@ -19,10 +19,12 @@ export function useRecentlyViewed() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        setViewed(JSON.parse(stored));
+        setViewed(JSON.parse(stored) as ViewedProduct[]);
       }
-    } catch (e) {
-      // ignore
+    } catch {
+      // localStorage unavailable (private mode) or a corrupt payload. The
+      // "recently viewed" rail is a progressive enhancement - never break the
+      // product page because history could not be read.
     }
   }, []);
 
@@ -42,8 +44,9 @@ export function useRecentlyViewed() {
       
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
       setViewed(items);
-    } catch (e) {
-      // ignore
+    } catch {
+      // Storage unavailable or over quota. Recording history is best-effort:
+      // the storefront must keep working without it.
     }
   };
 
