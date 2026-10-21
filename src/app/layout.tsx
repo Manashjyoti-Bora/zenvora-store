@@ -1,6 +1,13 @@
 import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
-import { Inter } from 'next/font/google';
+// Inter is SELF-HOSTED: the woff2 files ship inside @fontsource-variable/inter
+// and are bundled at build time. It is deliberately NOT loaded through
+// `next/font/google`, which downloads the font from fonts.googleapis.com during
+// the build - that makes builds fail in network-restricted environments and
+// ties a build artifact to a third-party host. Self-hosting keeps the exact
+// same typeface, adds no request to a Google domain at runtime, and satisfies
+// the production CSP (`font-src 'self'`). See --font-inter in globals.css.
+import '@fontsource-variable/inter';
 import './globals.css';
 import { getSettings } from '@/lib/settings';
 import { env } from '@/lib/env';
@@ -11,14 +18,6 @@ import { CookieConsent } from '@/components/layout/cookie-consent';
 import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav';
 import { Toaster } from '@/components/ui/toaster';
 import { jsonLdScript } from '@/lib/utils';
-
-const inter = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-inter',
-  // Only load the weights actually used in the design system
-  weight: ['400', '500', '600', '700', '800'],
-});
 
 export const dynamic = 'force-dynamic';
 
@@ -61,8 +60,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const isAdminArea = (h.get('x-pathname') ?? '').startsWith('/admin');
 
   return (
-    <html lang="en" className={inter.variable}>
-      <body className={`${inter.className} no-page-overflow flex min-h-screen flex-col`}>
+    <html lang="en" className="font-sans">
+      <body className="no-page-overflow flex min-h-screen flex-col font-sans">
         {/* Marks script availability BEFORE any reveal content is parsed or
             painted. Must stay the first child of <body>: the browser executes
             it synchronously while parsing, so the `.js .reveal` hidden state
