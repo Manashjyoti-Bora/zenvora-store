@@ -79,6 +79,12 @@ const rawRow = {
 } as unknown as PublicProductSource;
 
 describe('toPublicProductDto', () => {
+  // SUPPLIER_SYNC availability is authoritative only while the supplier sync is
+  // fresh (48h). `lastSyncedAt` is a literal date, so the evaluation clock must
+  // be pinned too - otherwise this test silently rots 48h after it is written
+  // and starts reporting UNVERIFIED instead of IN_STOCK. `now` is part of the
+  // resolveAvailability contract for exactly this reason (see availability.test.ts).
+  const now = new Date('2026-10-11T12:00:00.000Z');
   const availability = resolveAvailability({
     isActive: true,
     stockMode: 'SUPPLIER_SYNC',
@@ -87,6 +93,7 @@ describe('toPublicProductDto', () => {
     variants: [{ stock: 0 }, { stock: 0 }],
     lowStockThreshold: 5,
     supplier: { inStock: true, stockQty: 12, lastSyncedAt: new Date('2026-10-11T10:00:00.000Z') },
+    now,
   });
   const dto = toPublicProductDto(rawRow, 49900, availability);
 
