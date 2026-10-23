@@ -5,7 +5,9 @@
   "description": "Resellix - production-ready automated reselling/dropshipping e-commerce platform (Next.js + PostgreSQL + Prisma + Razorpay-ready)",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && tsx scripts/create-admin.ts && next build",
+    "build": "tsx scripts/release.ts",
+    "build:next": "next build",
+    "release:check": "RELEASE_SKIP_MIGRATIONS=1 tsx scripts/release.ts",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -38,8 +40,8 @@
     "@prisma/client": "^6.16.0",
     "bcryptjs": "^3.0.2",
     "clsx": "^2.1.1",
-    "next": "^15.5.0",
-    "nodemailer": "^10.0.0",
+    "next": "^15.5.28",
+    "nodemailer": "^10.2.1",
     "razorpay": "^2.9.6",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -48,7 +50,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
-    "@types/node": "^20.19.0",
+    "@types/node": "^24.19.2",
     "@types/nodemailer": "^6.4.17",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
@@ -60,15 +62,15 @@
     "prettier": "^3.6.0",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "prisma": "^6.16.0",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
     "typescript-eslint": "^8.35.0",
-    "vitest": "^3.2.0"
+    "vitest": "^5.0.5"
   },
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=22.12.0 <25"
   },
   "overrides": {
     "postcss": "^8.5.28",

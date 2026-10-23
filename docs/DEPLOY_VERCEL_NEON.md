@@ -27,7 +27,9 @@ Nothing is "done" until its verification gate passes. Do the steps in order.
 
 1. vercel.com → Sign up (GitHub) → **Add New… → Project** → import `Manashjyoti-Bora/zenvora-store` (main branch).
 2. Framework Preset: **Next.js** (auto-detected). Do NOT override the build command —
-   package.json already runs: `prisma generate && prisma migrate deploy && tsx scripts/create-admin.ts && next build`.
+   package.json's `build` runs the guarded release pipeline `scripts/release.ts`
+   (preflight → `prisma generate` → environment guard → `prisma migrate deploy` →
+   admin bootstrap → `next build`). Details and rollback: `docs/RELEASE_PROCESS.md`.
 3. Before clicking Deploy, open **Environment Variables** and add (Production
    column; values from Step 1 and your own choices — secrets stay on Vercel, never in chat):
 
@@ -52,7 +54,10 @@ Nothing is "done" until its verification gate passes. Do the steps in order.
 4. **Deploy.**
 
 **Verification gate 2 (build log — check each line):**
-- `prisma migrate deploy` prints the applied migrations (first deploy: `2 migrations found`… `applied`), no errors.
+- `[release:preflight] environment: production` and no `FAILED` block (a missing
+  `DATABASE_URL`/`DIRECT_URL` now fails here with the exact fix instead of a Prisma stack trace).
+- `prisma migrate deploy` prints the applied migrations (first deploy: `N migrations found`… `applied`), no errors.
+- `[release:claim] database claimed for "production"` (first deploy) — later builds say `already claimed by "production"`.
 - `[create-admin] created admin user <your email>` (first deploy) — or `already exists` on redeploys.
 - `✓ Compiled successfully` and the route list, ending with your deployment URL.
 
