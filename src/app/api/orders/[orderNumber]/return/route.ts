@@ -22,7 +22,8 @@ export async function POST(
     const body = returnRequestSchema.parse(raw);
 
     const user = await getCurrentUser();
-    const order = await findOrderForAccess(orderNumber, user, null);
+    // Logged-in customers are matched by user id; guests by order email.
+    const order = await findOrderForAccess(orderNumber, user, body.email ?? null);
 
     const result = await requestReturn({
       orderId: order.id,

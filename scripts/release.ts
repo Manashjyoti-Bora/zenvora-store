@@ -41,7 +41,18 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import dotenv from 'dotenv';
 
-dotenv.config();
+// Local/CI convenience: pick up DATABASE_URL etc. from .env when present.
+// NODE_ENV is deliberately NOT taken from the file: `.env` is a development
+// file (NODE_ENV=development) and a `next build` child inheriting that value
+// produces a broken development-mode build ("<Html> should not be imported"
+// prerender errors). Vercel has no .env file, so this only affects CI/local.
+{
+  const env = process.env as Record<string, string | undefined>;
+  const hadNodeEnv = env.NODE_ENV;
+  dotenv.config();
+  if (hadNodeEnv === undefined) delete env.NODE_ENV;
+  else env.NODE_ENV = hadNodeEnv;
+}
 
 type ReleaseEnv = 'production' | 'preview' | 'development' | 'ci' | 'local';
 
@@ -68,9 +79,14 @@ function fail(stage: string, lines: string[]): never {
   process.exit(1);
 }
 
-function run(stage: string, cmd: string, args: string[]): void {
+function run(
+  stage: string,
+  cmd: string,
+  args: string[],
+  extraEnv: Record<string, string> = {}
+): void {
   log(stage, `$ ${cmd} ${args.join(' ')}`);
-  const res = spawnSync(cmd, args, { stdio: 'inherit', env: process.env });
+  const res = spawnSync(cmd, args, { stdio: 'inherit', env: { ...process.env, ...extraEnv } });
   if (res.error) fail(stage, [`could not start "${cmd}": ${res.error.message}`]);
   if (res.status !== 0) {
     fail(stage, [`"${cmd} ${args.join(' ')}" exited with code ${res.status ?? 'unknown'}`]);
@@ -333,7 +349,9 @@ async function main(): Promise<void> {
 
   run('admin', 'tsx', ['scripts/create-admin.ts']);
 
-  run('build', 'next', ['build']);
+  // `next build` is always a production build; pin NODE_ENV so a stray value
+  // from the shell cannot switch the compiler into development mode.
+  run('build', 'next', ['build'], { NODE_ENV: 'production' });
 
   log('done', `release build complete (${releaseEnv})`);
 }

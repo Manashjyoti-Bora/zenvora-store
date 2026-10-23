@@ -131,12 +131,16 @@ export const guestTrackSchema = z.object({
 
 export const cancelOrderSchema = z.object({
   reason: z.string().trim().min(3).max(300),
+  // Guest checkouts prove ownership with the email used on the order
+  // (same contract as the payments and tracking APIs).
+  email: emailSchema.optional().nullable(),
 });
 
 export const returnRequestSchema = z.object({
   orderItemId: z.string().min(1).optional().nullable(),
   reason: z.string().trim().min(3).max(300),
   note: z.string().trim().max(1000).optional().or(z.literal('')).nullable(),
+  email: emailSchema.optional().nullable(),
 });
 
 export const contactSchema = z.object({
@@ -313,7 +317,11 @@ export const productInputSchema = z
 
     // A "discount" that is not a discount is a fabricated deal.
     for (const [idx, v] of data.variants.entries()) {
-      if (v.compareAtPrice != null && v.sellingPrice != null && v.compareAtPrice <= v.sellingPrice) {
+      if (
+        v.compareAtPrice != null &&
+        v.sellingPrice != null &&
+        v.compareAtPrice <= v.sellingPrice
+      ) {
         ctx.addIssue({
           code: 'custom',
           path: ['variants', idx, 'compareAtPrice'],

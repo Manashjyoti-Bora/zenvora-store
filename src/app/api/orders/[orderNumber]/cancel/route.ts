@@ -23,11 +23,12 @@ export async function POST(
     const body = cancelOrderSchema.parse(raw);
 
     const user = await getCurrentUser();
-    const order = await findOrderForAccess(orderNumber, user, null);
+    // Logged-in customers are matched by user id; guests by order email.
+    const order = await findOrderForAccess(orderNumber, user, body.email ?? null);
 
     const result = await cancelOrder({
       orderId: order.id,
-      actorType: user ? 'CUSTOMER' : 'CUSTOMER',
+      actorType: 'CUSTOMER',
       actorId: user?.id ?? null,
       reason: body.reason,
     });
