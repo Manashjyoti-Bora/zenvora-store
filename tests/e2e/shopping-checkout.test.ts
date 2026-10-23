@@ -20,7 +20,6 @@ import { createFixtureUser, loginFixture } from './fixtures';
  * track 20/15min → 3. All within limits.
  */
 
-
 interface ChargerInfo {
   productId: string;
   variantId: string | null;
@@ -67,12 +66,16 @@ beforeAll(async () => {
   charger = {
     productId: product.id,
     variantId: variant?.id ?? null,
-    unitPricePaise: variant?.sellingPrice ? toPaise(variant.sellingPrice) : toPaise(product.sellingPrice),
+    unitPricePaise: variant?.sellingPrice
+      ? toPaise(variant.sellingPrice)
+      : toPaise(product.sellingPrice),
     stock: variant ? variant.stock : product.stock,
   };
 
   const setting = await prisma.setting.findUnique({ where: { key: 'store' } });
-  const raw = (setting?.value ?? {}) as { shipping?: Partial<ShippingSettings> & { flatRatePaise?: number } };
+  const raw = (setting?.value ?? {}) as {
+    shipping?: Partial<ShippingSettings> & { flatRatePaise?: number };
+  };
   shipping = {
     flatFeePaise: raw.shipping?.flatRatePaise ?? raw.shipping?.flatFeePaise ?? 4900,
     freeAbovePaise: raw.shipping?.freeAbovePaise ?? 99900,
@@ -90,7 +93,11 @@ afterAll(async () => {
 
 describe('cart', () => {
   it('adds an item and prices it from the SERVER catalog (client cannot set price)', async () => {
-    const res = await agent.post('/api/cart', { productId: charger.productId, variantId: charger.variantId, quantity: 2 });
+    const res = await agent.post('/api/cart', {
+      productId: charger.productId,
+      variantId: charger.variantId,
+      quantity: 2,
+    });
     expect(res.status).toBe(200);
     const view = okData<CartLike>(res);
     expect(view).toBeTruthy();
@@ -106,7 +113,10 @@ describe('cart', () => {
   });
 
   it('rejects quantity beyond available stock', async () => {
-    const res = await agent.post('/api/cart', { productId: charger.productId, quantity: charger.stock + 900 });
+    const res = await agent.post('/api/cart', {
+      productId: charger.productId,
+      quantity: charger.stock + 900,
+    });
     expect(res.status).toBe(400);
   });
 
@@ -156,7 +166,12 @@ describe('checkout — prepaid + TEST payment + auto fulfilment', () => {
       idempotencyKey,
     });
     expect(res.status).toBe(201);
-    const body = okData<{ orderNumber: string; grandTotalPaise: number; status: string; nextStep: string }>(res);
+    const body = okData<{
+      orderNumber: string;
+      grandTotalPaise: number;
+      status: string;
+      nextStep: string;
+    }>(res);
     expect(body?.orderNumber).toMatch(/^RX-\d{6}-[23456789A-HJ-NP-Z]{6}$/);
     orderNumber = body!.orderNumber;
     grandTotalPaise = body!.grandTotalPaise;
@@ -197,34 +212,50 @@ describe('checkout — prepaid + TEST payment + auto fulfilment', () => {
   it('creates a TEST payment order whose amount ALWAYS comes from the stored order', async () => {
     const res = await agent.post('/api/payments/create', { orderNumber });
     expect(res.status).toBe(200);
-    const body = okData<{ mode: string; provider: string; providerOrderId: string; amountPaise: number }>(res);
+    const body = okData<{
+      mode: string;
+      provider: string;
+      providerOrderId: string;
+      amountPaise: number;
+    }>(res);
     expect(body?.provider).toBe('TEST'); // honest: this is the test provider, never a real gateway
     expect(body?.amountPaise).toBe(grandTotalPaise);
 
-    const dbPayment = await prisma.payment.findUnique({ where: { providerOrderId: body!.providerOrderId } });
+    const dbPayment = await prisma.payment.findUnique({
+      where: { providerOrderId: body!.providerOrderId },
+    });
     expect(dbPayment?.provider).toBe('TEST');
     expect(dbPayment?.status).toBe('CREATED');
   });
 
   it('simulated TEST payment success → order PAID → supplier order auto-created', async () => {
-    const res = await agent.post('/api/payments/test/simulate', { orderNumber, outcome: 'success' });
+    const res = await agent.post('/api/payments/test/simulate', {
+      orderNumber,
+      outcome: 'success',
+    });
     expect(res.status).toBe(200);
     const body = okData<{ status: string; orderStatus: string }>(res);
     expect(body?.status).toBe('PAID');
 
     // The fulfilment job runs in-process but asynchronously — poll.
-    const paid = await pollUntil(async () => {
-      const order = await prisma.order.findUnique({
-        where: { orderNumber },
-        include: { payments: true, supplierOrders: true },
-      });
-      if (!order || order.paymentStatus !== 'PAID') return null;
-      if (['PENDING_PAYMENT', 'PAYMENT_FAILED'].includes(order.status)) return null;
-      return order;
-    }, 30_000, 750);
+    const paid = await pollUntil(
+      async () => {
+        const order = await prisma.order.findUnique({
+          where: { orderNumber },
+          include: { payments: true, supplierOrders: true },
+        });
+        if (!order || order.paymentStatus !== 'PAID') return null;
+        if (['PENDING_PAYMENT', 'PAYMENT_FAILED'].includes(order.status)) return null;
+        return order;
+      },
+      30_000,
+      750
+    );
 
     expect(paid, 'order should leave PENDING_PAYMENT after successful payment').toBeTruthy();
-    expect(paid!.payments.some((p) => p.provider === 'TEST' && ['PAID', 'CAPTURED'].includes(p.status))).toBe(true);
+    expect(
+      paid!.payments.some((p) => p.provider === 'TEST' && ['PAID', 'CAPTURED'].includes(p.status))
+    ).toBe(true);
 
     const supplierOrder = await pollUntil(
       async () => prisma.supplierOrder.findFirst({ where: { orderId: paid!.id } }),
@@ -242,7 +273,11 @@ describe('checkout — COD (guest) + tracking', () => {
 
   it('guest can add to cart and place a COD order (confirmed immediately)', async () => {
     await guestAgent.get('/api/health');
-    const add = await guestAgent.post('/api/cart', { productId: charger.productId, variantId: charger.variantId, quantity: 1 });
+    const add = await guestAgent.post('/api/cart', {
+      productId: charger.productId,
+      variantId: charger.variantId,
+      quantity: 1,
+    });
     expect(add.status).toBe(200);
 
     const res = await guestAgent.post('/api/checkout', {
@@ -261,7 +296,9 @@ describe('checkout — COD (guest) + tracking', () => {
     const dbOrder = await prisma.order.findUnique({ where: { orderNumber: guestOrderNumber } });
     expect(dbOrder?.paymentMethod).toBe('COD');
     expect(dbOrder?.guestEmail?.toLowerCase()).toBe(guestEmail);
-    expect(['ORDER_CONFIRMED', 'SENT_TO_SUPPLIER', 'PROCESSING', 'SHIPPED']).toContain(dbOrder?.status);
+    expect(['ORDER_CONFIRMED', 'SENT_TO_SUPPLIER', 'PROCESSING', 'SHIPPED']).toContain(
+      dbOrder?.status
+    );
   });
 
   it('tracks a guest order with orderNumber + email (both required)', async () => {
@@ -278,7 +315,63 @@ describe('checkout — COD (guest) + tracking', () => {
   it('refuses tracking with the wrong email (uniform 404 — no enumeration)', async () => {
     const anon = new HttpAgent();
     await anon.get('/api/health');
-    const res = await anon.post('/api/track', { orderNumber: guestOrderNumber, email: 'wrong@e2e.example' });
+    const res = await anon.post('/api/track', {
+      orderNumber: guestOrderNumber,
+      email: 'wrong@e2e.example',
+    });
     expect(res.status).toBe(404);
+  });
+
+  // Regression: the confirmation page offered "Cancel order" to guests, but the
+  // API received no proof of ownership and always answered 403, so guests could
+  // never cancel (or request returns). Guests now pass the checkout email,
+  // exactly like /api/track and the payments API.
+  it('guest cannot cancel without the checkout email, can with it; stock is restored', async () => {
+    const readStock = async () =>
+      charger.variantId
+        ? (
+            await prisma.productVariant.findUniqueOrThrow({
+              where: { id: charger.variantId },
+              select: { stock: true },
+            })
+          ).stock
+        : (
+            await prisma.product.findUniqueOrThrow({
+              where: { id: charger.productId },
+              select: { stock: true },
+            })
+          ).stock;
+    const before = await readStock();
+
+    const noEmail = await guestAgent.post(`/api/orders/${guestOrderNumber}/cancel`, {
+      reason: 'changed my mind',
+    });
+    expect(noEmail.status).toBe(403);
+
+    const wrongEmail = await guestAgent.post(`/api/orders/${guestOrderNumber}/cancel`, {
+      reason: 'changed my mind',
+      email: 'wrong@e2e.example',
+    });
+    expect(wrongEmail.status).toBe(403);
+
+    const ok = await guestAgent.post(`/api/orders/${guestOrderNumber}/cancel`, {
+      reason: 'changed my mind',
+      email: guestEmail.toUpperCase(), // case-insensitive match, like tracking
+    });
+    expect(ok.status).toBe(200);
+    expect(okData<{ status: string }>(ok)?.status).toBe('CANCELLED');
+
+    const dbOrder = await prisma.order.findUnique({ where: { orderNumber: guestOrderNumber } });
+    expect(dbOrder?.status).toBe('CANCELLED');
+    expect(dbOrder?.cancelledBy).toBe('CUSTOMER');
+
+    expect(await readStock()).toBe(before + 1);
+
+    // Second attempt is a clean conflict, not a crash.
+    const again = await guestAgent.post(`/api/orders/${guestOrderNumber}/cancel`, {
+      reason: 'again',
+      email: guestEmail,
+    });
+    expect(again.status).toBe(409);
   });
 });

@@ -28,6 +28,7 @@ export function OrderActions({
   returnEligible,
   returnWindowDays,
   items,
+  guestEmail = null,
 }: {
   orderNumber: string;
   canCancel: boolean;
@@ -35,6 +36,8 @@ export function OrderActions({
   returnEligible: boolean;
   returnWindowDays: number;
   items: Array<{ id: string; name: string }>;
+  /** Email used at checkout for guest orders; proves ownership to the API. */
+  guestEmail?: string | null;
 }) {
   const router = useRouter();
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -62,7 +65,7 @@ export function OrderActions({
       const result = await apiFetch<{ refundInitiated?: boolean }>(
         '/api/orders/' + orderNumber + '/cancel',
         {
-          body: { reason: cancelReason.trim() },
+          body: { reason: cancelReason.trim(), email: guestEmail ?? undefined },
         }
       );
       toast(
@@ -87,6 +90,7 @@ export function OrderActions({
           orderItemId: returnItem || null,
           reason: returnReason,
           note: returnNote.trim() || null,
+          email: guestEmail ?? undefined,
         },
       });
       toast('Return requested — our team will review it', 'success');

@@ -9,11 +9,15 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Isolated, throw-away PostgreSQL service — never a Neon branch.
+  CI_DATABASE_URL: postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
+
 jobs:
   verify:
-    name: typecheck + lint + unit/integration tests
+    name: typecheck + lint + tests + release build
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -33,23 +37,28 @@ jobs:
     env:
       DATABASE_URL: postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
       DIRECT_URL: postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
+      NEXT_TELEMETRY_DISABLED: '1'
 
     steps:
       - uses: actions/checkout@v4
 
+      # Matches the Vercel project runtime (Node 24.x) and package.json engines.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
-      - name: Install dependencies
+      - name: Install dependencies (lockfile must be in sync)
         run: npm ci
 
-      - name: Generate Prisma client
-        run: npx prisma generate
+      - name: Prisma schema validation + client generation
+        run: |
+          npx prisma validate
+          npx prisma generate
 
-      # .env.test is gitignored, so synthesize it for the integration suite.
-      - name: Write .env.test
+      # .env.test / .env are gitignored, so synthesize them for the test suites.
+      # Both point at the SAME throw-away CI database.
+      - name: Write .env.test and .env
         run: |
           cat > .env.test <<'EOF'
           NODE_ENV=test
@@ -66,8 +75,26 @@ jobs:
           EMAIL_PROVIDER=console
           EMAIL_FROM="CI Test <no-reply@ci.test>"
           EOF
+          cat > .env <<'EOF'
+          NODE_ENV=development
+          APP_URL=http://127.0.0.1:3100
+          APP_NAME=Zenvora CI
+          DATABASE_URL=postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
+          DIRECT_URL=postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
+          SESSION_TTL_DAYS=30
+          PASSWORD_RESET_TTL_MINUTES=60
+          ADMIN_EMAIL=admin@ci.local
+          ADMIN_PASSWORD=CiAdmin!Pass1234
+          PAYMENTS_TEST_MODE=true
+          SUPPLIER_DEMO_MODE=true
+          SUPPLIER_WEBHOOK_SECRET=ci_supplier_webhook_secret
+          CRON_SECRET=ci_cron_secret
+          EMAIL_PROVIDER=console
+          EMAIL_FROM="Zenvora CI <no-reply@ci.test>"
+          E2E_BASE_URL=http://127.0.0.1:3100
+          EOF
 
-      - name: Apply migrations to CI database
+      - name: Apply migrations to CI database (fresh-database migration check)
         run: npx prisma migrate deploy
 
       - name: Typecheck
@@ -76,9 +103,38 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Unit + integration tests (134)
+      - name: Unit + integration tests
         run: npm test
 
-      # E2E (npm run test:e2e, 62 tests) intentionally NOT run here: it needs a
-      # live dev server with seeded demo catalog and stays within the app's own
-      # rate limits. It is run locally against `npm run dev -- --turbopack -p 3100`.
+      # The exact command Vercel runs. Exercises scripts/release.ts end to end:
+      # preflight → generate → env-guard → migrate (idempotent) → claim → admin → next build.
+      - name: Release build (npm run build, same as Vercel)
+        run: npm run build
+
+      # E2E storefront journeys over real HTTP against the dev server + seeded demo
+      # catalog (TEST payment provider is development-only by design).
+      - name: Seed demo catalog for E2E
+        run: npm run db:seed
+
+      - name: Start dev server for E2E
+        run: |
+          # `next dev` reads .env (written above) exactly like local development.
+          nohup npx next dev -p 3100 > /tmp/next-dev.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3100/api/health > /dev/null; then echo "server up"; exit 0; fi
+            sleep 2
+          done
+          echo "dev server did not become healthy"; tail -50 /tmp/next-dev.log; exit 1
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Dev server log (on failure)
+        if: failure()
+        run: tail -200 /tmp/next-dev.log || true
+
+      # Production-dependency advisories. Reported in the job log; does not block
+      # unrelated PRs, but keeps the signal visible on every run.
+      - name: Production dependency audit (high+)
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high

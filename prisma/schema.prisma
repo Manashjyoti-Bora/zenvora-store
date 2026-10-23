@@ -1137,3 +1137,25 @@ model ContactMessage {
   @@index([status, createdAt])
   @@map("contact_messages")
 }
+
+// ---------------------------------------------------------------------------
+// Release safety
+// ---------------------------------------------------------------------------
+
+/// Single-row marker that records WHICH deployment environment (production /
+/// preview / local) this database belongs to. `scripts/release.ts` checks it
+/// before running migrations so a Preview build can never migrate the
+/// Production database (or vice-versa) because of a mis-scoped DATABASE_URL.
+/// Written only by the release script; never read by the application.
+model DeploymentEnvironment {
+  id           Int      @id @default(1)
+  environment  String
+  /// Normalised hostname of DIRECT_URL at claim time (Neon branch endpoints
+  /// differ per branch, so a fork of production into a preview branch is
+  /// recognised and re-claimed instead of being refused).
+  databaseHost String
+  claimedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("deployment_environment")
+}

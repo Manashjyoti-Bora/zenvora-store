@@ -153,6 +153,7 @@ export default async function ConfirmationPage({
             cancelReasonHint={cancelCheck.can ? undefined : cancelCheck.reason}
             returnEligible={returnEligible}
             returnWindowDays={settings.policies.returnWindowDays}
+            guestEmail={guestEmail}
             items={order.items.map((i) => ({
               id: i.id,
               name: ((i.productSnapshot as Record<string, unknown>)?.name as string) ?? 'Item',
