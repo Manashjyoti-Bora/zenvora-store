@@ -118,7 +118,17 @@ describe('publishSupplierProduct', () => {
       publishSupplierProduct({ supplierProductId: entry.id, actor, status: 'ACTIVE' })
     ).rejects.toThrow(/description/i);
 
-    const ok = await createSupplierEntry();
+    const ok = await createSupplierEntry({
+      raw: {
+        productName: 'CJ Wireless Earbuds Pro',
+        productImage: 'https://cf.cjdropshipping.com/itest/earbuds-main.jpg',
+        productImageSet: [
+          'https://cf.cjdropshipping.com/itest/earbuds-main.jpg',
+          'https://cf.cjdropshipping.com/itest/earbuds-side.jpg',
+          'javascript:alert(1)',
+        ],
+      },
+    });
     const published = await publishSupplierProduct({
       supplierProductId: ok.id,
       actor,
@@ -128,9 +138,35 @@ describe('publishSupplierProduct', () => {
       percentMarkup: 35,
     });
     expect(published.status).toBe('ACTIVE');
-    const product = await prisma.product.findUnique({ where: { id: published.productId } });
+    const product = await prisma.product.findUnique({
+      where: { id: published.productId },
+      include: { images: { orderBy: { position: 'asc' } } },
+    });
     expect(product!.status).toBe('ACTIVE');
     expect(product!.name).toBe('Reviewed Wireless Earbuds');
+    // Supplier media is carried across (validated, de-duplicated, primary first).
+    expect(product!.images.map((i) => i.url)).toEqual([
+      'https://cf.cjdropshipping.com/itest/earbuds-main.jpg',
+      'https://cf.cjdropshipping.com/itest/earbuds-side.jpg',
+    ]);
+    expect(product!.images[0]!.isPrimary).toBe(true);
+  });
+
+  it('refuses to publish straight to ACTIVE when the supplier entry has no image', async () => {
+    const entry = await createSupplierEntry(); // raw has a name but no image
+    await expect(
+      publishSupplierProduct({
+        supplierProductId: entry.id,
+        actor,
+        status: 'ACTIVE',
+        name: 'Reviewed But Pictureless',
+        description: 'Reviewed description written by a human, long enough to pass validation.',
+        percentMarkup: 35,
+      })
+    ).rejects.toThrow(/at least one image/i);
+    // Saving it as a draft is still fine (and keeps whatever media exists — none here).
+    const draft = await publishSupplierProduct({ supplierProductId: entry.id, actor });
+    expect(draft.status).toBe('DRAFT');
   });
 
   it('refuses to publish over an entry that is already mapped', async () => {

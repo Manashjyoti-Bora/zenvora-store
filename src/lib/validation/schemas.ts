@@ -279,6 +279,16 @@ export const productInputSchema = z
     // a zero/absent supplier cost would produce a ₹0.00 product on the live
     // storefront (and a fake "deal" if compare-at is present).
     if (data.status === 'ACTIVE') {
+      // A listing without a picture is not sellable on the storefront (cards,
+      // gallery, Open Graph and Product JSON-LD all assume one). The automated
+      // import path already enforces this; the manual/CSV paths must too.
+      if (data.images.length === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['images'],
+          message: 'A published product needs at least one image. Add an image or save it as a draft.',
+        });
+      }
       if (data.stockMode === 'SUPPLIER_SYNC' && !(data.supplierCost > 0)) {
         ctx.addIssue({
           code: 'custom',

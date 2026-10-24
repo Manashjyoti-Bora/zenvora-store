@@ -5,7 +5,9 @@ import { productInputSchema } from '../validation/schemas';
 import { findApplicablePricingRule } from '../pricing/resolve';
 import { saveProduct } from './products';
 import { revalidateCatalog } from './revalidate';
+import { extractSupplierProductMetadata } from './auto-import';
 import type { Actor } from './types';
+import type { SupplierProduct } from '@prisma/client';
 
 /**
  * Supplier-product publication.
@@ -45,6 +47,15 @@ export interface PublishSupplierProductResult {
   status: 'DRAFT' | 'ACTIVE';
   sellingPricePaise: number;
   warnings: string[];
+}
+
+/**
+ * Image URLs recorded for the supplier entry (discovery metadata / raw payload).
+ * `extractSupplierProductMetadata` already validates and de-duplicates them;
+ * we only cap the count. Never invented.
+ */
+function supplierImages(sp: Pick<SupplierProduct, 'supplierSku' | 'externalId' | 'raw'>): string[] {
+  return extractSupplierProductMetadata(sp).images.slice(0, 8);
 }
 
 /** Best-effort human name from the stored supplier payload; never fabricated. */
@@ -161,7 +172,14 @@ export async function publishSupplierProduct(
     roundingRule: rule?.roundingRule ?? ('ROUND_UP_10' as const),
     compareAtPrice: null,
     taxRatePercent: 0,
-    images: [],
+    // Carry the supplier's own media across (validated URLs only, primary
+    // first) — publishing straight to ACTIVE requires at least one image.
+    images: supplierImages(sp).map((url, idx) => ({
+      url,
+      alt: name.slice(0, 180),
+      position: idx,
+      isPrimary: idx === 0,
+    })),
     variants: [],
   };
 

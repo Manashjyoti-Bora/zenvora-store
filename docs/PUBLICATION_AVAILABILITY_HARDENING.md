@@ -42,6 +42,12 @@ LOCAL column for supplier products.
 ### 3. Price/cost validation (`src/lib/validation/schemas.ts`, `src/lib/catalog/products.ts`, sync + map routes)
 - ACTIVE + `SUPPLIER_SYNC` requires `supplierCost > 0`.
 - ACTIVE requires a computed `sellingPrice > 0` (checked after the pricing engine runs).
+- ACTIVE requires **at least one image** (2026-10-24). Cards, gallery, Open Graph and Product
+  JSON-LD all assume one; the automated importer already enforced it, the manual form / CSV import
+  / supplier publish now do too (DRAFT and ARCHIVED may have none). The admin form shows the
+  error inline in the Images section. The bulk `SAFE_PUBLISH_ELIGIBLE` promotion additionally
+  checks the catalog product's own image count (an admin may have removed images since import)
+  and reports `HELD_FOR_REVIEW` instead of silently skipping.
 - `compareAtPrice`, when set, must be **above** the selling price (a "discount" that is not one is a
   fabricated deal).
 - `applyEnginePricingToProduct` refuses to write a non-positive price (leaves the previous price and
@@ -54,7 +60,9 @@ LOCAL column for supplier products.
 supplier entry: valid cost required, description is an honest placeholder (no invented marketing
 copy), pricing runs through the engine, mapping is linked, audit-logged. Defaults to **DRAFT**;
 `ACTIVE` additionally requires explicit `name`/`description` overrides *and* a positive computed
-price. Already-mapped entries are refused (conflict) to protect existing prices.
+price *and* at least one supplier image. The supplier entry's validated image URLs (discovery
+metadata / raw payload, max 8, de-duplicated, primary first) are copied onto the new product.
+Already-mapped entries are refused (conflict) to protect existing prices.
 
 ### 5. Public response sanitization (`src/lib/catalog/public-dto.ts`, new)
 A whitelist `toPublicProductDto()` — costs, margins, supplier skus and pricing-rule internals cannot

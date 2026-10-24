@@ -95,6 +95,7 @@ describe('productInputSchema (publication guards)', () => {
     name: 'Guarded Product',
     description: 'A sufficiently long description for validation.',
   };
+  const oneImage = [{ url: '/uploads/guarded.jpg', alt: 'Guarded Product', isPrimary: true, position: 0 }];
 
   it('allows an unpriced DRAFT (drafts are never shown to customers)', () => {
     const res = productInputSchema.safeParse({
@@ -123,7 +124,7 @@ describe('productInputSchema (publication guards)', () => {
     }
   });
 
-  it('publishes a supplier-synced product once a real cost is present', () => {
+  it('publishes a supplier-synced product once a real cost and an image are present', () => {
     const res = productInputSchema.safeParse({
       ...draft,
       status: 'ACTIVE',
@@ -131,8 +132,28 @@ describe('productInputSchema (publication guards)', () => {
       supplierCost: 250,
       pricingMode: 'PERCENT_MARKUP',
       percentMarkup: 30,
+      images: oneImage,
     });
     expect(res.success).toBe(true);
+  });
+
+  it('refuses to publish a product without any image (drafts may have none)', () => {
+    const base = {
+      ...draft,
+      stockMode: 'SUPPLIER_SYNC',
+      supplierCost: 250,
+      pricingMode: 'PERCENT_MARKUP',
+      percentMarkup: 30,
+      images: [],
+    };
+    const active = productInputSchema.safeParse({ ...base, status: 'ACTIVE' });
+    expect(active.success).toBe(false);
+    if (!active.success) {
+      expect(active.error.issues.some((i) => i.path.join('.') === 'images')).toBe(true);
+      expect(active.error.issues.map((i) => i.message).join(' ')).toMatch(/at least one image/i);
+    }
+    expect(productInputSchema.safeParse({ ...base, status: 'DRAFT' }).success).toBe(true);
+    expect(productInputSchema.safeParse({ ...base, status: 'ARCHIVED' }).success).toBe(true);
   });
 
   it('refuses a published fixed price of zero', () => {
@@ -190,6 +211,7 @@ describe('productInputSchema (publication guards)', () => {
       pricingMode: 'PERCENT_MARKUP',
       percentMarkup: 30,
       variants: [{ name: 'Black', sellingPrice: 599, compareAtPrice: 799, stock: 5 }],
+      images: oneImage,
     });
     expect(res.success).toBe(true);
   });

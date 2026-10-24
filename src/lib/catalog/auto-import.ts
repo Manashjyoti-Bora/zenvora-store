@@ -1376,7 +1376,7 @@ export async function bulkProcessSupplierProducts(params: {
     where,
     include: {
       supplier: true,
-      product: { select: { id: true, slug: true, status: true } },
+      product: { select: { id: true, slug: true, status: true, _count: { select: { images: true } } } },
     },
     orderBy: { updatedAt: 'desc' },
     take: 200,
@@ -1451,7 +1451,11 @@ export async function bulkProcessSupplierProducts(params: {
       if (
         params.mode === 'SAFE_PUBLISH_ELIGIBLE' &&
         sp.product.status === 'DRAFT' &&
-        evaluation.eligibleForAutoPublish
+        evaluation.eligibleForAutoPublish &&
+        // Same rule as productInputSchema: never promote a listing that has
+        // no image on the product itself (an admin may have removed them
+        // since import, even if the supplier metadata still lists some).
+        sp.product._count.images > 0
       ) {
         await prisma.product.update({
           where: { id: sp.productId },
@@ -1480,6 +1484,27 @@ export async function bulkProcessSupplierProducts(params: {
           sellingPricePaise: pricing.sellingPricePaise,
           grossMarginPercent: pricing.effectiveMarginPercent,
           reasons: ['Promoted from DRAFT to ACTIVE after passing all quality gates.'],
+          productId: sp.productId,
+        });
+      } else if (
+        params.mode === 'SAFE_PUBLISH_ELIGIBLE' &&
+        sp.product.status === 'DRAFT' &&
+        evaluation.eligibleForAutoPublish
+      ) {
+        // Eligible by supplier data but the catalog product has no image →
+        // surface it instead of silently skipping.
+        heldForReview += 1;
+        items.push({
+          supplierProductId: sp.id,
+          sku: sp.supplierSku,
+          externalId: sp.externalId,
+          name: meta.name,
+          outcome: 'HELD_FOR_REVIEW',
+          tier: evaluation.tier,
+          score: evaluation.score,
+          sellingPricePaise: pricing.sellingPricePaise,
+          grossMarginPercent: pricing.effectiveMarginPercent,
+          reasons: ['Product has no images in the catalog; add at least one image before publishing.'],
           productId: sp.productId,
         });
       }

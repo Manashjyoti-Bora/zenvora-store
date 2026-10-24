@@ -891,10 +891,16 @@ export function ProductForm({
               permanent production images, prefer an external image URL (CDN/object storage) or
               re-upload after deploys — see SETUP_CHECKLIST.md.
             </p>
+            {fieldErrors.images && (
+              <p className="text-sm font-medium text-red-600" role="alert">
+                {fieldErrors.images}
+              </p>
+            )}
             {form.images.length === 0 ? (
               <p className="text-sm text-ink-400">
                 No images yet. Upload (JPEG/PNG/WEBP/GIF/AVIF, max 5 MB) or paste a URL below. The
-                first image is the primary one.
+                first image is the primary one. A product needs at least one image before it can
+                be published.
               </p>
             ) : (
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
