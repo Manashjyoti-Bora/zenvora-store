@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { MailIcon, PhoneIcon } from '@/components/ui/icons';
 import Link from 'next/link';
-import { getSettings } from '@/lib/settings';
+import { configuredSupportEmail, getSettings } from '@/lib/settings';
 import { getCurrentUser } from '@/lib/auth/guards';
 import { ContactForm } from '@/components/contact-form';
 
@@ -18,6 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ContactPage() {
   const [settings, user] = await Promise.all([getSettings(), getCurrentUser()]);
+  const supportEmail = configuredSupportEmail(settings);
 
   return (
     <div className="container-store max-w-3xl py-8 sm:py-12">
@@ -37,12 +38,14 @@ export default async function ContactPage() {
           <div className="card p-4">
             <h2 className="text-sm font-semibold text-ink-900">Direct channels</h2>
             <ul className="mt-2 space-y-2 text-sm text-ink-500">
-              <li className="flex items-start gap-2">
-                <MailIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
-                <a href={`mailto:${settings.supportEmail}`} className="link-primary break-all">
-                  {settings.supportEmail}
-                </a>
-              </li>
+              {supportEmail && (
+                <li className="flex items-start gap-2">
+                  <MailIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
+                  <a href={`mailto:${supportEmail}`} className="link-primary break-all">
+                    {supportEmail}
+                  </a>
+                </li>
+              )}
               {settings.supportPhone && (
                 <li className="flex items-center gap-2">
                   <PhoneIcon className="h-4 w-4 shrink-0 text-ink-400" />

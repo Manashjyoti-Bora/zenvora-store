@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request): Promise<Response> {
   try {
     const ip = clientIp(req) ?? 'local';
-    assertRateLimit(`webhook-supplier:${ip}`, { limit: 120, windowMs: 60_000 });
+    await assertRateLimit(`webhook-supplier:${ip}`, { limit: 120, windowMs: 60_000 });
     const rawBody = await req.text();
     const signature =
       req.headers.get('x-supplier-signature') ?? req.headers.get('x-hub-signature-256');

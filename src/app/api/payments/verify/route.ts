@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic';
  */
 export const POST = apiRoute(async (req: Request) => {
   const ip = clientIp(req) ?? 'local';
-  assertRateLimit(`pay-verify:${ip}`, { limit: 30, windowMs: 10 * 60_000 });
+  await assertRateLimit(`pay-verify:${ip}`, { limit: 30, windowMs: 10 * 60_000 });
 
   const raw = await readJson(req);
   if (!raw || typeof raw !== 'object') throw badRequest('Invalid request body');

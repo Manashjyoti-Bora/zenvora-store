@@ -15,7 +15,7 @@ export async function POST(
   return apiRoute(async () => {
     const { orderNumber } = await ctx.params;
     const ip = clientIp(req) ?? 'local';
-    assertRateLimit(`return:${ip}`, { limit: 10, windowMs: 30 * 60_000 });
+    await assertRateLimit(`return:${ip}`, { limit: 10, windowMs: 30 * 60_000 });
 
     const raw = await readJson(req);
     if (!raw || typeof raw !== 'object') throw badRequest('Invalid request body');

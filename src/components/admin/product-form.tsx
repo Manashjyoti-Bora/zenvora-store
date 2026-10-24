@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
+import Image from '@/components/ui/remote-image';
 import { apiFetch, ApiClientError } from '@/lib/client/api';
 import { toast } from '@/components/ui/toaster';
 import { Button } from '@/components/ui/button';
@@ -891,10 +891,16 @@ export function ProductForm({
               permanent production images, prefer an external image URL (CDN/object storage) or
               re-upload after deploys — see SETUP_CHECKLIST.md.
             </p>
+            {fieldErrors.images && (
+              <p className="text-sm font-medium text-red-600" role="alert">
+                {fieldErrors.images}
+              </p>
+            )}
             {form.images.length === 0 ? (
               <p className="text-sm text-ink-400">
                 No images yet. Upload (JPEG/PNG/WEBP/GIF/AVIF, max 5 MB) or paste a URL below. The
-                first image is the primary one.
+                first image is the primary one. A product needs at least one image before it can
+                be published.
               </p>
             ) : (
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -911,7 +917,6 @@ export function ProductForm({
                           fill
                           sizes="150px"
                           className="object-cover"
-                          unoptimized={!img.url.startsWith('/')}
                         />
                       )}
                       {i === 0 && (

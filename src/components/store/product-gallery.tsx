@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import Image from '@/components/ui/remote-image';
 import { useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 

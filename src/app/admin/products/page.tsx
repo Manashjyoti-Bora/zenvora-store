@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from '@/components/ui/remote-image';
 import { prisma } from '@/lib/db';
 import { toPaise, formatINR } from '@/lib/money';
 import { TableWrap, Th, Td, Pagination } from '@/components/ui/table';
@@ -196,7 +196,6 @@ export default async function AdminProductsPage({
                               fill
                               sizes="40px"
                               className="object-cover"
-                              unoptimized={!p.images[0].url.startsWith('/')}
                             />
                           ) : (
                             <span

@@ -1,4 +1,5 @@
 import { apiRoute, jsonOk, badRequest } from '@/lib/errors';
+import { readJson } from '@/lib/http';
 import { addressSchema } from '@/lib/validation/schemas';
 import { requireUser } from '@/lib/auth/guards';
 import { prisma } from '@/lib/db';
@@ -20,9 +21,9 @@ export const GET = apiRoute(
 
 export const POST = apiRoute(async (req: Request) => {
   const user = await requireUser();
-  assertRateLimit(`addr:${user.id}`, { limit: 20, windowMs: 15 * 60_000 });
+  await assertRateLimit(`addr:${user.id}`, { limit: 20, windowMs: 15 * 60_000 });
 
-  const raw = await req.json().catch(() => null);
+  const raw = await readJson(req);
   if (!raw || typeof raw !== 'object') throw badRequest('Invalid request body');
   const body = addressSchema.parse(raw);
 

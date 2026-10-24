@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from '@/components/ui/remote-image';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { apiFetch, ApiClientError } from '@/lib/client/api';

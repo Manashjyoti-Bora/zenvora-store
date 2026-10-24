@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getSettings } from '@/lib/settings';
+import { SupportContact } from '@/components/store/support-contact';
 import { env } from '@/lib/env';
 import { Alert } from '@/components/ui/feedback';
 
@@ -64,10 +65,7 @@ export default async function AboutPage() {
             </li>
             <li>
               <strong>Real support:</strong> questions about an order are answered by our team —
-              reach us at{' '}
-              <a href={`mailto:${settings.supportEmail}`} className="link-primary">
-                {settings.supportEmail}
-              </a>
+              reach us at <SupportContact settings={settings} fallback="our contact form" />
               {settings.supportPhone ? ` or ${settings.supportPhone}` : ''}.
             </li>
           </ul>

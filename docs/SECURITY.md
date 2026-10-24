@@ -45,11 +45,40 @@ route-by-route audit; this file is the summary that must stay true).
 ## Rate limiting & abuse
 - Per-IP/per-user limits on register (5/15min), login, password reset, coupon apply, uploads
   (60/15min), contact forms (`src/lib/rate-limit.ts`).
+- Counters are **shared across serverless instances** through PostgreSQL
+  (`rate_limit_buckets`, migration `20261024210000_rate_limit_buckets`): one atomic
+  `INSERT … ON CONFLICT … RETURNING` per hit, so a burst spread over many instances/regions is
+  still counted as one client. Keys are stored as SHA-256 digests (no raw IPs/e-mails at rest).
+  If the database call fails the hit is counted in process memory instead and a throttled
+  warning is logged (abuse brake degrades; checkout never fails because of the counter table).
+  Expired rows are purged by the cron housekeeping task. `RATE_LIMIT_STORE=memory` forces the
+  process-local store (tests only).
+
+## Image optimizer
+- `images.remotePatterns` is an explicit allow-list (`IMAGE_REMOTE_HOSTS`, defaults in
+  `src/lib/images/remote-hosts.mjs`) instead of `**`, so `/_next/image` cannot be used as an
+  open fetch proxy. Catalogue media from non-listed https hosts is rendered through
+  `<RemoteImage>` with `unoptimized` (plain `<img>`), never a runtime error.
 
 ## Observability
 - `ErrorLog` (with safe error IDs surfaced to customers), `AuditLog` (admin actions),
   `ApiLog`, `OrderEvent` (every status transition), `InventoryMovement` (every stock change).
 - Customer-facing errors are generic + reference an ID; stack traces never leave the server.
+
+## Request body limits
+- Every JSON route reads its body through `readJson()` (`src/lib/http.ts`), which rejects
+  bodies above 1 MB with `413 PAYLOAD_TOO_LARGE` (checked on `Content-Length` and again on the
+  actual UTF-8 byte length). This bounds validation work: zod 3.x accumulates one issue per
+  failing array element even when the array has `.max()` (GHSA-mrhx-c7xc-m3w5), so body size,
+  not schema shape, is what limits memory per request.
+
+## Dependency advisories (2026-10-24)
+- `zod <4.6.6` — GHSA-mrhx-c7xc-m3w5 (high, memory exhaustion on oversized arrays). No 3.x
+  patch exists; the fix is the zod 4 major. Mitigated here by the request-body cap above plus
+  `.max()` on every public array schema. Migrating to zod 4 is tracked as a follow-up: it changes
+  `.default()` semantics and error-param names across ~40 schemas and needs its own reviewed PR.
+- `tailwindcss 3.x` dev chain (`postcss-selector-parser`, moderate, build-time only; fix is
+  Tailwind 4 major) — accepted, not shipped to the browser.
 
 ## Known open items (honest list)
 - Real email delivery requires SMTP configuration (until then: console provider, marked as not sent).

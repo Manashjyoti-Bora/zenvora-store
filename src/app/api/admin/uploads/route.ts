@@ -1,4 +1,5 @@
 import { apiRoute, jsonOk, badRequest, ApiError } from '@/lib/errors';
+import { readJson } from '@/lib/http';
 import { requireAdmin } from '@/lib/auth/guards';
 import { auditLog } from '@/lib/audit';
 import { randomCode } from '@/lib/crypto';
@@ -46,7 +47,7 @@ const SIGNATURES: Array<{ ext: string; mime: string; test: (b: Buffer) => boolea
  */
 export const POST = apiRoute(async (req: Request) => {
   const admin = await requireAdmin();
-  assertRateLimit(`upload:${admin.id}`, { limit: 60, windowMs: 15 * 60_000 });
+  await assertRateLimit(`upload:${admin.id}`, { limit: 60, windowMs: 15 * 60_000 });
 
   const form = await req.formData().catch(() => null);
   const file = form?.get('file');
@@ -96,7 +97,7 @@ export const POST = apiRoute(async (req: Request) => {
 /** Delete an uploaded image (admin). Accepts the provider key or a local URL. */
 export const DELETE = apiRoute(async (req: Request) => {
   const admin = await requireAdmin();
-  const raw = (await req.json().catch(() => null)) as { key?: string; url?: string } | null;
+  const raw = (await readJson(req)) as { key?: string; url?: string } | null;
   const target = raw?.key ?? raw?.url;
   if (!target) throw badRequest('Provide { key } or { url } of the upload to delete');
 

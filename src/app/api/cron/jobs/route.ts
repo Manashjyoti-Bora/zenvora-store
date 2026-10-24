@@ -5,6 +5,7 @@ import { processDueJobs } from '@/lib/jobs/runner';
 import { purgeExpiredSessions } from '@/lib/auth/session';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { purgeExpiredRateLimitBuckets } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,11 +35,12 @@ async function handleCron(req: Request): Promise<Response> {
   const cartsPurged = await prisma.cart.deleteMany({
     where: { expiresAt: { lt: new Date() }, convertedOrderId: null, userId: null },
   });
+  const rateLimitBucketsPurged = await purgeExpiredRateLimitBuckets();
 
   return NextResponse.json({
     ok: true,
     jobs: stats,
-    housekeeping: { sessionsPurged, cartsPurged: cartsPurged.count },
+    housekeeping: { sessionsPurged, cartsPurged: cartsPurged.count, rateLimitBucketsPurged },
   });
 }
 

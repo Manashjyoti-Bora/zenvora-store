@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getSettings } from '@/lib/settings';
+import { SupportContact } from '@/components/store/support-contact';
 import { env } from '@/lib/env';
 import { PolicyView } from '@/components/policies/policy-view';
 
@@ -147,11 +148,9 @@ export default async function PrivacyPolicyPage() {
             <p>
               Subject to applicable law (including the Digital Personal Data Protection Act, 2023 as
               brought into force), you can request access to, correction of, or deletion of your
-              personal data, and object to or restrict certain processing. Email{' '}
-              <a href={`mailto:${settings.supportEmail}`} className="link-primary">
-                {settings.supportEmail}
-              </a>{' '}
-              from your registered address and we will respond within 30 days.
+              personal data, and object to or restrict certain processing. Contact{' '}
+              <SupportContact settings={settings} fallback="us via the contact form" /> from your
+              registered address and we will respond within 30 days.
             </p>
           ),
         },
@@ -178,9 +177,7 @@ export default async function PrivacyPolicyPage() {
           body: (
             <p>
               As required for Indian e-commerce entities, grievance contact:{' '}
-              <a href={`mailto:${settings.supportEmail}`} className="link-primary">
-                {settings.supportEmail}
-              </a>
+              <SupportContact settings={settings} fallback="via the contact form" />
               {settings.business.legalName
                 ? `, ${settings.business.legalName}`
                 : ' (to be appointed by the store owner before launch)'}

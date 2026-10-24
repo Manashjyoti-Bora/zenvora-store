@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import Image from '@/components/ui/remote-image';
 import Link from 'next/link';
 import { formatINR, toPaise } from '@/lib/money';
 import { OrderStatusBadge, PaymentStatusBadge, FulfilmentStatusBadge } from '@/components/ui/badge';

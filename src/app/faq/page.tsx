@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getSettings } from '@/lib/settings';
+import { SupportContact } from '@/components/store/support-contact';
 import { env } from '@/lib/env';
 import { formatINR } from '@/lib/money';
 import { DemoExplainer } from '@/components/store/demo-explainer';
@@ -184,11 +185,8 @@ export default async function FaqPage() {
           <Link href="/policies/privacy" className="link-primary">
             privacy policy
           </Link>
-          . You can request export or deletion of your data by emailing{' '}
-          <a href={`mailto:${s.supportEmail}`} className="link-primary">
-            {s.supportEmail}
-          </a>
-          .
+          . You can request export or deletion of your data via{' '}
+          <SupportContact settings={s} fallback="our contact form" />.
         </>
       ),
     },

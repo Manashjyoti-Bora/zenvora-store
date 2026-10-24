@@ -286,12 +286,21 @@ describe('checkout — COD (guest) + tracking', () => {
       guest: { email: guestEmail, name: 'Guest Buyer', phone: '9876500000' },
     });
     expect(res.status).toBe(201);
-    const body = okData<{ orderNumber: string; grandTotalPaise: number; status: string }>(res);
+    const body = okData<{
+      orderNumber: string;
+      grandTotalPaise: number;
+      status: string;
+      nextStep: string;
+    }>(res);
     guestOrderNumber = body!.orderNumber;
 
     const subtotal = charger.unitPricePaise;
     const ship = subtotal >= shipping.freeAbovePaise ? 0 : shipping.flatFeePaise;
     expect(body!.grandTotalPaise).toBe(subtotal + ship + shipping.codFeePaise); // COD fee included
+    // Regression: the response used to echo the pre-confirmation PENDING_PAYMENT
+    // snapshot for COD even though the order was already confirmed.
+    expect(body!.status).not.toBe('PENDING_PAYMENT');
+    expect(body!.nextStep).toBe('CONFIRMATION');
 
     const dbOrder = await prisma.order.findUnique({ where: { orderNumber: guestOrderNumber } });
     expect(dbOrder?.paymentMethod).toBe('COD');

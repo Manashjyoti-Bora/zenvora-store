@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from '@/components/ui/remote-image';
 import { formatINR, formatDiscountPercent } from '@/lib/money';
 import { AddToCartButton } from './add-to-cart-button';
 import { WishlistButton } from './wishlist-button';

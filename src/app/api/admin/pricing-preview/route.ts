@@ -31,7 +31,7 @@ const previewSchema = z.object({
  */
 export const POST = apiRoute(async (req: Request) => {
   const admin = await requireAdmin();
-  assertRateLimit(`pricing-preview:${admin.id}`, { limit: 120, windowMs: 5 * 60_000 });
+  await assertRateLimit(`pricing-preview:${admin.id}`, { limit: 120, windowMs: 5 * 60_000 });
 
   const raw = await readJson(req);
   if (!raw || typeof raw !== 'object') throw badRequest('Invalid request body');
