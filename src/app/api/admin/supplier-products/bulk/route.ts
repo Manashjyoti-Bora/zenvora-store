@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { readJson } from '@/lib/http';
 import { apiRoute, badRequest, jsonOk } from '@/lib/errors';
 import { requireAdmin } from '@/lib/auth/guards';
 import { bulkProcessSupplierProducts } from '@/lib/catalog/auto-import';
@@ -13,7 +14,7 @@ const bulkSchema = z.object({
 
 export const POST = apiRoute(async (req: Request) => {
   const admin = await requireAdmin();
-  const raw = await req.json().catch(() => ({}));
+  const raw = (await readJson(req)) ?? {};
   const parsed = bulkSchema.safeParse(raw);
   if (!parsed.success) {
     throw badRequest('Invalid bulk supplier-product action', parsed.error.flatten());

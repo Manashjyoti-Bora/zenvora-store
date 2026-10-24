@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { readJson } from '@/lib/http';
 import { apiRoute, badRequest, jsonOk } from '@/lib/errors';
 import { getCurrentUser } from '@/lib/auth/guards';
 import {
@@ -21,7 +22,7 @@ export const GET = apiRoute(async () => {
 
 export const POST = apiRoute(async (req: Request) => {
   const user = await getCurrentUser();
-  const raw = await req.json().catch(() => ({}));
+  const raw = (await readJson(req)) ?? {};
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) throw badRequest('Invalid wishlist payload', parsed.error.flatten());
 
@@ -38,7 +39,7 @@ export const DELETE = apiRoute(async (req: Request) => {
   const queryProductId = url.searchParams.get('productId');
   let productId = queryProductId;
   if (!productId) {
-    const raw = await req.json().catch(() => ({}));
+    const raw = (await readJson(req)) ?? {};
     const parsed = bodySchema.safeParse(raw);
     if (!parsed.success) throw badRequest('productId is required');
     productId = parsed.data.productId;

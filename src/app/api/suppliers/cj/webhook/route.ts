@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { assertRateLimit } from '@/lib/rate-limit';
-import { clientIp } from '@/lib/http';
+import { clientIp, readJson } from '@/lib/http';
 import { enqueueJob, kickJobRunner } from '@/lib/jobs/queue';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +24,7 @@ export async function POST(req: Request): Promise<Response> {
   const ip = clientIp(req) ?? 'local';
   await assertRateLimit(`cj-webhook:${ip}`, { limit: 60, windowMs: 60_000 });
 
-  const payload = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+  const payload = (await readJson(req)) as Record<string, unknown> | null;
   if (!payload || typeof payload !== 'object') {
     return NextResponse.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
   }

@@ -31,6 +31,13 @@ export function notFound(message = 'Resource not found'): ApiError {
 export function conflict(message: string, details?: unknown): ApiError {
   return new ApiError(409, message, 'CONFLICT', details);
 }
+export function payloadTooLarge(maxBytes: number): ApiError {
+  return new ApiError(
+    413,
+    `Request body is too large (limit ${Math.round(maxBytes / 1024)} KB).`,
+    'PAYLOAD_TOO_LARGE'
+  );
+}
 export function tooManyRequests(retryAfterSec?: number): ApiError {
   const err = new ApiError(429, 'Too many requests. Please try again later.', 'RATE_LIMITED');
   (err as ApiError & { retryAfterSec?: number }).retryAfterSec = retryAfterSec;

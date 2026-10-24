@@ -1,4 +1,5 @@
 import { apiRoute, jsonOk, badRequest, notFound, forbidden } from '@/lib/errors';
+import { readJson } from '@/lib/http';
 import { addressSchema } from '@/lib/validation/schemas';
 import { requireUser } from '@/lib/auth/guards';
 import { prisma } from '@/lib/db';
@@ -21,7 +22,7 @@ export async function PATCH(
     const user = await requireUser();
     const existing = await loadOwnedAddress(id, user.id);
 
-    const raw = await req.json().catch(() => null);
+    const raw = await readJson(req);
     if (!raw || typeof raw !== 'object') throw badRequest('Invalid request body');
     const body = addressSchema.partial().parse(raw);
 
