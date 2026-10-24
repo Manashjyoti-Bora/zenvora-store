@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Alert } from '@/components/ui/feedback';
 import { formatINR } from '@/lib/money';
 import type { StoreSettings } from '@/lib/settings';
+import { SupportContact } from '@/components/store/support-contact';
 
 export interface PolicySection {
   heading: string;
@@ -49,10 +50,8 @@ export function PolicyView({
         <section className="card p-5 sm:p-6" aria-labelledby="policy-contact">
           <h2 id="policy-contact">Contact</h2>
           <p className="mt-2">
-            Questions about this policy? Email{' '}
-            <a href={`mailto:${settings.supportEmail}`} className="link-primary">
-              {settings.supportEmail}
-            </a>
+            Questions about this policy? Contact{' '}
+            <SupportContact settings={settings} fallback="us via the contact form" />
             {settings.supportPhone ? <> or call {settings.supportPhone}</> : null}
             {settings.business.legalName ? <> ({settings.business.legalName})</> : null}.
           </p>

@@ -96,3 +96,15 @@ describe('isPlaceholderEmail / configuredSupportEmail (settings)', () => {
     expect(configuredSupportEmail({ supportEmail: ' care@zenvora.in ' })).toBe('care@zenvora.in');
   });
 });
+
+describe('e-mail footer support line', () => {
+  it('links the contact form instead of a placeholder address', async () => {
+    const { supportLineHtml } = await import('@/lib/notifications/templates');
+    const unset = supportLineHtml({ storeName: 'Zenvora', supportEmail: '', appUrl: 'https://shop.test/' });
+    expect(unset).toContain('https://shop.test/contact');
+    expect(unset).not.toContain('mailto:');
+    expect(unset).not.toContain('example.com');
+    const set = supportLineHtml({ storeName: 'Zenvora', supportEmail: 'help@zenvora.in', appUrl: 'https://shop.test' });
+    expect(set).toContain('mailto:help@zenvora.in');
+  });
+});

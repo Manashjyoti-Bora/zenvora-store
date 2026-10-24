@@ -412,10 +412,13 @@ export async function handleFulfilmentFailure(
     data: { supplierOrderId: so.id, supplier: so.supplier.name },
   });
 
-  const settings = await import('../settings').then((m) => m.getSettings());
+  const settingsModule = await import('../settings');
+  const settings = await settingsModule.getSettings();
+  // Operational alert: real support mailbox, else the admin account; never the placeholder.
+  const alertEmail = settingsModule.configuredSupportEmail(settings) ?? process.env.ADMIN_EMAIL ?? '';
   await queueNotification({
     template: 'FULFILMENT_FAILED_ADMIN',
-    email: settings.supportEmail,
+    email: alertEmail,
     vars: {
       orderNumber: order.orderNumber,
       supplier: so.supplier.name,

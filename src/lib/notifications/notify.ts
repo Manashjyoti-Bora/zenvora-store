@@ -1,7 +1,7 @@
 import { prisma } from '../db';
 import { env } from '../env';
 import { logger } from '../logger';
-import { getSettings } from '../settings';
+import { configuredSupportEmail, getSettings } from '../settings';
 import { sha256 } from '../crypto';
 import { enqueueJob, kickJobRunner } from '../jobs/queue';
 import { renderTemplate, type TemplateVars } from './templates';
@@ -65,7 +65,7 @@ export async function queueNotification(input: QueueNotificationInput): Promise<
   try {
     rendered = renderTemplate(input.template, input.vars, {
       storeName: settings.storeName,
-      supportEmail: settings.supportEmail,
+      supportEmail: configuredSupportEmail(settings) ?? '',
       appUrl: env.APP_URL,
     });
   } catch (err) {
