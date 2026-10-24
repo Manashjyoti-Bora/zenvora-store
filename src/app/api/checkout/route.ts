@@ -6,6 +6,7 @@ import { confirmCodOrder } from '@/lib/payments/confirm';
 import { getCurrentUser } from '@/lib/auth/guards';
 import { assertRateLimit } from '@/lib/rate-limit';
 import { clientIp, readJson } from '@/lib/http';
+import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,8 +43,16 @@ export const POST = apiRoute(async (req: Request) => {
   });
 
   // COD orders are confirmed immediately (no gateway step).
+  let status = order.status;
   if (order.paymentMethod === 'COD' && !order.alreadyExisted) {
     await confirmCodOrder(order.orderId);
+    // Report the post-confirmation status (ORDER_CONFIRMED), not the
+    // PENDING_PAYMENT snapshot taken before the COD confirmation ran.
+    const confirmed = await prisma.order.findUnique({
+      where: { id: order.orderId },
+      select: { status: true },
+    });
+    if (confirmed) status = confirmed.status;
   }
 
   return jsonOk(
@@ -52,11 +61,11 @@ export const POST = apiRoute(async (req: Request) => {
       orderId: order.orderId,
       grandTotalPaise: order.grandTotalPaise,
       paymentMethod: order.paymentMethod,
-      status: order.status,
+      status,
       nextStep:
         order.paymentMethod === 'COD'
           ? 'CONFIRMATION'
-          : order.status === 'PENDING_PAYMENT' || order.status === 'PAYMENT_FAILED'
+          : status === 'PENDING_PAYMENT' || status === 'PAYMENT_FAILED'
             ? 'PAYMENT'
             : 'CONFIRMATION',
     },
