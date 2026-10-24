@@ -29,7 +29,9 @@ composition, Linear/Stripe-style motion discipline; nothing copied):
 - **Semantic:** red/emerald/amber/blue reserved for status; never decorative.
 
 ## 2. Typography
-System stack (zero webfont cost; deliberate — see §14). Hierarchy:
+Inter Variable, **self-hosted** from `@fontsource-variable/inter` (one `woff2` per unicode
+subset, `font-display: swap`, no third-party font request — see §14), falling back to the
+system stack. Hierarchy:
 - **Display** (`.display`): extrabold, tracking −0.02em — hero h1, page h1s, 404.
 - **Eyebrow** (`.eyebrow`): 11px semibold uppercase, tracking +0.14em — section labels; brand-700
   on light, brass-200/300 on dark.
@@ -101,7 +103,8 @@ every fixed bar, toasts clear the buy bar, snap-scroll rails instead of cramped 
 before filters on listings, thumb-reachable primary CTAs, `overflow-x: clip` page guard.
 
 ## 14. Performance law (design constraint, not afterthought)
-Budget: shared JS ≤105 kB (baseline 103 kB); zero new dependencies this round; zero webfonts;
+Budget: shared JS ≤105 kB (baseline 103 kB); no third-party webfont requests (Inter is
+self-hosted and served from `/_next/static/media`, so CSP stays `font-src 'self'`);
 grain/icons inline; parallax island <2 kB and desktop-gated; images `sizes`-correct, lazy by
 default, `priority` only for LCP hero; no animation on layout properties (no CLS); reduced-motion
 and no-JS both yield the full, static, complete experience.
