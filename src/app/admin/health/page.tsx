@@ -9,7 +9,7 @@ import {
   isProduction,
 } from '@/lib/env';
 import { describePaymentProvider } from '@/lib/payments';
-import { getSettings } from '@/lib/settings';
+import { getSettings, isPlaceholderEmail } from '@/lib/settings';
 import { Card, Alert } from '@/components/ui/feedback';
 import { Badge } from '@/components/ui/badge';
 
@@ -134,6 +134,10 @@ export default async function AdminHealthPage() {
   if (settings.demoMode && isProduction) productionBlockers.push('Demo mode is ON in production');
   if (!env.CRON_SECRET)
     productionBlockers.push('CRON_SECRET not set — /api/cron/jobs is unprotected or disabled');
+  if (isPlaceholderEmail(settings.supportEmail))
+    productionBlockers.push(
+      'Support e-mail is still the placeholder (support@example.com) — set a real address in Settings → Store; public pages link to the contact form until then'
+    );
 
   return (
     <div className="space-y-5">

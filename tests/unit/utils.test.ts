@@ -82,3 +82,17 @@ describe('truncate / safeJsonParse / cartLineKey', () => {
     expect(cartLineKey('p1', 'v1')).not.toBe(cartLineKey('p1', 'v2'));
   });
 });
+
+describe('isPlaceholderEmail / configuredSupportEmail (settings)', () => {
+  it('treats RFC 2606 example domains and empty values as unconfigured', async () => {
+    const { isPlaceholderEmail, configuredSupportEmail } = await import('@/lib/settings');
+    expect(isPlaceholderEmail('support@example.com')).toBe(true);
+    expect(isPlaceholderEmail('Care@Sub.Example.ORG')).toBe(true);
+    expect(isPlaceholderEmail('')).toBe(true);
+    expect(isPlaceholderEmail(undefined)).toBe(true);
+    expect(isPlaceholderEmail('care@zenvora.in')).toBe(false);
+    expect(isPlaceholderEmail('owner@notexample.com')).toBe(false);
+    expect(configuredSupportEmail({ supportEmail: 'support@example.com' })).toBeNull();
+    expect(configuredSupportEmail({ supportEmail: ' care@zenvora.in ' })).toBe('care@zenvora.in');
+  });
+});
