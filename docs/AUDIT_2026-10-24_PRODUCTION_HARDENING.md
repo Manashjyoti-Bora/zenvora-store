@@ -38,6 +38,11 @@ separately in the PR / release notes because deployment happens after CI on the 
    API fallback to `ADMIN_EMAIL`, admin health launch blocker.
 7. `694ddd0` **Request body cap** — `readJson()` 413 at 1 MB, all `req.json()` call sites,
    `payloadTooLarge()`, SECURITY.md advisory notes.
+8. **Placeholder e-mail, remaining surfaces** (found by verifying the deployed site, not by
+   grep): the policy pages' closing "Contact" card, the global footer, the footer of every
+   customer e-mail (`templates.ts`), order e-mail variables and the fulfilment-failure admin
+   alert all still used `settings.supportEmail` raw. All now go through
+   `configuredSupportEmail()`: contact-form link / `ADMIN_EMAIL` fallback / skipped-with-warning.
 
 ## 3. Database migration — risk statement
 

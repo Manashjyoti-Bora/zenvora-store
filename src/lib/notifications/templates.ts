@@ -11,8 +11,19 @@ import type { NotificationTemplate } from '@prisma/client';
 
 export interface TemplateContext {
   storeName: string;
+  /** Configured support address, or '' while it is still unset (never the placeholder). */
   supportEmail: string;
   appUrl: string;
+}
+
+/** "Need help?" line for e-mail footers — mailto when configured, contact form otherwise. */
+export function supportLineHtml(ctx: TemplateContext): string {
+  const email = ctx.supportEmail.trim();
+  if (email) {
+    return `Need help? Contact <a href="mailto:${escapeHtml(email)}" style="color:#35885d;">${escapeHtml(email)}</a>`;
+  }
+  const url = `${ctx.appUrl.replace(/\/$/, '')}/contact`;
+  return `Need help? <a href="${escapeHtml(url)}" style="color:#35885d;">Use our contact form</a>`;
 }
 
 export interface RenderedEmail {
@@ -57,7 +68,7 @@ function layout(
         </td></tr>
         <tr><td style="padding:16px 24px;border-top:1px solid #e5e7eb;color:#6b7280;font-size:12px;">
           You are receiving this email because of activity on your ${escapeHtml(ctx.storeName)} account or order.<br/>
-          Need help? Contact <a href="mailto:${escapeHtml(ctx.supportEmail)}" style="color:#35885d;">${escapeHtml(ctx.supportEmail)}</a>
+          ${supportLineHtml(ctx)}
         </td></tr>
       </table>
     </td></tr>

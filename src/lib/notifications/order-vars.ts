@@ -1,7 +1,7 @@
 import { prisma } from '../db';
 import { env } from '../env';
 import { toPaise, formatINR } from '../money';
-import { getSettings } from '../settings';
+import { configuredSupportEmail, getSettings } from '../settings';
 import { formatDate } from '../utils';
 import type { TemplateVars } from './templates';
 
@@ -83,6 +83,6 @@ export async function renderOrderEmailVars(orderId: string): Promise<TemplateVar
     orderUrl,
     retryUrl: `${env.APP_URL}/checkout/payment/${order.orderNumber}`,
     returnWindowDays: String(settings.policies.returnWindowDays),
-    supportEmail: settings.supportEmail,
+    supportEmail: configuredSupportEmail(settings) ?? `${env.APP_URL}/contact`,
   };
 }

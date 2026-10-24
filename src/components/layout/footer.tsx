@@ -1,9 +1,22 @@
 import Link from 'next/link';
-import { getSettings } from '@/lib/settings';
+import { configuredSupportEmail, getSettings } from '@/lib/settings';
 import { listActiveCategories } from '@/lib/catalog/storefront';
+
+const supportLinkClass =
+  'mt-5 inline-flex items-center gap-2 rounded-lg border border-white/15 px-3.5 py-2 text-sm font-medium text-cream-200 transition-colors hover:border-accent-400/50 hover:text-white';
+
+function SupportIcon() {
+  return (
+    <svg className="h-4 w-4 text-accent-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
+      <rect x="3" y="5.5" width="18" height="13" rx="2" />
+      <path d="m3.5 7 8.5 6 8.5-6" />
+    </svg>
+  );
+}
 
 export async function Footer() {
   const settings = await getSettings();
+  const supportEmail = configuredSupportEmail(settings);
   const categories = (await listActiveCategories()).slice(0, 6);
   const year = new Date().getFullYear();
 
@@ -24,17 +37,16 @@ export async function Footer() {
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-cream-400">
               {settings.storeTagline || 'Carefully sourced products, transparent pricing, dependable delivery.'}
             </p>
-            {settings.supportEmail && (
-              <a
-                href={`mailto:${settings.supportEmail}`}
-                className="mt-5 inline-flex items-center gap-2 rounded-lg border border-white/15 px-3.5 py-2 text-sm font-medium text-cream-200 transition-colors hover:border-accent-400/50 hover:text-white"
-              >
-                <svg className="h-4 w-4 text-accent-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} aria-hidden="true">
-                  <rect x="3" y="5.5" width="18" height="13" rx="2" />
-                  <path d="m3.5 7 8.5 6 8.5-6" />
-                </svg>
-                {settings.supportEmail}
+            {supportEmail ? (
+              <a href={`mailto:${supportEmail}`} className={supportLinkClass}>
+                <SupportIcon />
+                {supportEmail}
               </a>
+            ) : (
+              <Link href="/contact" className={supportLinkClass}>
+                <SupportIcon />
+                Contact us
+              </Link>
             )}
           </div>
 
