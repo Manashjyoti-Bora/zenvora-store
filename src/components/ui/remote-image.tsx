@@ -1,5 +1,5 @@
 import Image, { type ImageProps } from 'next/image';
-import { canOptimizeImage } from '@/lib/images/remote-hosts';
+import { canOptimizeImage } from '@/lib/images/remote-hosts.mjs';
 
 /**
  * Drop-in replacement for `next/image` for catalogue media.

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_IMAGE_REMOTE_HOSTS,
   hostMatchesPattern,
   isOptimizableImageSrc,
   resolveImageRemoteHosts,
-} from '@/lib/images/remote-hosts';
-import { DEFAULT_IMAGE_REMOTE_HOSTS } from '@/lib/images/remote-hosts.mjs';
+} from '@/lib/images/remote-hosts.mjs';
 
 /**
  * Image optimizer allow-list (replaces the former `hostname: '**'`). These

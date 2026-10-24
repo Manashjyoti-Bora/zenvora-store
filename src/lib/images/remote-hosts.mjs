@@ -117,3 +117,29 @@ export function isOptimizableImageSrc(src, hosts) {
 export function toRemotePatterns(hosts) {
   return hosts.map((hostname) => ({ protocol: 'https', hostname }));
 }
+
+/**
+ * Runtime view of the allow-list. `NEXT_PUBLIC_IMAGE_REMOTE_HOSTS` is written
+ * by next.config.mjs from `resolveImageRemoteHosts`, so server components,
+ * client components and the optimizer config all agree. When the variable is
+ * absent (unit tests, scripts) we resolve from the process environment.
+ * @returns {readonly string[]}
+ */
+export function imageRemoteHosts() {
+  const inlined = process.env.NEXT_PUBLIC_IMAGE_REMOTE_HOSTS;
+  if (inlined !== undefined) {
+    return inlined
+      .split(',')
+      .map((h) => h.trim())
+      .filter(Boolean);
+  }
+  return resolveImageRemoteHosts(process.env);
+}
+
+/**
+ * True when `src` may be routed through `/_next/image`.
+ * @param {string} src
+ */
+export function canOptimizeImage(src) {
+  return isOptimizableImageSrc(src, imageRemoteHosts());
+}
