@@ -54,6 +54,12 @@ route-by-route audit; this file is the summary that must stay true).
   Expired rows are purged by the cron housekeeping task. `RATE_LIMIT_STORE=memory` forces the
   process-local store (tests only).
 
+## Image optimizer
+- `images.remotePatterns` is an explicit allow-list (`IMAGE_REMOTE_HOSTS`, defaults in
+  `src/lib/images/remote-hosts.mjs`) instead of `**`, so `/_next/image` cannot be used as an
+  open fetch proxy. Catalogue media from non-listed https hosts is rendered through
+  `<RemoteImage>` with `unoptimized` (plain `<img>`), never a runtime error.
+
 ## Observability
 - `ErrorLog` (with safe error IDs surfaced to customers), `AuditLog` (admin actions),
   `ApiLog`, `OrderEvent` (every status transition), `InventoryMovement` (every stock change).

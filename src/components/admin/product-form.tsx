@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
+import Image from '@/components/ui/remote-image';
 import { apiFetch, ApiClientError } from '@/lib/client/api';
 import { toast } from '@/components/ui/toaster';
 import { Button } from '@/components/ui/button';
@@ -911,7 +911,6 @@ export function ProductForm({
                           fill
                           sizes="150px"
                           className="object-cover"
-                          unoptimized={!img.url.startsWith('/')}
                         />
                       )}
                       {i === 0 && (

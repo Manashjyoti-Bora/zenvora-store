@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from '@/components/ui/remote-image';
 import { env } from '@/lib/env';
 import { getSettings } from '@/lib/settings';
 import { getStorefrontProduct, getRelatedProducts, availabilityOf } from '@/lib/catalog/storefront';

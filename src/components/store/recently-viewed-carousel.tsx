@@ -2,7 +2,7 @@
 
 import { useRecentlyViewed } from '@/hooks/use-recently-viewed';
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from '@/components/ui/remote-image';
 
 export function RecentlyViewedCarousel({ currentSlug }: { currentSlug?: string }) {
   const { viewed } = useRecentlyViewed();

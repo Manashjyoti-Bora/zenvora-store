@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
+import { resolveImageRemoteHosts, toRemotePatterns } from './src/lib/images/remote-hosts.mjs';
 
 const isProd = process.env.NODE_ENV === 'production';
+
+// Remote hosts the image optimizer may fetch from (IMAGE_REMOTE_HOSTS, see
+// src/lib/images/remote-hosts.mjs). Resolved once here and inlined for the
+// client so <RemoteImage> can route non-listed hosts around the optimizer.
+const imageRemoteHosts = resolveImageRemoteHosts(process.env);
 
 // Strict security headers for production.
 // CSP notes:
@@ -58,10 +64,14 @@ const nextConfig = {
       ],
     },
   ],
+  env: {
+    NEXT_PUBLIC_IMAGE_REMOTE_HOSTS: imageRemoteHosts.join(','),
+  },
   images: {
-    // Product images may be supplied by admins as external URLs (e.g. supplier CDNs).
-    // Tighten `remotePatterns` to your known supplier/CDN hosts before production launch.
-    remotePatterns: [{ protocol: 'https', hostname: '**' }],
+    // Only allow-listed hosts go through /_next/image (an open '**' pattern
+    // turns the optimizer into a public fetch proxy). Other https hosts are
+    // still displayed, unoptimized, via <RemoteImage>.
+    remotePatterns: toRemotePatterns(imageRemoteHosts),
     formats: ['image/avif', 'image/webp'],
   },
 };
