@@ -24,6 +24,7 @@ live ONLY in **Vercel → Project → Settings → Environment Variables** (neve
 | `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | for s3 | ✅ | AWS S3 / Cloudflare R2 / MinIO. Optional `S3_ENDPOINT` (R2/MinIO), `S3_PUBLIC_BASE_URL` (CDN) |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | for cloudinary | ✅ | Cloudinary console. Optional `CLOUDINARY_FOLDER` (default `zenvora`) |
 | `TEST_DATABASE_URL` | dev/test | no | Separate Postgres DB for integration tests |
+| `RATE_LIMIT_STORE` | optional | no | `database` (default — counters shared across instances via `rate_limit_buckets`) or `memory` (process-local; tests/single-process only) |
 
 Rules enforced in code (`src/lib/env.ts`): validated at boot with zod; missing critical values fail
 fast with a clear message; storage providers fall back to `local` **loudly** (logged error) when

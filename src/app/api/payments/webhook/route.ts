@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request): Promise<Response> {
   try {
     const ip = clientIp(req) ?? 'local';
-    assertRateLimit(`webhook-razorpay:${ip}`, { limit: 120, windowMs: 60_000 });
+    await assertRateLimit(`webhook-razorpay:${ip}`, { limit: 120, windowMs: 60_000 });
     const rawBody = await req.text();
     const signature = req.headers.get('x-razorpay-signature');
     const eventId = req.headers.get('x-razorpay-event-id');

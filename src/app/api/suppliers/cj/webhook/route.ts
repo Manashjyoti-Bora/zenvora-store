@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: Request): Promise<Response> {
   const ip = clientIp(req) ?? 'local';
-  assertRateLimit(`cj-webhook:${ip}`, { limit: 60, windowMs: 60_000 });
+  await assertRateLimit(`cj-webhook:${ip}`, { limit: 60, windowMs: 60_000 });
 
   const payload = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!payload || typeof payload !== 'object') {

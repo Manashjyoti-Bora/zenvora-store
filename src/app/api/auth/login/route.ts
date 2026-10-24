@@ -15,8 +15,8 @@ export const POST = apiRoute(async (req: Request) => {
 
   const ip = clientIp(req) ?? 'local';
   // Two layers: per-IP brute-force protection and per-account throttling.
-  assertRateLimit(`login:ip:${ip}`, { limit: 20, windowMs: 15 * 60_000 });
-  const accountLimit = rateLimit(`login:account:${body.email}`, {
+  await assertRateLimit(`login:ip:${ip}`, { limit: 20, windowMs: 15 * 60_000 });
+  const accountLimit = await rateLimit(`login:account:${body.email}`, {
     limit: 8,
     windowMs: 15 * 60_000,
   });

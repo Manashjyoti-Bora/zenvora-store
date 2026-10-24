@@ -17,7 +17,7 @@ export const GET = apiRoute(
 
 export const POST = apiRoute(async (req: Request) => {
   const ip = clientIp(req) ?? 'local';
-  assertRateLimit(`cart:${ip}`, { limit: 60, windowMs: 10 * 60_000 });
+  await assertRateLimit(`cart:${ip}`, { limit: 60, windowMs: 10 * 60_000 });
 
   const raw = await readJson(req);
   if (!raw || typeof raw !== 'object') throw badRequest('Invalid request body');

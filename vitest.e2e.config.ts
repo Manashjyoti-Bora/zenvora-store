@@ -11,6 +11,7 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/e2e/**/*.test.ts'],
     setupFiles: ['tests/setup.ts'],
+    globalSetup: ['tests/e2e/global-setup.ts'],
     fileParallelism: false,
     testTimeout: 60_000,
     hookTimeout: 120_000,

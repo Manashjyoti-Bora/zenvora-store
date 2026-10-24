@@ -46,7 +46,7 @@ const SIGNATURES: Array<{ ext: string; mime: string; test: (b: Buffer) => boolea
  */
 export const POST = apiRoute(async (req: Request) => {
   const admin = await requireAdmin();
-  assertRateLimit(`upload:${admin.id}`, { limit: 60, windowMs: 15 * 60_000 });
+  await assertRateLimit(`upload:${admin.id}`, { limit: 60, windowMs: 15 * 60_000 });
 
   const form = await req.formData().catch(() => null);
   const file = form?.get('file');

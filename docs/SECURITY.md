@@ -45,6 +45,14 @@ route-by-route audit; this file is the summary that must stay true).
 ## Rate limiting & abuse
 - Per-IP/per-user limits on register (5/15min), login, password reset, coupon apply, uploads
   (60/15min), contact forms (`src/lib/rate-limit.ts`).
+- Counters are **shared across serverless instances** through PostgreSQL
+  (`rate_limit_buckets`, migration `20261024210000_rate_limit_buckets`): one atomic
+  `INSERT … ON CONFLICT … RETURNING` per hit, so a burst spread over many instances/regions is
+  still counted as one client. Keys are stored as SHA-256 digests (no raw IPs/e-mails at rest).
+  If the database call fails the hit is counted in process memory instead and a throttled
+  warning is logged (abuse brake degrades; checkout never fails because of the counter table).
+  Expired rows are purged by the cron housekeeping task. `RATE_LIMIT_STORE=memory` forces the
+  process-local store (tests only).
 
 ## Observability
 - `ErrorLog` (with safe error IDs surfaced to customers), `AuditLog` (admin actions),

@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export const POST = apiRoute(async (req: Request) => {
   const user = await requireUser();
   const ip = clientIp(req) ?? 'local';
-  assertRateLimit(`change-pw:${user.id}`, { limit: 5, windowMs: 30 * 60_000 });
+  await assertRateLimit(`change-pw:${user.id}`, { limit: 5, windowMs: 30 * 60_000 });
   void ip;
 
   const raw = await readJson(req);

@@ -1159,3 +1159,20 @@ model DeploymentEnvironment {
 
   @@map("deployment_environment")
 }
+
+// ---------------------------------------------------------------------------
+// Abuse protection
+// ---------------------------------------------------------------------------
+
+/// Shared fixed-window rate-limit buckets (see src/lib/rate-limit.ts).
+/// Lets every serverless instance / region see the same counters. `key` is a
+/// SHA-256 hex digest of the logical key, so client IPs and e-mail addresses
+/// are never stored in clear. Rows are purged by the cron housekeeping task.
+model RateLimitBucket {
+  key     String   @id @db.VarChar(64)
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
+  @@map("rate_limit_buckets")
+}
