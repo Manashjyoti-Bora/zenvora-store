@@ -29,6 +29,9 @@ export interface TestProductOpts {
   hasVariants?: boolean;
   variants?: Array<{ name: string; stock: number; sellingPrice?: string; supplierCost?: string }>;
   stockMode?: 'LOCAL' | 'SUPPLIER_SYNC';
+  brand?: string;
+  categoryId?: string;
+  status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
 }
 
 export async function createTestProduct(opts: TestProductOpts = {}) {
@@ -41,7 +44,9 @@ export async function createTestProduct(opts: TestProductOpts = {}) {
       slug: id,
       description: `Integration-test fixture product (${id}). Not part of any real catalog.`,
       sku: id.toUpperCase(),
-      status: 'ACTIVE',
+      status: opts.status ?? 'ACTIVE',
+      brand: opts.brand ?? null,
+      categoryId: opts.categoryId ?? null,
       stockMode: opts.stockMode ?? 'LOCAL',
       supplierCost: opts.supplierCost ?? '100.00',
       supplierShippingCost: opts.supplierShippingCost ?? '0.00',

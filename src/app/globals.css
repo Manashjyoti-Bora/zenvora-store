@@ -4,34 +4,68 @@
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ZENVORA DESIGN SYSTEM — Premium Indian E-Commerce
-   Forest green · Warm ivory · Champagne accent · Clean typography
+   Obsidian Black · Pearl White · Champagne Gold · Electric Violet · Sage Mint
+   Palette scales live in tailwind.config.ts; runtime tokens live here.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @layer base {
   :root {
-    /* ── Surface & Ink Palette Tokens ── */
-    --surface-canvas:  #F8F7F2;
-    --surface-subtle:  #F1EFEA;
-    --surface-muted:   #E6E3DA;
+    /* ── Core palette ── */
+    --color-obsidian:  #101114;
+    --color-pearl:     #F7F6F2;
+    --color-gold:      #C6A56B;
+    --color-violet:    #7965F2;
+    --color-sage:      #DDEDE4;
+
+    /* ── Surfaces ── */
+    --surface-canvas:  #F7F6F2;   /* Pearl — shopping surfaces */
+    --surface-subtle:  #F1EFE9;
+    --surface-muted:   #E3E0D8;
     --surface-card:    #FFFFFF;
-    --surface-ink:     #0D0F0D;
-    --surface-sage:    #EAF2EC;
+    --surface-ink:     #101114;   /* Obsidian — branding / dark surfaces */
+    --surface-sage:    #DDEDE4;   /* success surfaces only, never text contrast */
+
+    /* ── Semantic text / state ── */
+    --color-text:          #101114;
+    --color-text-muted:    #62636A;   /* 5.5:1 on Pearl */
+    --color-success:       #47765C;   /* 5.2:1 on white */
+    --color-error:         #B93838;   /* 5.7:1 on white */
+    --color-border:        #E3E0D8;
 
     /* ── Hairline Border Tokens ── */
-    --border-hairline: rgba(24, 26, 24, 0.07);
-    --border-strong:   rgba(24, 26, 24, 0.15);
+    --border-hairline: rgba(16, 17, 20, 0.07);
+    --border-strong:   rgba(16, 17, 20, 0.15);
 
-    /* ── Signature Motion System ── */
+    /* ── Motion tokens ──
+       Micro-interactions 120–240 ms; entrances ≤ 450 ms; transform/opacity
+       only (never blur, box-shadow or layout properties). */
     --ease-zenvora:    cubic-bezier(0.22, 1, 0.36, 1);
-    --duration-fast:   150ms;
-    --duration-normal: 240ms;
-    --duration-slow:   450ms;
+    --ease-out:        cubic-bezier(0.16, 1, 0.3, 1);
+    --duration-micro:  120ms;  /* hover tint, press */
+    --duration-fast:   160ms;  /* toggles, chips */
+    --duration-normal: 220ms;  /* dropdowns, toasts, drawers */
+    --duration-slow:   240ms;  /* dialogs */
+    --duration-enter:  450ms;  /* one-shot section reveal */
 
-    /* ── Brand Colors (CSS custom properties for runtime access) ── */
-    --color-brand-primary: #174B3A;
-    --color-brand-deep:    #10392D;
-    --color-accent:        #C6A66B;
-    --color-text-muted:    #6B726C;
+    /* ── Liquid-Glass tokens ──
+       Allowed on: header, search overlays, floating nav, dialogs, drawers,
+       filter panels, toasts. NOT on: product photos, prices, checkout forms,
+       admin tables (those stay crisp, opaque, high-contrast). */
+    --glass-bg:            rgba(255, 255, 255, 0.72);
+    --glass-bg-strong:     rgba(255, 255, 255, 0.9);
+    --glass-bg-dark:       rgba(16, 17, 20, 0.72);
+    --glass-bg-dark-strong:rgba(16, 17, 20, 0.92);
+    --glass-border:        rgba(16, 17, 20, 0.08);
+    --glass-border-dark:   rgba(247, 246, 242, 0.12);
+    --glass-highlight:     inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    --glass-blur:          14px;
+    --glass-blur-bar:      10px;
+    --glass-saturate:      140%;
+
+    /* ── Brand Colors (runtime access) ── */
+    --color-brand-primary: #6350D9;   /* action fill, white text AA */
+    --color-brand-deep:    #5140B8;
+    --color-accent:        #C6A56B;
 
     /* ── Typography ──
        Inter is self-hosted: the woff2 files ship inside
@@ -46,6 +80,8 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    /* Smooth in-page anchor scrolling only; never scripted scroll hijacking.
+       Disabled under prefers-reduced-motion below. */
     scroll-behavior: smooth;
     text-rendering: optimizeLegibility;
   }
@@ -56,7 +92,7 @@
   }
 
   ::selection {
-    @apply bg-brand-700 text-white;
+    @apply bg-brand-600 text-white;
   }
 
   /* Visible, consistent focus states across all interactive elements (WCAG 2.4.7) */
@@ -187,6 +223,69 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
+  /* ── Liquid-Glass surfaces ──
+     Opaque fallback first; translucency + blur only where supported. Blur is
+     a static property here — it is never transitioned or animated. */
+  .glass-panel,
+  .glass-bar,
+  .glass-dark {
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-highlight), 0 2px 6px rgba(16, 17, 20, 0.05), 0 18px 32px -12px rgba(16, 17, 20, 0.14);
+  }
+  .glass-panel { background: var(--glass-bg-strong); }
+  .glass-bar   { background: rgba(247, 246, 242, 0.96); box-shadow: var(--glass-highlight), 0 1px 0 var(--glass-border); }
+  .glass-dark  { background: var(--glass-bg-dark-strong); border-color: var(--glass-border-dark); color: var(--color-pearl); }
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-panel {
+      background: var(--glass-bg);
+      -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+      backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    }
+    .glass-bar {
+      background: rgba(247, 246, 242, 0.84);
+      -webkit-backdrop-filter: blur(var(--glass-blur-bar)) saturate(var(--glass-saturate));
+      backdrop-filter: blur(var(--glass-blur-bar)) saturate(var(--glass-saturate));
+    }
+    .glass-dark {
+      background: var(--glass-bg-dark);
+      -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+      backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    }
+  }
+  /* Dialog / drawer backdrop. Low blur, static. */
+  .glass-scrim {
+    background: rgba(16, 17, 20, 0.55);
+  }
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-scrim {
+      -webkit-backdrop-filter: blur(2px);
+      backdrop-filter: blur(2px);
+    }
+  }
+  /* Readability guard: anything users must read precisely stays crisp. */
+  .crisp {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background-color: var(--surface-card);
+  }
+
+  /* ── Micro-motion (transform/opacity only) ── */
+  .motion-reveal {
+    animation: motion-reveal var(--duration-normal) var(--ease-out) both;
+  }
+  .motion-fade {
+    animation: motion-fade var(--duration-fast) ease-out both;
+  }
+  .motion-pop {
+    animation: motion-pop var(--duration-slow) var(--ease-zenvora) both;
+  }
+  .motion-lift {
+    transition: transform var(--duration-micro) var(--ease-zenvora), opacity var(--duration-micro) ease-out;
+  }
+  @media (hover: hover) {
+    .motion-lift:hover { transform: translateY(-1px); }
+  }
+
   /* ── Scroll Reveal System ── */
   .js .reveal {
     opacity: 0;
@@ -237,6 +336,29 @@
 }
 
 /* ── Keyframe Definitions ── */
+@keyframes motion-reveal {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes motion-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes motion-pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+/* Server-confirmed success mark (order confirmation). Drawn once; the page
+   only mounts it after the order state has been read from the database. */
+@keyframes success-draw {
+  from { stroke-dashoffset: 48; }
+  to   { stroke-dashoffset: 0; }
+}
+.success-check {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: success-draw 420ms var(--ease-out) 120ms forwards;
+}
 @keyframes fade-up {
   from {
     opacity: 0;
@@ -265,6 +387,10 @@
   .reveal .stagger > * {
     opacity: 1 !important;
     transform: none !important;
+    animation: none !important;
+  }
+  .success-check {
+    stroke-dashoffset: 0 !important;
     animation: none !important;
   }
 }

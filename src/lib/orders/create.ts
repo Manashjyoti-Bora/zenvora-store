@@ -345,11 +345,18 @@ export async function createOrderFromCart(input: CreateOrderInput): Promise<Crea
           });
         }
 
-        // 4) Mark cart converted (duplicate-order guard).
-        await tx.cart.update({
-          where: { id: input.cartId },
+        // 4) Mark cart converted (duplicate-order guard). Conditional on the
+        // cart still being unconverted: two concurrent submissions with
+        // different (or no) idempotency keys both pass the pre-check above,
+        // so the loser must roll back here instead of creating a second order
+        // and decrementing stock twice. Under READ COMMITTED the second
+        // transaction blocks on the row lock, re-evaluates the predicate after
+        // the winner commits, matches 0 rows and aborts.
+        const converted = await tx.cart.updateMany({
+          where: { id: input.cartId, convertedOrderId: null },
           data: { convertedOrderId: order.id, couponCode: null },
         });
+        if (converted.count !== 1) throw new CartAlreadyConvertedError();
 
         return order.id;
       });
@@ -380,6 +387,16 @@ export async function createOrderFromCart(input: CreateOrderInput): Promise<Crea
       };
     } catch (err) {
       if (isUniqueViolation(err, 'orderNumber') && attempt < 3) continue;
+      // Lost the race against another submission of the SAME cart: return
+      // the winner's order (the loser's transaction was rolled back).
+      if (err instanceof CartAlreadyConvertedError) {
+        const cart = await prisma.cart.findUnique({ where: { id: input.cartId } });
+        const winner = cart?.convertedOrderId
+          ? await prisma.order.findUnique({ where: { id: cart.convertedOrderId } })
+          : null;
+        if (winner) return existingToResult(winner, true);
+        throw conflict('This cart was already checked out. Please refresh your order history.');
+      }
       // Concurrent double-submit with the SAME idempotencyKey: the DB unique
       // constraint rejected the duplicate - return the winner's order instead
       // of surfacing an error to the second (identical) request.
@@ -393,6 +410,13 @@ export async function createOrderFromCart(input: CreateOrderInput): Promise<Crea
     }
   }
   throw conflict('Could not create the order, please try again.');
+}
+
+class CartAlreadyConvertedError extends Error {
+  constructor() {
+    super('Cart already converted to an order');
+    this.name = 'CartAlreadyConvertedError';
+  }
 }
 
 function existingToResult(

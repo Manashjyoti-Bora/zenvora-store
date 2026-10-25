@@ -10,6 +10,7 @@ import { FilterSidebar } from '@/components/store/filter-sidebar';
 import { ListingControls } from '@/components/store/listing-controls';
 import { Pagination } from '@/components/ui/table';
 import { SearchForm } from '@/components/layout/search-form';
+import { SearchNoResults } from '@/components/store/search-no-results';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +50,7 @@ export default async function SearchPage({
           <h1 className="display mt-1.5">{q ? `Search results for “${q}”` : 'Search products'}</h1>
         </div>
         <div className="max-w-md">
-          <SearchForm />
+          <SearchForm initialQuery={q} />
         </div>
         <p className="text-sm tabular-nums text-ink-400" aria-live="polite">
           {q
@@ -71,7 +72,15 @@ export default async function SearchPage({
           <div className="mb-4">
             <ListingControls />
           </div>
-          <ProductGrid products={result.items} />
+          {result.total === 0 && q ? (
+            <SearchNoResults
+              query={q}
+              hasFilters={Boolean(sp.category || sp.min || sp.max || sp.stock === '1')}
+              clearFiltersHref={`/search?q=${encodeURIComponent(q)}`}
+            />
+          ) : (
+            <ProductGrid products={result.items} />
+          )}
           <Pagination
             page={result.page}
             totalPages={result.totalPages}

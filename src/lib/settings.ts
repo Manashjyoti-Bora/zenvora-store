@@ -99,6 +99,20 @@ export const settingsSchema = z.object({
       minDescriptionLength: z.number().int().min(10).max(2000).default(20),
       codMaxPricePaise: z.number().int().min(0).max(50_000_000).default(500_000),
       supplierLiveOrderingEnabled: z.boolean().default(false),
+      // ── Confidence / sample-size safeguards (owner-configurable) ──
+      // Minimum demand evidence before a candidate may be auto-published.
+      // UNKNOWN = no demand gate (pipeline ranks on verified unit economics
+      // only). Recommended LOW_EVIDENCE or VERIFIED before enabling
+      // autoPublishEligible.
+      minDemandConfidenceForAutoPublish: z
+        .enum(['UNKNOWN', 'LOW_EVIDENCE', 'VERIFIED'])
+        .default('UNKNOWN'),
+      // Sample size: CJ listedNum at/above which demand counts as VERIFIED.
+      verifiedDemandMinListedNum: z.number().int().min(1).max(1_000_000).default(20),
+      // Normalised score (0-100) a candidate needs to be recommended ACTIVE.
+      minScoreForAutoPublish: z.number().int().min(0).max(100).default(55),
+      // Hours after which an un-synced supplier item is treated as STALE.
+      staleAfterHours: z.number().int().min(1).max(24 * 30).default(48),
       rankingWeights: z
         .object({
           costAndMargin: z.number().min(0).max(100).default(25),
@@ -133,6 +147,10 @@ export const settingsSchema = z.object({
       minDescriptionLength: 20,
       codMaxPricePaise: 500_000,
       supplierLiveOrderingEnabled: false,
+      minDemandConfidenceForAutoPublish: 'UNKNOWN',
+      verifiedDemandMinListedNum: 20,
+      minScoreForAutoPublish: 55,
+      staleAfterHours: 48,
       rankingWeights: {
         costAndMargin: 25,
         shippingAndFulfilment: 20,

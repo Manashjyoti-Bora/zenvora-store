@@ -22,6 +22,7 @@ const GROUPS: NavGroup[] = [
       { href: '/admin', label: 'Dashboard' },
       { href: '/admin/analytics', label: 'Analytics & profit' },
       { href: '/admin/health', label: 'System health' },
+      { href: '/admin/operations', label: 'Operations' },
     ],
   },
   {

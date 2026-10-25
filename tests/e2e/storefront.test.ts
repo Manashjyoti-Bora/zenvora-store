@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/db';
 import { formatINR, toPaise } from '@/lib/money';
 
-import { HttpAgent, waitForServer } from './http';
+import { HttpAgent, okData, waitForServer } from './http';
 
 /**
  * E2E — public storefront.
@@ -129,6 +129,28 @@ describe('API + SEO endpoints', () => {
     const body = res.json<{ status?: string; checks?: { database?: boolean } }>();
     expect(body?.status).toBe('ok');
     expect(body?.checks?.database).toBe(true);
+  });
+
+  it('GET /api/search/suggest returns real catalogue rows for a multi-word query (and nothing for short ones)', async () => {
+    const words = product.name.split(/\s+/).filter((w) => w.length >= 3);
+    const q = words.length >= 2 ? `${words[1]} ${words[0]}` : product.name; // reversed order on purpose
+    const res = await agent.get(`/api/search/suggest?q=${encodeURIComponent(q)}`);
+    expect(res.status).toBe(200);
+    const data = okData<{ products: { slug: string; pricePaise: number }[]; categories: unknown[] }>(res);
+    expect(data?.products.map((p) => p.slug)).toContain(product.slug);
+    expect(data!.products.length).toBeLessThanOrEqual(10);
+    for (const p of data!.products) expect(p.pricePaise).toBeGreaterThan(0);
+
+    const short = await agent.get('/api/search/suggest?q=u');
+    expect(short.status).toBe(200);
+    expect(okData<{ products: unknown[] }>(short)?.products).toEqual([]);
+  });
+
+  it('GET /search with no matches shows real-data alternatives, never a fabricated product', async () => {
+    const res = await agent.get('/search?q=' + encodeURIComponent(`${product.name} qzxnotaword`));
+    expect(res.status).toBe(200);
+    expect(res.body).toContain('No results for');
+    expect(res.body).toContain('Try searching for one word');
   });
 
   it('GET /sitemap.xml includes the product URL', async () => {

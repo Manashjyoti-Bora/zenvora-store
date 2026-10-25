@@ -9,7 +9,7 @@ const base =
   'btn-press inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-brand-700 text-white shadow-soft hover:bg-brand-800 active:bg-brand-900',
+  primary: 'bg-brand-600 text-white shadow-soft hover:bg-brand-700 active:bg-brand-800',
   secondary: 'bg-ink-900 text-cream-50 shadow-soft hover:bg-ink-800 active:bg-ink-950',
   outline:
     'border border-ink-900/15 bg-white text-ink-800 shadow-hair hover:border-ink-900/25 hover:bg-cream-50 active:bg-cream-100',

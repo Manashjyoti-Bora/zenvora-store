@@ -64,7 +64,31 @@ export interface SupplierProductRow {
     explanation: string;
   }>;
   fieldSources?: Record<string, string>;
+  lifecycleState?: string;
+  lifecycleReason?: string;
+  lifecycleNextAction?: string;
+  freshnessHours?: number | null;
 }
+
+const lifecycleTone = (state: string | undefined): 'green' | 'blue' | 'amber' | 'red' | 'gray' => {
+  switch (state) {
+    case 'ACTIVE':
+      return 'green';
+    case 'APPROVED':
+    case 'SCHEDULED':
+      return 'blue';
+    case 'NEEDS_REVIEW':
+    case 'STALE':
+    case 'SUPPLIER_UNAVAILABLE':
+    case 'IMPORTING':
+      return 'amber';
+    case 'REJECTED':
+    case 'VALIDATION_FAILED':
+      return 'red';
+    default:
+      return 'gray';
+  }
+};
 
 const fmt = (d: string | null) =>
   d
@@ -411,6 +435,18 @@ export function SupplierProductMapper({
                             </span>
                           )}
                         </div>
+                        {r.lifecycleState && (
+                          <div className="flex items-center gap-1" title={r.lifecycleReason}>
+                            <Badge tone={lifecycleTone(r.lifecycleState)}>
+                              {r.lifecycleState.replace(/_/g, ' ')}
+                            </Badge>
+                            {r.freshnessHours != null && (
+                              <span className="text-[10px] tabular-nums text-ink-400">
+                                synced {Math.round(r.freshnessHours)}h ago
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <p className="text-[10px] text-ink-500">
                           Demand: {r.demandConfidence ?? 'UNKNOWN'}
                           {r.codSuitable ? ' · COD OK' : ''}
@@ -548,6 +584,29 @@ export function SupplierProductMapper({
                   </p>
                 </div>
               </div>
+              {inspecting.lifecycleState && (
+                <div className="mt-3 rounded-lg border border-ink-900/10 bg-white p-2.5 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-ink-700">Lifecycle</span>
+                    <Badge tone={lifecycleTone(inspecting.lifecycleState)}>
+                      {inspecting.lifecycleState.replace(/_/g, ' ')}
+                    </Badge>
+                    {inspecting.freshnessHours != null ? (
+                      <span className="text-ink-500">
+                        last supplier sync {Math.round(inspecting.freshnessHours)} h ago
+                      </span>
+                    ) : (
+                      <span className="text-ink-500">never synced</span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-ink-600">{inspecting.lifecycleReason}</p>
+                  {inspecting.lifecycleNextAction && (
+                    <p className="mt-0.5 text-ink-500">
+                      <span className="font-medium">Next:</span> {inspecting.lifecycleNextAction}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {inspecting.blockingReasons && inspecting.blockingReasons.length > 0 && (

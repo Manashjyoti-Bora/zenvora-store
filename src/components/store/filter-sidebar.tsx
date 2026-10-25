@@ -44,7 +44,7 @@ export function FilterSidebar({
   );
 
   return (
-    <aside className="card space-y-6 p-4 lg:sticky lg:top-20" aria-label="Product filters">
+    <aside className="glass-panel space-y-6 rounded-xl p-4 lg:sticky lg:top-20" aria-label="Product filters">
       <nav aria-label="Categories">
         <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-eyebrow text-ink-400">
           Categories

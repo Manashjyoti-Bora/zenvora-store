@@ -58,7 +58,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink-950/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+      className="glass-scrim motion-fade fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -69,7 +69,7 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          'max-h-[92vh] w-full animate-scale-in overflow-y-auto rounded-t-2xl border border-ink-900/10 bg-white shadow-lift sm:rounded-2xl',
+          'glass-panel motion-pop max-h-[92vh] w-full overflow-y-auto rounded-t-2xl sm:rounded-2xl',
           wide ? 'sm:max-w-2xl' : 'sm:max-w-md'
         )}
       >

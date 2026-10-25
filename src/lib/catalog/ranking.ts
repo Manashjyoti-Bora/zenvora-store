@@ -1,4 +1,5 @@
 import type { StoreSettings } from '../settings';
+import { isSafeMediaUrl } from '../images/url-safety';
 import type { SupplierVariantDto } from '../suppliers/types';
 
 /**
@@ -168,11 +169,9 @@ export function checkProductCompliance(input: {
 }
 
 export function isValidProductImageUrl(url: string | null | undefined): boolean {
-  if (!url || typeof url !== 'string') return false;
-  const trimmed = url.trim();
-  if (!trimmed || trimmed.length > 1000) return false;
-  if (/^(javascript|data|vbscript):/i.test(trimmed)) return false;
-  return /^https?:\/\/\S+/i.test(trimmed) || trimmed.startsWith('/uploads/');
+  // Delegates to the shared media-URL safety rule (https + public host, or
+  // /uploads/). Kept under its historical name for existing call sites.
+  return isSafeMediaUrl(url);
 }
 
 export function evaluateProductCandidate(
@@ -587,7 +586,8 @@ export function evaluateProductCandidate(
   let demandConfidence: DemandConfidence = 'UNKNOWN';
   let demandSummary =
     'Demand confidence: UNKNOWN — no verified store order history or CJ listedNum metric available; ranked strictly on verified cost, margin, stock, shipping and product completeness.';
-  if ((candidate.storeOrderCount ?? 0) > 0 || (candidate.listedNum ?? 0) >= 20) {
+  const verifiedMinListed = autoCfg.verifiedDemandMinListedNum ?? 20;
+  if ((candidate.storeOrderCount ?? 0) > 0 || (candidate.listedNum ?? 0) >= verifiedMinListed) {
     demandConfidence = 'VERIFIED';
     const parts: string[] = [];
     if ((candidate.storeOrderCount ?? 0) > 0) {
@@ -662,18 +662,34 @@ export function evaluateProductCandidate(
   const rawTotal = factors.reduce((acc, f) => acc + f.score, 0);
   const normalizedScore = rawMax > 0 ? Math.round((rawTotal / rawMax) * 100) : 0;
 
+  // Confidence safeguard: owner-configured minimum demand evidence before a
+  // candidate may be auto-published. Default UNKNOWN = no gate (unit economics
+  // only). This never changes import eligibility — only publication.
+  const confidenceRank: Record<DemandConfidence, number> = {
+    UNKNOWN: 0,
+    LOW_EVIDENCE: 1,
+    VERIFIED: 2,
+  };
+  const minConfidence = autoCfg.minDemandConfidenceForAutoPublish ?? 'UNKNOWN';
+  if (confidenceRank[demandConfidence] < confidenceRank[minConfidence]) {
+    publicationBlockers.push(
+      `Demand evidence ${demandConfidence} is below the configured minimum (${minConfidence}) for automatic publishing — hold for owner review.`
+    );
+  }
+
   const eligibleForImport = blockingReasons.length === 0;
   const eligibleForAutoPublish =
     eligibleForImport && publicationBlockers.length === 0 && !candidate.isDuplicate;
 
+  const minScoreForPublish = autoCfg.minScoreForAutoPublish ?? 55;
   let tier: ProductRankingTier;
   if (!eligibleForImport) {
     tier = 'NOT_ELIGIBLE';
   } else if (!eligibleForAutoPublish) {
     tier = 'NEEDS_REVIEW';
-  } else if (normalizedScore >= 75) {
+  } else if (normalizedScore >= Math.max(75, minScoreForPublish)) {
     tier = 'HIGH_POTENTIAL';
-  } else if (normalizedScore >= 55) {
+  } else if (normalizedScore >= minScoreForPublish) {
     tier = 'PROMISING';
   } else {
     tier = 'NEEDS_REVIEW';
