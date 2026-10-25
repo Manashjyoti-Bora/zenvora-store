@@ -57,6 +57,7 @@ const envSchema = z.object({
   SMTP_PASS: optionalNonEmpty(z.string()),
   EMAIL_FROM: z.string().default('Zenvora <no-reply@zenvora.local>'),
   EMAIL_REPLY_TO: optionalNonEmpty(z.string()),
+
   /**
    * Owner-supplied support mailbox. Used ONLY while the stored store setting
    * is still the shipped `support@example.com` placeholder, so a deployment
@@ -64,6 +65,19 @@ const envSchema = z.object({
    * A value saved in the admin UI always wins.
    */
   SUPPORT_EMAIL: optionalNonEmpty(z.string().email().max(160)),
+
+
+  // --- Optional AI narrative provider (AI CEO) -------------------------------
+  // Absent by default: the AI CEO runs deterministically (see
+  // src/lib/ai-ceo/provider.ts). Setting these does NOT enable execution of
+  // consequential actions; that remains an owner decision in Settings.aiCeo.
+  AI_PROVIDER: z.enum(['openai', 'anthropic', 'openai-compatible']).optional(),
+  AI_API_KEY: optionalNonEmpty(z.string()),
+  AI_MODEL: optionalNonEmpty(z.string()),
+  AI_BASE_URL: optionalNonEmpty(z.string().url()),
+  AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
+  AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(50).max(2_000).default(500),
+
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -128,4 +142,39 @@ export function isTestPaymentsAllowed(): boolean {
 /** Demo supplier adapter gate - same rule as test payments. */
 export function isDemoSupplierAllowed(): boolean {
   return env.SUPPLIER_DEMO_MODE && !isProduction;
+}
+
+export interface AiProviderConfig {
+  provider: 'openai' | 'anthropic' | 'openai-compatible';
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+  timeoutMs: number;
+  maxOutputTokens: number;
+}
+
+/**
+ * Resolve the AI narrative provider. Returns null (disabled) unless a provider,
+ * key, model and base URL are ALL present — a half-configured provider is a
+ * configuration error, not a silent fallback to some default endpoint.
+ * Secrets are never logged or returned to a client.
+ */
+export function aiProviderConfig(): AiProviderConfig | null {
+  const provider = env.AI_PROVIDER;
+  const apiKey = env.AI_API_KEY;
+  const model = env.AI_MODEL;
+  if (!provider || !apiKey || !model) return null;
+  const baseUrl =
+    env.AI_BASE_URL ??
+    (provider === 'anthropic'
+      ? 'https://api.anthropic.com'
+      : 'https://api.openai.com');
+  return {
+    provider,
+    apiKey,
+    model,
+    baseUrl: baseUrl.replace(/\/+$/, ''),
+    timeoutMs: env.AI_TIMEOUT_MS,
+    maxOutputTokens: env.AI_MAX_OUTPUT_TOKENS,
+  };
 }

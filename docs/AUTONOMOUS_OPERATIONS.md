@@ -134,6 +134,16 @@ Demo mode and payment provider are **separate** switches with their own prerequi
 - If a provider is added: server-side only, per-feature budget cap, timeouts, schema-validated output,
   supplier text treated as untrusted data (prompt-injection boundary), no customer PII in prompts,
   deterministic fallback when the provider fails. AI never publishes, prices, or refunds.
+- **AI CEO (`/admin/ai-ceo`, `src/lib/ai-ceo/`, `docs/AI_CEO.md`)** implements that policy. It is
+  deterministic by default: one bounded database snapshot → pure functions → evidence-labelled report
+  (`VERIFIED` / `DERIVED` / `ESTIMATE` / `UNKNOWN`). The optional model provider only narrates the
+  finished report inside a block labelled "unverified"; it cannot change a figure.
+- Execution is capped at Mode 2 (queue drain, read-only supplier dry run, derived-cache refresh,
+  internal task/digest audit rows) behind **two** switches — `Settings.aiCeo.enabled` and
+  `actionsEnabled` (false by default) — plus per-action permission levels, strict input validation,
+  idempotency keys and per-action/global daily caps. Publishing, pricing, refunds, settings and
+  payment changes are listed in the approval queue and are **not executable** through the AI CEO
+  endpoints, even for an owner. Refusals are audited (`ai_ceo.action.denied`).
 
 ## 5. Observability
 

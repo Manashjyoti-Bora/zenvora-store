@@ -57,6 +57,15 @@ export class HttpAgent {
     this.csrfToken = null;
   }
 
+  /**
+   * Seed a cookie into the jar. Used ONLY by specs that mint a session row
+   * directly (see fixtures.createSessionAgent) to avoid consuming the shared
+   * per-IP login rate-limit budget — login itself is covered by auth-flow.
+   */
+  setCookie(name: string, value: string): void {
+    this.jar.set(name, value);
+  }
+
   async request(method: string, path: string, body?: Json, opts: RequestOptions = {}): Promise<E2EResponse> {
     const headers: Record<string, string> = {
       accept: 'application/json, text/html;q=0.9',

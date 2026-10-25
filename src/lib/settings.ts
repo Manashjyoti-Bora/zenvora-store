@@ -202,6 +202,33 @@ export const settingsSchema = z.object({
       youtube: z.string().max(300).default(''),
     })
     .default({ instagram: '', facebook: '', youtube: '' }),
+
+  /**
+   * AI CEO automation controls (see docs/AI_CEO.md).
+   *
+   * `enabled` gates the whole module (dashboard + tools). Actions that change
+   * state are gated separately by `actionsEnabled`, which is FALSE by default:
+   * a fresh deployment can observe and recommend but cannot execute anything
+   * until an owner deliberately turns it on. `dailyActionLimit = 0` disables
+   * execution even when actions are enabled.
+   */
+  aiCeo: z
+    .object({
+      enabled: z.boolean().default(true),
+      actionsEnabled: z.boolean().default(false),
+      dailyActionLimit: z.number().int().min(0).max(200).default(20),
+      /** Provider narrative is opt-in even when a provider is configured. */
+      providerNarrativeEnabled: z.boolean().default(false),
+      /** Rolling 30-day ceiling on model tokens, enforced before any call. */
+      monthlyTokenBudget: z.number().int().min(0).max(2_000_000).default(25_000),
+    })
+    .default({
+      enabled: true,
+      actionsEnabled: false,
+      dailyActionLimit: 20,
+      providerNarrativeEnabled: false,
+      monthlyTokenBudget: 25_000,
+    }),
 });
 
 export type StoreSettings = z.infer<typeof settingsSchema>;
