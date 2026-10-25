@@ -36,8 +36,11 @@ Debounced input, `AbortController` cancellation of stale requests, URL-synced fi
 empty states. No invented suggestions.
 
 ### Phase 4 — Premium design tokens, Liquid-Glass surfaces, motion ✅ (code) / visual QA pending
-Palette: Obsidian `#101114`, Pearl `#F7F6F2`, Champagne `#C6A56B`, Electric Violet `#7965F2`,
-Sage `#DDEDE4`; semantic text/border/success/error. Glass restricted to header/search overlay,
+Palette (2026-10-25, "Petrol & Porcelain" — see `docs/DESIGN_SYSTEM.md`): Midnight `#111820`,
+Porcelain `#F6F5F0`, Deep Petrol `#174A50`, Teal `#77C9C1` (dark surfaces only), Champagne
+`#C6AD7A` (dark surfaces only), Sage `#E2ECE5`; semantic text/border/success/error. Replaced the
+short-lived Electric Violet direction after a measured comparison (petrol 9.85:1 vs violet 5.7:1
+on white; continuity with the existing app icon). Glass restricted to header/search overlay,
 drawers, dialogs, toasts, filter panel — never product media, prices, checkout forms, admin tables.
 Motion tokens (120–240 ms micro, ≤320 ms overlays), `prefers-reduced-motion` honoured, transform/
 opacity only. Measured: bundle delta, CLS on key pages, no `backdrop-filter` on scrolling lists.
@@ -68,6 +71,24 @@ an owner-chosen provider, budget, and the policy in `AUTONOMOUS_OPERATIONS.md` �
 ### Phase 8 — Controlled verification ⏳
 Full test run, diff review, migration review, Production/Preview isolation check, PR, CI green on
 the exact commit, deploy via the existing pipeline, post-deploy smoke, rollback target recorded.
+
+## Round 2026-10-25 — autonomous master build (branch `arena/2e76e908-zenvora-store`)
+
+Shipped (all tested; see PR for commands/results):
+- Petrol & Porcelain palette + glass role classes + z-index ladder (`docs/DESIGN_SYSTEM.md`).
+- Route skeletons for `/shop` and `/search` (not for `notFound()` routes — soft-404 hazard).
+- `SUPPORT_EMAIL` env fallback; owner mailbox configured on Vercel Production + Preview.
+- Supplier dry-run: per-candidate evidence (source, sync timestamp/freshness, stock evidence,
+  verified cost, shipping-known, completeness, missing evidence, explained confidence) +
+  admin per-candidate table; still zero writes.
+- Admin Operations: catalogue/margin coverage counts; shared launch blockers/config gaps with
+  Health (`src/lib/ops/launch-blockers.ts`).
+- `docs/LAUNCH_READINESS.md`: required/conditional/optional/owner-decision checklist with cited
+  Indian e-commerce, GST and DPDP obligations; precise owner questions Q1–Q3.
+
+Not done / unverified: no screenshots or Lighthouse (no browser in the sandbox); layout QA is
+server-render only (all storefront/admin routes 200 with viewport meta). PR #10 still conflicts
+and its `loading.tsx` files would reintroduce the soft-404 on product/category routes.
 
 ## Owner inputs required (unchanged)
 

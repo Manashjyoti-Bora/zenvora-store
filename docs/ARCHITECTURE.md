@@ -112,9 +112,31 @@ Vercel env vars `DATABASE_URL`/`DIRECT_URL` exist separately per environment.
 - `npm run test:e2e` — HTTP-level tests against `next dev` + seeded demo catalogue (5 files / 68 tests).
 - Payment and supplier tests use the test provider / demo adapter; no live calls.
 
+## 8a. Frontend conventions (2026-10-25)
+
+- **Component boundaries:** `src/components/layout` (header, nav, menus, consent), `components/store`
+  (catalogue UI), `components/ui` (primitives: button, modal, toaster, skeleton), `components/admin`.
+  Server components by default; `'use client'` only where state/events are needed.
+- **Layering:** z-index is a CSS-variable ladder in `globals.css` (`--z-floating 30 … --z-skip 80`)
+  applied by the glass role classes; new overlays must use a role class, not ad-hoc `z-*`.
+  Table in `docs/DESIGN_SYSTEM.md` §4.
+- **Glass:** role classes `.glass-header/.glass-nav/.glass-floating-control/.glass-popover/
+  .glass-drawer/.glass-dialog/.glass-filter-panel/.glass-toast`; opaque fallback first,
+  blur gated by `@supports` and `prefers-reduced-transparency`.
+- **Focus management:** overlays use `src/lib/focus-trap.ts` (tested) and restore focus on close;
+  focus ring colour switches on dark surfaces.
+- **Loading / empty / error:** route `loading.tsx` skeletons for shop, search, category and
+  product pages (`components/ui/skeleton.tsx`); `error.tsx` + `global-error.tsx` boundaries;
+  empty states are plain copy with one action.
+- **URL-synced filters:** `/shop` and `/search` read filters/sort/page from `searchParams`;
+  the filter sidebar writes back to the URL so state survives reload and sharing.
+- **Tokens:** colours only via Tailwind role names / CSS variables (see `docs/DESIGN_SYSTEM.md`).
+- **Business info:** `SUPPORT_EMAIL` env is a fallback only while the stored support e-mail is the
+  shipped placeholder (`applySupportEmailFallback`, `src/lib/settings.ts`).
+
 ## 9. Known limitations (honest list)
 
-- Search is Prisma `contains` on name/slug/brand/sku — no ranking, no typo tolerance.
+- Search is tokenised Prisma matching with a suggest endpoint — no typo tolerance or full-text index.
 - No review system; no AI provider configured (no `OPENAI_*`/`ANTHROPIC_*`/`GEMINI_*` env names exist).
 - Production has 0 ACTIVE products, demo mode on, payments `NONE` (all honest states).
 - zod 3 high advisory (GHSA-mrhx-c7xc-m3w5) mitigated by the body cap; zod 4 migration pending.

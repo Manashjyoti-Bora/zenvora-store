@@ -24,8 +24,45 @@ interface DryRunSummary {
   };
   thresholds: { autoPublishEnabled: boolean };
   topReasons: Array<{ reason: string; count: number }>;
+  evidenceSummary: {
+    confidence: { HIGH: number; MEDIUM: number; LOW: number };
+    freshness: { FRESH: number; STALE: number; NEVER_SYNCED: number };
+    verifiedCost: number;
+    unknownStock: number;
+  };
+  items: Array<{
+    supplierProductId: string;
+    supplierSku: string;
+    name: string;
+    wouldDo: string;
+    score: number;
+    demandConfidence: string;
+    sellingPricePaise: number;
+    contribution: { contributionPercent: number | null; contributionPaise: number | null };
+    rejectionReasons: string[];
+    reviewReasons: string[];
+    evidence: {
+      fetchedAt: string | null;
+      ageHours: number | null;
+      freshness: 'FRESH' | 'STALE' | 'NEVER_SYNCED';
+      stock: { inStock: boolean | null; stockQty: number | null; evidence: string };
+      cost: { supplierCostPaise: number | null; verified: boolean; shippingPaise: number | null; shippingKnown: boolean };
+      completeness: { percent: number; missing: string[] };
+      missingEvidence: string[];
+      confidence: { level: 'HIGH' | 'MEDIUM' | 'LOW'; reason: string };
+    };
+  }>;
   writes: number;
 }
+
+const inr = (paise: number | null) =>
+  paise == null ? '—' : `₹${(paise / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+const confidenceTone: Record<'HIGH' | 'MEDIUM' | 'LOW', string> = {
+  HIGH: 'bg-sage-100 text-sage-600',
+  MEDIUM: 'bg-amber-50 text-amber-800',
+  LOW: 'bg-red-50 text-red-600',
+};
 
 export function SupplierCatalogOps({
   suppliers,
@@ -363,6 +400,106 @@ export function SupplierCatalogOps({
                     ))}
                   </ul>
                 </div>
+              )}
+              {dryRun.evidenceSummary && (
+                <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-3">
+                  <dt className="text-ink-500">Evidence confidence</dt>
+                  <dd className="tabular-nums sm:col-span-2">
+                    high {dryRun.evidenceSummary.confidence.HIGH} · medium {dryRun.evidenceSummary.confidence.MEDIUM} ·
+                    low {dryRun.evidenceSummary.confidence.LOW}
+                  </dd>
+                  <dt className="text-ink-500">Supplier data freshness</dt>
+                  <dd className="tabular-nums sm:col-span-2">
+                    fresh {dryRun.evidenceSummary.freshness.FRESH} · stale {dryRun.evidenceSummary.freshness.STALE} ·
+                    never synced {dryRun.evidenceSummary.freshness.NEVER_SYNCED} · verified cost{' '}
+                    {dryRun.evidenceSummary.verifiedCost} · unknown stock {dryRun.evidenceSummary.unknownStock}
+                  </dd>
+                </dl>
+              )}
+              {dryRun.items?.length > 0 && (
+                <details className="crisp rounded-lg border border-cream-200 bg-white">
+                  <summary className="cursor-pointer px-3 py-2 font-semibold text-ink-700">
+                    Per-candidate report ({dryRun.items.length})
+                  </summary>
+                  <div className="max-h-[28rem] overflow-auto">
+                    <table className="w-full min-w-[56rem] text-left text-xs">
+                      <thead className="sticky top-0 bg-cream-50 text-[11px] uppercase tracking-wider text-ink-500">
+                        <tr>
+                          <th className="px-3 py-2">Candidate</th>
+                          <th className="px-3 py-2">Decision</th>
+                          <th className="px-3 py-2">Evidence</th>
+                          <th className="px-3 py-2 text-right">Cost / ship</th>
+                          <th className="px-3 py-2 text-right">Price</th>
+                          <th className="px-3 py-2 text-right">Contribution</th>
+                          <th className="px-3 py-2">Why</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-cream-200 align-top">
+                        {dryRun.items.map((it) => {
+                          const ev = it.evidence;
+                          const why = [...it.rejectionReasons, ...it.reviewReasons, ...ev.missingEvidence];
+                          return (
+                            <tr key={it.supplierProductId}>
+                              <td className="px-3 py-2">
+                                <p className="font-medium text-ink-900">{it.name}</p>
+                                <p className="text-ink-500">
+                                  {it.supplierSku}
+                                  {ev.fetchedAt
+                                    ? ` · synced ${ev.ageHours}h ago`
+                                    : ' · never synced'}
+                                </p>
+                              </td>
+                              <td className="px-3 py-2">
+                                <p className="font-medium">{it.wouldDo.replace(/_/g, ' ').toLowerCase()}</p>
+                                <p className="text-ink-500">
+                                  score {it.score} · demand {it.demandConfidence.toLowerCase()}
+                                </p>
+                              </td>
+                              <td className="px-3 py-2">
+                                <span
+                                  className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${confidenceTone[ev.confidence.level]}`}
+                                  title={ev.confidence.reason}
+                                >
+                                  {ev.confidence.level.toLowerCase()}
+                                </span>
+                                <p className="mt-1 text-ink-500">
+                                  {ev.freshness.toLowerCase().replace('_', ' ')} · stock{' '}
+                                  {ev.stock.evidence === 'UNKNOWN'
+                                    ? 'unknown'
+                                    : ev.stock.stockQty != null
+                                      ? ev.stock.stockQty
+                                      : ev.stock.inStock
+                                        ? 'yes'
+                                        : 'no'}{' '}
+                                  · {ev.completeness.percent}% complete
+                                </p>
+                              </td>
+                              <td className="px-3 py-2 text-right tabular-nums">
+                                {inr(ev.cost.supplierCostPaise)}
+                                {ev.cost.verified ? '' : '*'} /{' '}
+                                {ev.cost.shippingKnown ? inr(ev.cost.shippingPaise) : 'est.'}
+                              </td>
+                              <td className="px-3 py-2 text-right tabular-nums">{inr(it.sellingPricePaise)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">
+                                {it.contribution.contributionPercent == null
+                                  ? '—'
+                                  : `${it.contribution.contributionPercent}%`}
+                                {ev.cost.shippingKnown ? '' : ' (est.)'}
+                              </td>
+                              <td className="px-3 py-2 text-ink-600">
+                                {why.length === 0 ? '—' : why.slice(0, 3).join(' ')}
+                                {why.length > 3 ? ` (+${why.length - 3})` : ''}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="px-3 py-2 text-[11px] text-ink-500">
+                    * cost not verified (stale or never synced). “est.” = no supplier shipping quote; margin is an estimate.
+                  </p>
+                </details>
               )}
               <p className="text-[11px] text-ink-500">
                 Generated {new Date(dryRun.generatedAt).toLocaleString('en-IN')} · writes: {dryRun.writes}

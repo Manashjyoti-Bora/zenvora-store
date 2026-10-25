@@ -9,7 +9,7 @@ export function MobileBottomNav() {
   if (pathname.startsWith('/admin') || pathname.startsWith('/checkout')) return null;
 
   return (
-    <nav className="glass-bar fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-x-0 border-b-0 safe-bottom pt-2 lg:hidden">
+    <nav className="glass-nav fixed bottom-0 left-0 right-0 flex items-center justify-around border-x-0 border-b-0 safe-bottom pt-2 lg:hidden">
       <Link href="/" className={`flex flex-col items-center gap-1 p-2 ${pathname === '/' ? 'text-brand-700' : 'text-ink-500'}`}>
         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={pathname === '/' ? 2 : 1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />

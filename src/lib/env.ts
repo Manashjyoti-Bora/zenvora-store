@@ -57,6 +57,13 @@ const envSchema = z.object({
   SMTP_PASS: optionalNonEmpty(z.string()),
   EMAIL_FROM: z.string().default('Zenvora <no-reply@zenvora.local>'),
   EMAIL_REPLY_TO: optionalNonEmpty(z.string()),
+  /**
+   * Owner-supplied support mailbox. Used ONLY while the stored store setting
+   * is still the shipped `support@example.com` placeholder, so a deployment
+   * can advertise a real contact before anyone has saved Admin → Settings.
+   * A value saved in the admin UI always wins.
+   */
+  SUPPORT_EMAIL: optionalNonEmpty(z.string().email().max(160)),
 });
 
 export type Env = z.infer<typeof envSchema>;

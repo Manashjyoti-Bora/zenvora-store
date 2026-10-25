@@ -113,7 +113,7 @@ export function MobileMenu({
             id="mobile-nav"
             aria-label="Mobile navigation"
             tabIndex={-1}
-            className="glass-panel motion-reveal absolute inset-x-0 top-full z-40 max-h-[78vh] overflow-y-auto rounded-none border-x-0 border-t-0 px-4 py-4 focus:outline-none"
+            className="glass-drawer motion-reveal absolute inset-x-0 top-full max-h-[78vh] overflow-y-auto rounded-none border-x-0 border-t-0 px-4 py-4 focus:outline-none"
           >
             {user ? (
               <div className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-ink-900/10 bg-white p-3 shadow-hair">

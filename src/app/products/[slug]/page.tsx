@@ -334,7 +334,7 @@ export default async function ProductPage({ params }: Ctx) {
       />
       <RecentlyViewedCarousel currentSlug={product.slug} />
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-900/10 bg-white/95 px-3 pt-2 shadow-lift backdrop-blur-md safe-bottom lg:hidden">
+      <div className="glass-floating-control fixed inset-x-0 bottom-0 border-x-0 border-b-0 px-3 pt-2 safe-bottom lg:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-3">
           {images[0]?.url ? (
             <span className="relative h-11 w-11 flex-none overflow-hidden rounded-lg bg-cream-100">

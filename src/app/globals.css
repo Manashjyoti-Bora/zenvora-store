@@ -11,30 +11,36 @@
 @layer base {
   :root {
     /* ── Core palette ── */
-    --color-obsidian:  #101114;
-    --color-pearl:     #F7F6F2;
-    --color-gold:      #C6A56B;
-    --color-violet:    #7965F2;
-    --color-sage:      #DDEDE4;
+    --color-midnight:  #111820;
+    --color-obsidian:  #111820;   /* legacy alias */
+    --color-porcelain: #F6F5F0;
+    --color-pearl:     #F6F5F0;   /* legacy alias */
+    --color-champagne: #C6AD7A;
+    --color-gold:      #C6AD7A;   /* legacy alias */
+    --color-petrol:    #174A50;
+    --color-teal:      #77C9C1;
+    --color-sage:      #E2ECE5;
 
     /* ── Surfaces ── */
-    --surface-canvas:  #F7F6F2;   /* Pearl — shopping surfaces */
-    --surface-subtle:  #F1EFE9;
-    --surface-muted:   #E3E0D8;
+    --surface-canvas:  #F6F5F0;   /* Porcelain — shopping surfaces */
+    --surface-subtle:  #F0EFE9;
+    --surface-muted:   #DCE1DE;
     --surface-card:    #FFFFFF;
-    --surface-ink:     #101114;   /* Obsidian — branding / dark surfaces */
-    --surface-sage:    #DDEDE4;   /* success surfaces only, never text contrast */
+    --surface-ink:     #111820;   /* Midnight — branding / dark surfaces */
+    --surface-sage:    #E2ECE5;   /* success surfaces only, never text contrast */
 
     /* ── Semantic text / state ── */
-    --color-text:          #101114;
-    --color-text-muted:    #62636A;   /* 5.5:1 on Pearl */
-    --color-success:       #47765C;   /* 5.2:1 on white */
-    --color-error:         #B93838;   /* 5.7:1 on white */
-    --color-border:        #E3E0D8;
+    --color-text:          #111820;
+    --color-text-muted:    #59636B;   /* 5.6:1 on Porcelain */
+    --color-success:       #347455;   /* 5.6:1 on white */
+    --color-error:         #B33A42;   /* 5.8:1 on white */
+    --color-border:        #DCE1DE;
+    --color-focus:         #1F5A60;   /* light surfaces */
+    --color-focus-on-dark: #77C9C1;   /* Midnight / petrol surfaces */
 
     /* ── Hairline Border Tokens ── */
-    --border-hairline: rgba(16, 17, 20, 0.07);
-    --border-strong:   rgba(16, 17, 20, 0.15);
+    --border-hairline: rgba(17, 24, 32, 0.07);
+    --border-strong:   rgba(17, 24, 32, 0.15);
 
     /* ── Motion tokens ──
        Micro-interactions 120–240 ms; entrances ≤ 450 ms; transform/opacity
@@ -47,25 +53,37 @@
     --duration-slow:   240ms;  /* dialogs */
     --duration-enter:  450ms;  /* one-shot section reveal */
 
+    /* ── Layer (z-index) tokens — one ladder for the whole app ──
+       page content < sticky bars < floating controls < popovers < dialogs
+       < consent banner < toasts < skip link. Tailwind classes used today map
+       to this ladder (z-30/z-40/z-50/z-[60]/z-[70]/z-[80]). */
+    --z-floating: 30;
+    --z-sticky:   40;
+    --z-popover:  50;
+    --z-dialog:   50;
+    --z-banner:   60;
+    --z-toast:    70;
+    --z-skip:     80;
+
     /* ── Liquid-Glass tokens ──
        Allowed on: header, search overlays, floating nav, dialogs, drawers,
        filter panels, toasts. NOT on: product photos, prices, checkout forms,
        admin tables (those stay crisp, opaque, high-contrast). */
     --glass-bg:            rgba(255, 255, 255, 0.72);
     --glass-bg-strong:     rgba(255, 255, 255, 0.9);
-    --glass-bg-dark:       rgba(16, 17, 20, 0.72);
-    --glass-bg-dark-strong:rgba(16, 17, 20, 0.92);
-    --glass-border:        rgba(16, 17, 20, 0.08);
-    --glass-border-dark:   rgba(247, 246, 242, 0.12);
+    --glass-bg-dark:       rgba(17, 24, 32, 0.72);
+    --glass-bg-dark-strong:rgba(17, 24, 32, 0.92);
+    --glass-border:        rgba(17, 24, 32, 0.08);
+    --glass-border-dark:   rgba(246, 245, 240, 0.12);
     --glass-highlight:     inset 0 1px 0 rgba(255, 255, 255, 0.55);
     --glass-blur:          14px;
     --glass-blur-bar:      10px;
     --glass-saturate:      140%;
 
     /* ── Brand Colors (runtime access) ── */
-    --color-brand-primary: #6350D9;   /* action fill, white text AA */
-    --color-brand-deep:    #5140B8;
-    --color-accent:        #C6A56B;
+    --color-brand-primary: #174A50;   /* action fill, white text 9.9:1 */
+    --color-brand-deep:    #113C41;
+    --color-accent:        #C6AD7A;
 
     /* ── Typography ──
        Inter is self-hosted: the woff2 files ship inside
@@ -223,44 +241,96 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
-  /* ── Liquid-Glass surfaces ──
-     Opaque fallback first; translucency + blur only where supported. Blur is
-     a static property here — it is never transitioned or animated. */
-  .glass-panel,
-  .glass-bar,
-  .glass-dark {
+  /* ── Liquid-Glass material ──────────────────────────────────────────────
+     Three materials (light / bar / dark) and one scrim, plus ROLE classes that
+     map a UI element to a material + layer:
+       light  → .glass-popover · .glass-drawer · .glass-dialog · .glass-filter-panel
+       bar    → .glass-header · .glass-nav · .glass-floating-control
+       dark   → .glass-toast
+     Rules: opaque fallback first; translucency + blur only where supported
+     and not under prefers-reduced-transparency; blur is a STATIC property
+     (never transitioned/animated); glass is never nested inside glass; the
+     ::before layer paints the inner highlight so content stays crisp. */
+  .glass-panel, .glass-popover, .glass-drawer, .glass-dialog, .glass-filter-panel,
+  .glass-bar, .glass-header, .glass-nav, .glass-floating-control,
+  .glass-dark, .glass-toast {
+    position: relative;
+    isolation: isolate;
     border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-highlight), 0 2px 6px rgba(16, 17, 20, 0.05), 0 18px 32px -12px rgba(16, 17, 20, 0.14);
+    box-shadow: var(--glass-highlight), 0 2px 6px rgba(17, 24, 32, 0.05), 0 18px 32px -12px rgba(17, 24, 32, 0.14);
   }
-  .glass-panel { background: var(--glass-bg-strong); }
-  .glass-bar   { background: rgba(247, 246, 242, 0.96); box-shadow: var(--glass-highlight), 0 1px 0 var(--glass-border); }
-  .glass-dark  { background: var(--glass-bg-dark-strong); border-color: var(--glass-border-dark); color: var(--color-pearl); }
+  .glass-panel::before, .glass-popover::before, .glass-drawer::before, .glass-dialog::before, .glass-filter-panel::before,
+  .glass-dark::before, .glass-toast::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 38%);
+  }
+  .glass-dark::before, .glass-toast::before {
+    background: linear-gradient(180deg, rgba(119, 201, 193, 0.08), rgba(255, 255, 255, 0) 42%);
+  }
+  .glass-panel, .glass-popover, .glass-drawer, .glass-dialog, .glass-filter-panel {
+    background: var(--glass-bg-strong);
+  }
+  .glass-bar, .glass-header, .glass-nav, .glass-floating-control {
+    background: rgba(246, 245, 240, 0.96);
+    box-shadow: var(--glass-highlight), 0 1px 0 var(--glass-border);
+  }
+  .glass-dark, .glass-toast {
+    background: var(--glass-bg-dark-strong);
+    border-color: var(--glass-border-dark);
+    color: var(--color-porcelain);
+  }
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .glass-panel {
-      background: var(--glass-bg);
-      -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-      backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-    }
-    .glass-bar {
-      background: rgba(247, 246, 242, 0.84);
-      -webkit-backdrop-filter: blur(var(--glass-blur-bar)) saturate(var(--glass-saturate));
-      backdrop-filter: blur(var(--glass-blur-bar)) saturate(var(--glass-saturate));
-    }
-    .glass-dark {
-      background: var(--glass-bg-dark);
-      -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-      backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    @media not (prefers-reduced-transparency: reduce) {
+      .glass-panel, .glass-popover, .glass-drawer, .glass-dialog, .glass-filter-panel {
+        background: var(--glass-bg);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+        backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+      }
+      .glass-bar, .glass-header, .glass-nav, .glass-floating-control {
+        background: rgba(246, 245, 240, 0.84);
+        -webkit-backdrop-filter: blur(var(--glass-blur-bar)) saturate(var(--glass-saturate));
+        backdrop-filter: blur(var(--glass-blur-bar)) saturate(var(--glass-saturate));
+      }
+      .glass-dark, .glass-toast {
+        background: var(--glass-bg-dark);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+        backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+      }
     }
   }
+  /* Layer tokens per role (see docs/DESIGN_SYSTEM.md §4). */
+  .glass-header, .glass-nav, .glass-drawer { z-index: var(--z-sticky); }
+  .glass-floating-control                  { z-index: var(--z-floating); }
+  .glass-popover                           { z-index: var(--z-popover); }
   /* Dialog / drawer backdrop. Low blur, static. */
   .glass-scrim {
-    background: rgba(16, 17, 20, 0.55);
+    background: rgba(17, 24, 32, 0.55);
   }
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .glass-scrim {
-      -webkit-backdrop-filter: blur(2px);
-      backdrop-filter: blur(2px);
+    @media not (prefers-reduced-transparency: reduce) {
+      .glass-scrim {
+        -webkit-backdrop-filter: blur(2px);
+        backdrop-filter: blur(2px);
+      }
     }
+  }
+  /* Glass never stacks on glass: a light glass role nested inside another
+     glass role falls back to a solid card surface. */
+  :is(.glass-panel, .glass-popover, .glass-drawer, .glass-dialog, .glass-filter-panel, .glass-bar, .glass-header, .glass-nav)
+    :is(.glass-panel, .glass-popover, .glass-filter-panel) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--surface-card);
+  }
+  /* Dark glass needs the teal focus ring (petrol ring is invisible on it). */
+  :is(.glass-dark, .glass-toast, .on-dark) :focus-visible {
+    --tw-ring-color: var(--color-focus-on-dark);
+    --tw-ring-offset-color: var(--color-midnight);
   }
   /* Readability guard: anything users must read precisely stays crisp. */
   .crisp {
@@ -269,6 +339,20 @@
     background-color: var(--surface-card);
   }
 
+  /* ── Skeleton loading surface (transform-only shimmer) ── */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--surface-subtle);
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+    animation: shimmer 1.6s linear infinite;
+  }
   /* ── Micro-motion (transform/opacity only) ── */
   .motion-reveal {
     animation: motion-reveal var(--duration-normal) var(--ease-out) both;
@@ -336,6 +420,10 @@
 }
 
 /* ── Keyframe Definitions ── */
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
 @keyframes motion-reveal {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -392,6 +480,11 @@
   .success-check {
     stroke-dashoffset: 0 !important;
     animation: none !important;
+  }
+  .skeleton::after {
+    animation: none !important;
+    transform: none !important;
+    opacity: 0;
   }
 }
 

@@ -106,6 +106,39 @@ describe('supplier pipeline dry run', () => {
     }
     expect(report.economics.priceableItems).toBeGreaterThan(0);
     expect(report.economics.medianContributionPercent).not.toBeNull();
+
+    // Per-candidate evidence: source + timestamp, stock evidence, cost verification,
+    // completeness, missing evidence and an explained confidence level.
+    for (const item of report.items) {
+      const ev = item.evidence;
+      expect(ev.source.supplierSku).toBe(item.supplierSku);
+      expect(ev.source.supplierSlug.length).toBeGreaterThan(0);
+      expect(['FRESH', 'STALE', 'NEVER_SYNCED']).toContain(ev.freshness);
+      if (ev.freshness === 'NEVER_SYNCED') {
+        expect(ev.fetchedAt).toBeNull();
+        expect(ev.cost.verified).toBe(false);
+        expect(ev.confidence.level).toBe('LOW');
+      } else {
+        expect(ev.fetchedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      }
+      expect(['SUPPLIER_REPORTED_QTY', 'SUPPLIER_REPORTED_FLAG', 'UNKNOWN']).toContain(ev.stock.evidence);
+      expect(ev.completeness.percent).toBeGreaterThanOrEqual(0);
+      expect(ev.completeness.percent).toBeLessThanOrEqual(100);
+      expect(ev.completeness.present.length + ev.completeness.missing.length).toBe(12);
+      expect(['HIGH', 'MEDIUM', 'LOW']).toContain(ev.confidence.level);
+      expect(ev.confidence.reason.length).toBeGreaterThan(10);
+      if (ev.confidence.level !== 'HIGH') expect(ev.missingEvidence.length).toBeGreaterThan(0);
+      if (!ev.cost.shippingKnown) {
+        // Unknown shipping must surface both as missing evidence and as an ESTIMATE/UNKNOWN margin line.
+        expect(ev.missingEvidence.join(' ')).toMatch(/shipping cost/i);
+        const ship = item.contribution.lines.find((l) => /ship/i.test(l.label));
+        if (ship) expect(['ESTIMATE', 'UNKNOWN', 'CONFIGURED']).toContain(ship.basis);
+      }
+    }
+    const conf = report.evidenceSummary.confidence;
+    expect(conf.HIGH + conf.MEDIUM + conf.LOW).toBe(report.examined);
+    const fresh = report.evidenceSummary.freshness;
+    expect(fresh.FRESH + fresh.STALE + fresh.NEVER_SYNCED).toBe(report.examined);
   });
 
   it('SAFE_PUBLISH mode still publishes nothing while autoPublishEligible is false', async () => {
