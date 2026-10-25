@@ -35,7 +35,7 @@ export async function Header() {
   ]);
 
   return (
-    <header className="glass-bar sticky top-0 z-40 border-x-0 border-t-0">
+    <header className="glass-header sticky top-0 border-x-0 border-t-0">
       <div className="container-store">
         <div className="flex h-14 items-center gap-2 sm:gap-3">
           <MobileMenu categories={categories} user={user} />

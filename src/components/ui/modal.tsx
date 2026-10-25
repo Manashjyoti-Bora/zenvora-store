@@ -69,7 +69,7 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          'glass-panel motion-pop max-h-[92vh] w-full overflow-y-auto rounded-t-2xl sm:rounded-2xl',
+          'glass-dialog motion-pop max-h-[92vh] w-full overflow-y-auto rounded-t-2xl sm:rounded-2xl',
           wide ? 'sm:max-w-2xl' : 'sm:max-w-md'
         )}
       >
