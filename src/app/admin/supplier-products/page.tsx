@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
+import { deriveLifecycleState } from '@/lib/catalog/lifecycle';
 import { getSettings } from '@/lib/settings';
 import { formatINR } from '@/lib/money';
 import {
@@ -63,6 +64,21 @@ export default async function SupplierProductsPage() {
       activeRules,
     });
     tierCounts[evaluation.tier] += 1;
+    const lifecycle = deriveLifecycleState({
+      supplier: { isActive: sp.supplier.isActive },
+      supplierProduct: {
+        isActive: sp.isActive,
+        inStock: sp.inStock,
+        stockQty: sp.stockQty,
+        lastSyncedAt: sp.lastSyncedAt,
+        supplierCost: sp.supplierCost,
+        supplierSku: sp.supplierSku,
+      },
+      product: sp.product ? { status: sp.product.status } : null,
+      importState: meta.importState,
+      evaluation,
+      staleAfterHours: settings.autoImport.staleAfterHours,
+    });
 
     return {
       id: sp.id,
@@ -96,6 +112,10 @@ export default async function SupplierProductsPage() {
       publicationBlockers: evaluation.publicationBlockers,
       factors: evaluation.factors,
       fieldSources: meta.fieldSources,
+      lifecycleState: lifecycle.state,
+      lifecycleReason: lifecycle.reason,
+      lifecycleNextAction: lifecycle.nextAction,
+      freshnessHours: lifecycle.freshnessHours,
     };
   });
 
@@ -186,6 +206,10 @@ export default async function SupplierProductsPage() {
           minProfitRupees: Math.round(settings.autoImport.minProfitPaise / 100),
           maxSellingPriceRupees: Math.round(settings.autoImport.maxSellingPricePaise / 100),
           dailyImportLimit: settings.autoImport.dailyImportLimit,
+          minDemandConfidenceForAutoPublish: settings.autoImport.minDemandConfidenceForAutoPublish,
+          verifiedDemandMinListedNum: settings.autoImport.verifiedDemandMinListedNum,
+          minScoreForAutoPublish: settings.autoImport.minScoreForAutoPublish,
+          staleAfterHours: settings.autoImport.staleAfterHours,
         }}
       />
 

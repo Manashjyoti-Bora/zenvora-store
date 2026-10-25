@@ -6,6 +6,27 @@ import { apiFetch, ApiClientError } from '@/lib/client/api';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/toaster';
 
+interface DryRunSummary {
+  generatedAt: string;
+  examined: number;
+  truncated: boolean;
+  wouldPublish: number;
+  wouldImportDraft: number;
+  wouldHold: number;
+  wouldReject: number;
+  wouldSkip: number;
+  demandCounts: { VERIFIED: number; LOW_EVIDENCE: number; UNKNOWN: number };
+  economics: {
+    priceableItems: number;
+    medianContributionPercent: number | null;
+    itemsBelowMinMargin: number;
+    itemsWithUnknownShipping: number;
+  };
+  thresholds: { autoPublishEnabled: boolean };
+  topReasons: Array<{ reason: string; count: number }>;
+  writes: number;
+}
+
 export function SupplierCatalogOps({
   suppliers,
   initialConfig,
@@ -18,6 +39,10 @@ export function SupplierCatalogOps({
     minProfitRupees: number;
     maxSellingPriceRupees: number;
     dailyImportLimit: number;
+    minDemandConfidenceForAutoPublish: 'UNKNOWN' | 'LOW_EVIDENCE' | 'VERIFIED';
+    verifiedDemandMinListedNum: number;
+    minScoreForAutoPublish: number;
+    staleAfterHours: number;
   };
 }) {
   const router = useRouter();
@@ -35,6 +60,13 @@ export function SupplierCatalogOps({
     initialConfig.maxSellingPriceRupees
   );
   const [dailyImportLimit, setDailyImportLimit] = useState(initialConfig.dailyImportLimit);
+  const [minDemandConfidence, setMinDemandConfidence] = useState(
+    initialConfig.minDemandConfidenceForAutoPublish
+  );
+  const [verifiedMinListed, setVerifiedMinListed] = useState(initialConfig.verifiedDemandMinListedNum);
+  const [minScore, setMinScore] = useState(initialConfig.minScoreForAutoPublish);
+  const [staleAfterHours, setStaleAfterHours] = useState(initialConfig.staleAfterHours);
+  const [dryRun, setDryRun] = useState<DryRunSummary | null>(null);
 
   async function runBulk(
     mode: 'EVALUATE_ONLY' | 'IMPORT_ELIGIBLE_DRAFT' | 'SAFE_PUBLISH_ELIGIBLE'
@@ -94,6 +126,22 @@ export function SupplierCatalogOps({
     }
   }
 
+  async function runDryRun(mode: 'IMPORT_ELIGIBLE_DRAFT' | 'SAFE_PUBLISH_ELIGIBLE') {
+    if (!selectedSupplierId || busyAction) return;
+    setBusyAction(`DRY_${mode}`);
+    try {
+      const res = await apiFetch<DryRunSummary>(
+        `/api/admin/suppliers/${selectedSupplierId}/dry-run?mode=${mode}&limit=200`
+      );
+      setDryRun(res);
+      toast(`Dry run examined ${res.examined} item(s) — nothing was written.`, 'info');
+    } catch (err) {
+      toast(err instanceof ApiClientError ? err.message : 'Dry run failed', 'error');
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function saveAutoImportSettings(e: React.FormEvent) {
     e.preventDefault();
     if (busyAction) return;
@@ -109,6 +157,10 @@ export function SupplierCatalogOps({
             minProfitPaise: Math.round((Number(minProfitRupees) || 0) * 100),
             maxSellingPricePaise: Math.round((Number(maxSellingPriceRupees) || 25000) * 100),
             dailyImportLimit: Math.max(1, Math.round(Number(dailyImportLimit) || 100)),
+            minDemandConfidenceForAutoPublish: minDemandConfidence,
+            verifiedDemandMinListedNum: Math.max(1, Math.round(Number(verifiedMinListed) || 20)),
+            minScoreForAutoPublish: Math.min(100, Math.max(0, Math.round(Number(minScore) || 0))),
+            staleAfterHours: Math.max(1, Math.round(Number(staleAfterHours) || 48)),
           },
         },
       });
@@ -230,6 +282,94 @@ export function SupplierCatalogOps({
           pass (verified cost, margin floor, valid image, description, India shipping, stock, and
           policy compliance). Any incomplete item is held as DRAFT / NEEDS_REVIEW.
         </p>
+
+        <div className="rounded-xl border border-dashed border-ink-900/15 bg-cream-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">Dry run</p>
+              <p className="text-[11px] text-ink-500">
+                Preview what the pipeline would do with the selected supplier&apos;s rows — same
+                evaluator, pricing rules and thresholds, <strong>zero writes</strong>.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                loading={busyAction === 'DRY_IMPORT_ELIGIBLE_DRAFT'}
+                disabled={Boolean(busyAction) || !selectedSupplierId}
+                onClick={() => runDryRun('IMPORT_ELIGIBLE_DRAFT')}
+              >
+                Dry run: import
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                loading={busyAction === 'DRY_SAFE_PUBLISH_ELIGIBLE'}
+                disabled={Boolean(busyAction) || !selectedSupplierId}
+                onClick={() => runDryRun('SAFE_PUBLISH_ELIGIBLE')}
+              >
+                Dry run: publish
+              </Button>
+            </div>
+          </div>
+          {dryRun && (
+            <div className="mt-3 space-y-2 text-xs text-ink-700">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
+                <dt className="text-ink-500">Examined</dt>
+                <dd className="font-semibold tabular-nums sm:col-span-2">
+                  {dryRun.examined}
+                  {dryRun.truncated ? ' (truncated to the newest 200)' : ''}
+                </dd>
+                <dt className="text-ink-500">Would publish</dt>
+                <dd className="font-semibold tabular-nums sm:col-span-2">
+                  {dryRun.wouldPublish}
+                  {!dryRun.thresholds.autoPublishEnabled && (
+                    <span className="ml-1 font-normal text-ink-500">(automatic publishing is off)</span>
+                  )}
+                </dd>
+                <dt className="text-ink-500">Would import as draft</dt>
+                <dd className="font-semibold tabular-nums sm:col-span-2">{dryRun.wouldImportDraft}</dd>
+                <dt className="text-ink-500">Would hold for review</dt>
+                <dd className="font-semibold tabular-nums sm:col-span-2">{dryRun.wouldHold}</dd>
+                <dt className="text-ink-500">Would reject</dt>
+                <dd className="font-semibold tabular-nums sm:col-span-2">{dryRun.wouldReject}</dd>
+                <dt className="text-ink-500">Skipped (dup / mapped / invalid)</dt>
+                <dd className="font-semibold tabular-nums sm:col-span-2">{dryRun.wouldSkip}</dd>
+                <dt className="text-ink-500">Demand evidence</dt>
+                <dd className="tabular-nums sm:col-span-2">
+                  verified {dryRun.demandCounts.VERIFIED} · low {dryRun.demandCounts.LOW_EVIDENCE} · unknown{' '}
+                  {dryRun.demandCounts.UNKNOWN}
+                </dd>
+                <dt className="text-ink-500">Median contribution</dt>
+                <dd className="tabular-nums sm:col-span-2">
+                  {dryRun.economics.medianContributionPercent == null
+                    ? 'n/a'
+                    : `${dryRun.economics.medianContributionPercent}% of ex-GST revenue (estimate)`}
+                  {dryRun.economics.itemsWithUnknownShipping > 0 &&
+                    ` · ${dryRun.economics.itemsWithUnknownShipping} without a shipping quote (upper bound)`}
+                </dd>
+              </dl>
+              {dryRun.topReasons.length > 0 && (
+                <div>
+                  <p className="font-semibold text-ink-600">Top reasons</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-ink-600">
+                    {dryRun.topReasons.slice(0, 5).map((r) => (
+                      <li key={r.reason}>
+                        <span className="tabular-nums font-medium">{r.count}×</span> {r.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="text-[11px] text-ink-500">
+                Generated {new Date(dryRun.generatedAt).toLocaleString('en-IN')} · writes: {dryRun.writes}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Quality Gate & Eligibility Rules Card */}
@@ -312,9 +452,70 @@ export function SupplierCatalogOps({
             />
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-3 border-t border-ink-900/10 pt-3 sm:grid-cols-4">
+          <div>
+            <label className="block text-[11px] font-medium text-ink-600">
+              Min demand evidence to auto-publish
+            </label>
+            <select
+              value={minDemandConfidence}
+              onChange={(e) =>
+                setMinDemandConfidence(e.target.value as 'UNKNOWN' | 'LOW_EVIDENCE' | 'VERIFIED')
+              }
+              className="input mt-1 h-8 text-xs"
+            >
+              <option value="UNKNOWN">None (unit economics only)</option>
+              <option value="LOW_EVIDENCE">Low evidence or better</option>
+              <option value="VERIFIED">Verified only</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-ink-600">
+              Sample size for “verified” (CJ listedNum ≥)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={1000000}
+              step={1}
+              value={verifiedMinListed}
+              onChange={(e) => setVerifiedMinListed(Number(e.target.value))}
+              className="input mt-1 h-8 text-xs"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-ink-600">
+              Min score to recommend ACTIVE (0–100)
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              value={minScore}
+              onChange={(e) => setMinScore(Number(e.target.value))}
+              className="input mt-1 h-8 text-xs"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-ink-600">
+              Treat as stale after (hours)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={720}
+              step={1}
+              value={staleAfterHours}
+              onChange={(e) => setStaleAfterHours(Number(e.target.value))}
+              className="input mt-1 h-8 text-xs"
+            />
+          </div>
+        </div>
         <p className="text-[11px] text-ink-500">
           Demand confidence is reported as <strong>UNKNOWN</strong> whenever CJ or store order
           history lacks verified demand metrics — scores never use random or fabricated demand data.
+          The demand gate only affects automatic publishing; it never rejects an import.
         </p>
       </form>
     </div>

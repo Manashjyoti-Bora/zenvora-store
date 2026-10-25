@@ -25,39 +25,45 @@ The platform is deployed and healthy (`main@ac8041e`, `dpl_43tGG1T69VmnwyTEv6Ajz
 ### Phase 1 — Documentation & baseline ✅
 `docs/ARCHITECTURE.md`, `docs/AUTONOMOUS_OPERATIONS.md`, this file.
 
-### Phase 2 — Security & correctness regression tests 🔄
+### Phase 2 — Security & correctness regression tests ✅
 Customer data isolation (orders/addresses/profile across users), price change and stock change
 between cart and checkout, duplicate order submission, payment-webhook replay, oversized bodies,
 unsafe image URLs (scheme/host/private-network). Success = each test fails if the guard is removed.
 
-### Phase 3 — Search & discovery ⏳
+### Phase 3 — Search & discovery ✅
 Debounced input, `AbortController` cancellation of stale requests, URL-synced filters/sort
 (shareable), no-result suggestions built from **real** active categories/products, loading/error/
 empty states. No invented suggestions.
 
-### Phase 4 — Premium design tokens, Liquid-Glass surfaces, motion ⏳
+### Phase 4 — Premium design tokens, Liquid-Glass surfaces, motion ✅ (code) / visual QA pending
 Palette: Obsidian `#101114`, Pearl `#F7F6F2`, Champagne `#C6A56B`, Electric Violet `#7965F2`,
 Sage `#DDEDE4`; semantic text/border/success/error. Glass restricted to header/search overlay,
 drawers, dialogs, toasts, filter panel — never product media, prices, checkout forms, admin tables.
 Motion tokens (120–240 ms micro, ≤320 ms overlays), `prefers-reduced-motion` honoured, transform/
 opacity only. Measured: bundle delta, CLS on key pages, no `backdrop-filter` on scrolling lists.
 
-### Phase 5 — Supplier intelligence (improve `auto-import.ts`, do not duplicate) ⏳
-- `SupplierProduct` lifecycle status (DISCOVERED … REJECTED) — additive migration.
-- Explainable score: signals, confidence, data freshness, sample size, missing evidence, verdict.
-- Contribution model: price − supplier cost − supplier shipping − payment fee − fulfilment −
-  expected return loss; estimate vs realised clearly separated.
-- Persisted rejection reasons, freshness classes (fresh / ageing / stale), dry-run report.
+### Phase 5 — Supplier intelligence (improve `auto-import.ts`, do not duplicate) ✅ (no migration)
+- Lifecycle state (DISCOVERED … REJECTED) is **derived** from existing columns by
+  `src/lib/catalog/lifecycle.ts` — no schema change was needed, so none was shipped. `SCHEDULED`
+  stays reserved/unreachable until a `publishAt` column and job type exist.
+- Explainable score already existed in `ranking.ts`; added owner-configurable safeguards
+  (demand-evidence gate for auto-publish, verified sample size, min score, stale window).
+- Contribution model (`contribution-margin.ts`): each line labelled SUPPLIED / CONFIGURED / ESTIMATE
+  / UNKNOWN; realised margin deferred (needs supplier invoices + return outcomes).
+- Dry-run endpoint with zero writes; freshness shown on every row; rejection reasons unchanged
+  (already persisted in `raw.importState`).
 - Auto-publish stays **off** (`autoPublishEligible=false`) until the policy in
   `AUTONOMOUS_OPERATIONS.md` §3 is satisfied by the owner.
 
-### Phase 6 — Admin operations dashboard ⏳
-Real metrics only: health, job queue, webhook failures, stuck orders, supplier freshness, catalogue
-quality, contact inbox, notification failures. Level 0 (observe) with prioritised, evidence-backed
-tasks. No AI dependency.
+### Phase 6 — Admin operations dashboard ✅
+`/admin/operations`: environment and switch posture (auto-publish, live supplier ordering, payments,
+AI), derived lifecycle counts, per-supplier last sync, job queue / webhook / rate-limit / 24 h order
+counts, permission levels 0–4 (`src/lib/auth/permissions.ts`). Not yet: contact inbox and
+notification-failure panels (System health already covers notifications).
 
-### Phase 7 — AI ⛔
-Blocked: no provider configured/budgeted. Deterministic fallbacks only.
+### Phase 7 — AI ⛔ (deliberately disabled)
+`src/lib/ai/provider.ts` reports `enabled:false`; only deterministic helpers exist. Enabling requires
+an owner-chosen provider, budget, and the policy in `AUTONOMOUS_OPERATIONS.md` §4.
 
 ### Phase 8 — Controlled verification ⏳
 Full test run, diff review, migration review, Production/Preview isolation check, PR, CI green on

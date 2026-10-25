@@ -108,6 +108,11 @@ describe('logged-in CUSTOMER must never reach admin APIs', () => {
     expect(res.status).toBe(403);
   });
 
+  it('GET /api/admin/suppliers/:id/dry-run → 403 for a customer', async () => {
+    const res = await customer.get('/api/admin/suppliers/any/dry-run');
+    expect(res.status).toBe(403);
+  });
+
   it('GET /api/admin/fulfilment-readiness → 403 (customer cannot read fulfilment readiness)', async () => {
     const res = await customer.get('/api/admin/fulfilment-readiness');
     expect(res.status).toBe(403);
@@ -149,6 +154,24 @@ describe('ADMIN access works with seeded admin credentials from .env', () => {
   it('GET /admin page renders for admin (no redirect)', async () => {
     const res = await admin.get('/admin');
     expect(res.status).toBe(200);
+  });
+
+  it('GET /admin/operations renders live operations metrics for admin', async () => {
+    const res = await admin.get('/admin/operations');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatch(/Supplier product lifecycle/);
+    expect(res.body).toMatch(/Auto-publish/);
+    expect(res.body).toMatch(/AI assist/);
+  });
+
+  it('GET /api/admin/suppliers/:id/dry-run returns a zero-write report for admin', async () => {
+    const supplier = await prisma.supplier.findFirst({ select: { id: true } });
+    if (!supplier) return; // nothing seeded to dry-run against
+    const res = await admin.get(`/api/admin/suppliers/${supplier.id}/dry-run?mode=SAFE_PUBLISH_ELIGIBLE&limit=50`);
+    expect(res.status).toBe(200);
+    const report = okData<{ writes?: number; examined?: number; wouldPublish?: number }>(res);
+    expect(report?.writes).toBe(0);
+    expect(typeof report?.examined).toBe('number');
   });
 
   it('GET /admin/supplier-products and GET /api/admin/fulfilment-readiness render for admin', async () => {

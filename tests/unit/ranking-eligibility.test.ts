@@ -229,3 +229,47 @@ describe('CJ 3-level category tree extraction', () => {
     ]);
   });
 });
+
+describe('owner-configurable confidence / sample-size safeguards', () => {
+  it('default: no demand gate — publication depends on verified unit economics only', () => {
+    const res = evaluateProductCandidate(baseCandidate(), defaultSettings);
+    expect(res.demandConfidence).toBe('UNKNOWN');
+    expect(res.eligibleForAutoPublish).toBe(true);
+  });
+
+  it('minDemandConfidenceForAutoPublish=LOW_EVIDENCE holds UNKNOWN-demand items for review without rejecting them', () => {
+    const strict = settingsSchema.parse({
+      ...defaultSettings,
+      autoImport: { ...defaultSettings.autoImport, minDemandConfidenceForAutoPublish: 'LOW_EVIDENCE' },
+    });
+    const res = evaluateProductCandidate(baseCandidate(), strict);
+    expect(res.eligibleForImport).toBe(true);
+    expect(res.eligibleForAutoPublish).toBe(false);
+    expect(res.tier).toBe('NEEDS_REVIEW');
+    expect(res.publicationBlockers.join(' ')).toMatch(/Demand evidence UNKNOWN is below the configured minimum \(LOW_EVIDENCE\)/);
+    // With a small but real CJ signal it passes the LOW_EVIDENCE gate…
+    expect(evaluateProductCandidate(baseCandidate({ listedNum: 3 }), strict).eligibleForAutoPublish).toBe(true);
+  });
+
+  it('verifiedDemandMinListedNum is the sample size for VERIFIED demand', () => {
+    const bigSample = settingsSchema.parse({
+      ...defaultSettings,
+      autoImport: { ...defaultSettings.autoImport, verifiedDemandMinListedNum: 100 },
+    });
+    expect(evaluateProductCandidate(baseCandidate({ listedNum: 45 }), bigSample).demandConfidence).toBe('LOW_EVIDENCE');
+    expect(evaluateProductCandidate(baseCandidate({ listedNum: 120 }), bigSample).demandConfidence).toBe('VERIFIED');
+    // Real store orders always count as verified evidence regardless of the CJ sample size.
+    expect(evaluateProductCandidate(baseCandidate({ storeOrderCount: 1 }), bigSample).demandConfidence).toBe('VERIFIED');
+  });
+
+  it('minScoreForAutoPublish raises the bar for an ACTIVE recommendation', () => {
+    const base = evaluateProductCandidate(baseCandidate(), defaultSettings);
+    const strict = settingsSchema.parse({
+      ...defaultSettings,
+      autoImport: { ...defaultSettings.autoImport, minScoreForAutoPublish: Math.min(100, base.score + 1) },
+    });
+    const res = evaluateProductCandidate(baseCandidate(), strict);
+    expect(res.tier).toBe('NEEDS_REVIEW');
+    expect(res.recommendedStatus).toBe('DRAFT');
+  });
+});
