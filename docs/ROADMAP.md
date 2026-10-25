@@ -36,8 +36,11 @@ Debounced input, `AbortController` cancellation of stale requests, URL-synced fi
 empty states. No invented suggestions.
 
 ### Phase 4 — Premium design tokens, Liquid-Glass surfaces, motion ✅ (code) / visual QA pending
-Palette: Obsidian `#101114`, Pearl `#F7F6F2`, Champagne `#C6A56B`, Electric Violet `#7965F2`,
-Sage `#DDEDE4`; semantic text/border/success/error. Glass restricted to header/search overlay,
+Palette (2026-10-25, "Petrol & Porcelain" — see `docs/DESIGN_SYSTEM.md`): Midnight `#111820`,
+Porcelain `#F6F5F0`, Deep Petrol `#174A50`, Teal `#77C9C1` (dark surfaces only), Champagne
+`#C6AD7A` (dark surfaces only), Sage `#E2ECE5`; semantic text/border/success/error. Replaced the
+short-lived Electric Violet direction after a measured comparison (petrol 9.85:1 vs violet 5.7:1
+on white; continuity with the existing app icon). Glass restricted to header/search overlay,
 drawers, dialogs, toasts, filter panel — never product media, prices, checkout forms, admin tables.
 Motion tokens (120–240 ms micro, ≤320 ms overlays), `prefers-reduced-motion` honoured, transform/
 opacity only. Measured: bundle delta, CLS on key pages, no `backdrop-filter` on scrolling lists.
