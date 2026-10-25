@@ -72,6 +72,24 @@ an owner-chosen provider, budget, and the policy in `AUTONOMOUS_OPERATIONS.md` �
 Full test run, diff review, migration review, Production/Preview isolation check, PR, CI green on
 the exact commit, deploy via the existing pipeline, post-deploy smoke, rollback target recorded.
 
+## Round 2026-10-25 — autonomous master build (branch `arena/2e76e908-zenvora-store`)
+
+Shipped (all tested; see PR for commands/results):
+- Petrol & Porcelain palette + glass role classes + z-index ladder (`docs/DESIGN_SYSTEM.md`).
+- Route skeletons for `/shop` and `/search` (not for `notFound()` routes — soft-404 hazard).
+- `SUPPORT_EMAIL` env fallback; owner mailbox configured on Vercel Production + Preview.
+- Supplier dry-run: per-candidate evidence (source, sync timestamp/freshness, stock evidence,
+  verified cost, shipping-known, completeness, missing evidence, explained confidence) +
+  admin per-candidate table; still zero writes.
+- Admin Operations: catalogue/margin coverage counts; shared launch blockers/config gaps with
+  Health (`src/lib/ops/launch-blockers.ts`).
+- `docs/LAUNCH_READINESS.md`: required/conditional/optional/owner-decision checklist with cited
+  Indian e-commerce, GST and DPDP obligations; precise owner questions Q1–Q3.
+
+Not done / unverified: no screenshots or Lighthouse (no browser in the sandbox); layout QA is
+server-render only (all storefront/admin routes 200 with viewport meta). PR #10 still conflicts
+and its `loading.tsx` files would reintroduce the soft-404 on product/category routes.
+
 ## Owner inputs required (unchanged)
 
 1. Real support mailbox (Admin → Settings → Store).
