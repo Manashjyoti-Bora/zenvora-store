@@ -48,13 +48,19 @@ export function Toaster() {
         <div
           key={t.id}
           className={cn(
-            'pointer-events-auto w-full max-w-sm animate-fade-in rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg',
-            t.tone === 'success' && 'bg-emerald-600',
-            t.tone === 'error' && 'bg-red-600',
-            t.tone === 'info' && 'bg-ink-900'
+            // Toasts are one of the allowed glass surfaces: dark glass body with
+            // a solid semantic rule so success/error remain readable (AA) and
+            // distinguishable without relying on colour alone.
+            'glass-dark motion-reveal pointer-events-auto flex w-full max-w-sm items-center gap-2.5 rounded-xl border-l-4 px-4 py-2.5 text-sm font-medium',
+            t.tone === 'success' && 'border-l-sage-400',
+            t.tone === 'error' && 'border-l-red-600',
+            t.tone === 'info' && 'border-l-brand-400'
           )}
           role="status"
         >
+          <span className="sr-only">
+            {t.tone === 'success' ? 'Success: ' : t.tone === 'error' ? 'Error: ' : ''}
+          </span>
           {t.message}
         </div>
       ))}

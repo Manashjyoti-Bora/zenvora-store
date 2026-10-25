@@ -106,14 +106,14 @@ export function MobileMenu({
           <div
             aria-hidden="true"
             onClick={() => setOpen(false)}
-            className="fixed inset-x-0 bottom-0 top-14 z-30 h-screen bg-ink-950/30 backdrop-blur-[1px]"
+            className="glass-scrim fixed inset-x-0 bottom-0 top-14 z-30 h-screen"
           />
           <nav
             ref={navRef}
             id="mobile-nav"
             aria-label="Mobile navigation"
             tabIndex={-1}
-            className="absolute inset-x-0 top-full z-40 max-h-[78vh] animate-fade-in overflow-y-auto border-b border-ink-900/15 bg-cream-50 px-4 py-4 shadow-lift focus:outline-none"
+            className="glass-panel motion-reveal absolute inset-x-0 top-full z-40 max-h-[78vh] overflow-y-auto rounded-none border-x-0 border-t-0 px-4 py-4 focus:outline-none"
           >
             {user ? (
               <div className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-ink-900/10 bg-white p-3 shadow-hair">
@@ -133,7 +133,7 @@ export function MobileMenu({
                     <Link
                       href="/admin"
                       onClick={() => setOpen(false)}
-                      className="btn-press rounded-lg bg-brand-700 px-2.5 py-1.5 text-xs font-semibold text-accent-300"
+                      className="btn-press rounded-lg bg-ink-900 px-2.5 py-1.5 text-xs font-semibold text-accent-300"
                     >
                       Admin
                     </Link>
@@ -152,7 +152,7 @@ export function MobileMenu({
                 <Link
                   href="/auth/register"
                   onClick={() => setOpen(false)}
-                  className="btn-press rounded-lg bg-brand-700 px-3 py-2.5 text-center text-sm font-semibold text-white shadow-soft transition-colors hover:bg-brand-800"
+                  className="btn-press rounded-lg bg-brand-600 px-3 py-2.5 text-center text-sm font-semibold text-white shadow-soft transition-colors hover:bg-brand-700"
                 >
                   Sign up
                 </Link>

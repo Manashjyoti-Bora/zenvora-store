@@ -1,14 +1,15 @@
-# ZENVORA DESIGN LANGUAGE — "Ink & Cream Editorial Commerce"
+# ZENVORA DESIGN LANGUAGE — "Obsidian & Pearl Editorial Commerce"
 
 **Written concept, Round 6 (created before implementation, per brief §3).**
 Companion to: `FRONTEND_AUDIT_REPORT.md`, `FRONTEND_REDESIGN_REPORT.md`, `FINAL_EXPERIENCE_UPGRADE.md`.
 
 ## 0. Visual philosophy (5-second recognition test)
 
-A visitor should see: **a warm paper canvas, deep green-black ink, one quiet brass accent, big
-editorial type, real product photography treated like a magazine spread — and motion that behaves
-like physics, not decoration.** Zenvora reads as "a considered Indian commerce house," not a
-template: no cool grays, no purple gradients, no glass everywhere, no faked hype.
+A visitor should see: **a pearl canvas, obsidian ink, one electric-violet action colour, one
+quiet champagne rule, big editorial type, real product photography treated like a magazine
+spread — and motion that behaves like physics, not decoration.** Zenvora reads as "a considered
+Indian commerce house," not a template: no gradients-for-their-own-sake, glass only on the few
+overlay surfaces listed in §1a, no faked hype.
 
 Principle stack (extracted from 2026 research — Apple-style restraint, Aesop-style editorial
 composition, Linear/Stripe-style motion discipline; nothing copied):
@@ -18,15 +19,31 @@ composition, Linear/Stripe-style motion discipline; nothing copied):
 4. Performance is a design material — 0 kB added where CSS can do it; JS only where CSS cannot.
 5. Mobile is the product — most visitors arrive from Instagram on mid-range Androids.
 
-## 1. Color system
-- **Canvas:** cream-50 `#FAF8F3` (page), cream-100/200 (recesses, placeholders), white (cards).
-- **Ink:** ink-950 `#0A130F` → ink-300 `#8A978F` (8-step warm green-black ramp; text, dark
-  surfaces: announcement, hero, footer). Metadata tone ink-400 = 4.9:1 on white (AA).
-- **Brand green** (heritage, unchanged): primary actions, links, focus rings.
-- **Brass** (signature accent, used sparingly): eyebrows on dark, hero numerals, active-nav dot,
-  "how it works" numbers. Brass never carries body text on light surfaces.
-- **Accent orange:** price/discount badges only (money moments).
-- **Semantic:** red/emerald/amber/blue reserved for status; never decorative.
+## 1. Color system (2026-10 palette refresh — tokens in `tailwind.config.ts` / `globals.css`)
+Five named colours, each with one job:
+- **Obsidian Black `#101114`** (`ink-900`, `--surface-ink`): branding, dark surfaces
+  (announcement, hero, footer, dark glass), primary text.
+- **Pearl White `#F7F6F2`** (`cream-50`, `--surface-canvas`): every shopping surface. White
+  (`--surface-card`) for cards, forms, tables.
+- **Champagne Gold `#C6A56B`** (`accent-400` / `brass-400`): sparingly — eyebrows and rules on
+  dark surfaces, hero numerals, badges on Obsidian. **Never text on light surfaces** (2.3:1).
+- **Electric Violet `#7965F2`** (`brand-500`): the action colour. Fill for primary buttons is
+  `brand-600 #6350D9` (white text 5.7:1 AA); `brand-700 #5140B8` for links/eyebrows on light;
+  `brand-500` only for focus rings, large text and non-text UI (4.2:1).
+- **Sage Mint `#DDEDE4`** (`sage-100`, `--surface-sage`): success / calm *surfaces* only
+  (confirmation badge, category chips). It is never used for text contrast; success text is
+  `sage-600`/`success-600 #47765C` (5.2:1 on white).
+- **Semantic:** muted text `#62636A` (`ink-400`, 5.5:1 on Pearl); success `#47765C`; error
+  `#B93838` (`red-600` is re-pointed to it); borders `#E3E0D8` (`cream-200`). Amber stays for
+  "pending" states.
+All ratios above were computed (WCAG 2.2 relative luminance), not estimated.
+
+### 1a. Liquid-Glass system (`.glass-panel`, `.glass-bar`, `.glass-dark`, `.glass-scrim`, `.crisp`)
+Allowed **only** on: header, search overlays, floating/mobile nav, dialogs, drawers, filter
+panels, toasts. **Never** on product photos, prices, checkout/payment forms, admin tables —
+those stay opaque (`.crisp` forces it). Each class ships an opaque fallback first and adds
+translucency + `backdrop-filter` only inside `@supports`. Blur values are static tokens
+(`--glass-blur` 14px, `--glass-blur-bar` 10px) and are **never transitioned or animated**.
 
 ## 2. Typography
 Inter Variable, **self-hosted** from `@fontsource-variable/inter` (one `woff2` per unicode
@@ -70,16 +87,21 @@ second product image where one exists** (signature, §D); desktop zoom 1.12 on P
 (pointer:fine + hover:hover gated). SVG bag-glyph placeholder when a product has no image.
 
 ## 9. Motion language ("Zenvora ease")
-One easing signature: `cubic-bezier(0.22, 1, 0.36, 1)` (fast start, long gentle settle) — the
-`--ease-zenvora` custom property, used by reveals, hovers, zoom, fades. Vocabulary:
-- **Entrance:** fade-up 14px, 450ms; grids **stagger** children 45ms/nth (CSS-only, capped at 8).
-- **Scroll storytelling:** hero product panel drifts ≤14px + settles 0.985 scale on scroll
-  (transform-only, rAF-throttled, fine-pointer + non-reduced-motion only; static without JS).
-- **Feedback:** press physics on every control; toasts slide-in above the sticky-buy-bar zone.
-- **State:** skeleton→content opacity 300ms; gallery image swap fade 200ms.
-Rules: transform/opacity only (compositor-thread), one-shot IntersectionObserver reveals (no
-scroll-jacking, no parallax on text), global `prefers-reduced-motion` kill-switch forces final
-states, `noscript` fallback reveals everything. Motion budget: 0 libraries, ~1 tiny client island.
+Tokens (`globals.css`): `--duration-micro 120ms` (hover tint, press), `--duration-fast 160ms`
+(toggles, chips), `--duration-normal 220ms` (dropdowns, toasts, drawers), `--duration-slow 240ms`
+(dialogs), `--duration-enter 450ms` (one-shot section reveal). Easing `--ease-zenvora`
+`cubic-bezier(0.22,1,0.36,1)` and `--ease-out` `cubic-bezier(0.16,1,0.3,1)`.
+Utilities: `.motion-reveal` (opacity + 6px translate), `.motion-fade`, `.motion-pop` (0.96→1),
+`.motion-lift` (hover −1px), `.success-check` (single stroke draw, 420ms).
+Rules:
+- transform/opacity only — never animate blur, box-shadow, width/height or colour-heavy layers;
+- micro-interactions 120–240ms; entrances ≤450ms; nothing loops except the skeleton shimmer;
+- no scroll hijacking, no parallax on text, **no per-card scroll animation** (the grid stagger
+  runs once per section via a single IntersectionObserver, capped at 8 children);
+- `prefers-reduced-motion: reduce` collapses every animation/transition to its final state
+  (global kill-switch at the end of `globals.css`), and smooth anchor scrolling is disabled;
+- the payment-success mark animates **only** on the order confirmation branch that the server
+  rendered from a confirmed database state — never on an optimistic client guess.
 
 ## 10. Interaction language
 Whole-card tap target via stretched link (Add-to-cart stays independently clickable above it);

@@ -10,7 +10,7 @@ import { OrderDetailView } from '@/components/orders/order-detail';
 import { OrderActions } from '@/components/orders/order-actions';
 import { CheckoutSteps } from '@/components/store/checkout-steps';
 import { Alert } from '@/components/ui/feedback';
-import { BoxIcon, CheckIcon, ClockIcon } from '@/components/ui/icons';
+import { BoxIcon, ClockIcon } from '@/components/ui/icons';
 import { LinkButton } from '@/components/ui/button';
 
 export const dynamic = 'force-dynamic';
@@ -106,14 +106,29 @@ export default async function ConfirmationPage({
           </div>
         ) : (
           <div className="mb-6 text-center">
+            {/* This branch renders ONLY after the order row was read from the
+                database in a confirmed state (not pending / not awaiting
+                payment), so the success mark never animates on an optimistic
+                client guess. Transform/opacity + a single stroke draw; both are
+                disabled under prefers-reduced-motion. */}
             <span
-              className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"
+              className="motion-pop mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-sage-100 text-sage-600 ring-1 ring-sage-300/60"
               aria-hidden="true"
             >
               {order.paymentMethod === 'COD' ? (
                 <BoxIcon className="h-7 w-7" />
               ) : (
-                <CheckIcon className="h-7 w-7" />
+                <svg
+                  className="h-7 w-7"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path className="success-check" d="m4.5 12.5 5 5 10-11" />
+                </svg>
               )}
             </span>
             <h1 className="mt-3">
