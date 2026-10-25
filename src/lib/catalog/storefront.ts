@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../db';
+import { buildSearchWhere } from './search';
 import { toPaise, paiseToDecimalString } from '../money';
 import { clampInt } from '../money';
 import {
@@ -143,16 +144,13 @@ export async function listStorefrontProducts(params: ListParams): Promise<ListRe
       ],
     };
   }
-  if (params.q && params.q.trim()) {
-    const term = params.q.trim();
-    where.OR = [
-      { name: { contains: term, mode: 'insensitive' } },
-      { slug: { contains: term.toLowerCase(), mode: 'insensitive' } },
-      { brand: { contains: term, mode: 'insensitive' } },
-      { sku: { contains: term, mode: 'insensitive' } },
-      { shortDescription: { contains: term, mode: 'insensitive' } },
-      { description: { contains: term, mode: 'insensitive' } },
-    ];
+  // Token-aware text search: every word must match somewhere on the product
+  // (see buildSearchWhere). Expressed as a single OR/AND node so the in-stock
+  // filter below can combine with it.
+  const searchWhere = buildSearchWhere(params.q);
+  if (searchWhere) {
+    if (searchWhere.OR) where.OR = searchWhere.OR;
+    else where.AND = searchWhere.AND;
   }
   if (params.minPricePaise != null || params.maxPricePaise != null) {
     const minBound =
@@ -191,12 +189,14 @@ export async function listStorefrontProducts(params: ListParams): Promise<ListRe
       ],
     };
     // Combine with the text query (if any) via AND so neither filter is lost.
-    const existing = where.OR;
-    if (existing) delete where.OR;
-    (where as Prisma.ProductWhereInput).AND = [
-      ...(existing ? [{ OR: existing }] : []),
-      inStockWhere,
-    ];
+    const existingOr = where.OR;
+    if (existingOr) delete where.OR;
+    const existingAnd = where.AND
+      ? Array.isArray(where.AND)
+        ? where.AND
+        : [where.AND]
+      : [];
+    where.AND = [...existingAnd, ...(existingOr ? [{ OR: existingOr }] : []), inStockWhere];
   }
 
   const sort = params.sort ?? 'featured';
