@@ -530,6 +530,10 @@ export function buildAiCeoReport(snapshot: AiCeoSnapshot, options: BuildReportOp
     risks,
     recommendations: allRecommendations.slice(0, maxRecommendations),
     readiness,
+    readinessShared: {
+      ...snapshot.sharedReadiness,
+      source: 'collectLaunchReadiness() — the same list rendered by Admin → Health and Admin → Operations',
+    },
     modes: {
       observe: true,
       recommend: true,

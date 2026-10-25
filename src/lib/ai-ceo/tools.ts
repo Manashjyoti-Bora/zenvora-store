@@ -250,6 +250,7 @@ function selectData(name: AiCeoToolName, input: unknown, report: AiCeoReport): u
     }
     case 'getLaunchReadiness':
       return {
+        shared: report.readinessShared,
         items: report.readiness,
         blockers: report.readiness.filter(
           (i) => i.blocks.includes('LAUNCH') && i.status !== 'PASS'

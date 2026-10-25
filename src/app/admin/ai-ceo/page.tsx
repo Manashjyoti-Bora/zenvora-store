@@ -317,6 +317,57 @@ export default async function AiCeoPage() {
         )}
       </Card>
 
+      {/* ---------------- Shared readiness (Health/Operations) ---------------- */}
+      <Card
+        title="Shared launch readiness"
+        action={
+          <Badge
+            tone={
+              report.readinessShared.blockers.length > 0
+                ? 'red'
+                : report.readinessShared.configGaps.length > 0
+                  ? 'amber'
+                  : 'green'
+            }
+          >
+            {report.readinessShared.blockers.length} blocker(s) · {report.readinessShared.configGaps.length} gap(s)
+          </Badge>
+        }
+      >
+        <p className="text-xs leading-relaxed text-ink-400">
+          The same list Admin → Health and Admin → Operations render — passed through unchanged, so the three
+          screens cannot disagree. The owner actions above add detail; they do not replace this list.
+        </p>
+        {report.readinessShared.blockers.length === 0 && report.readinessShared.configGaps.length === 0 ? (
+          <p className="mt-2 text-sm text-ink-500">No shared blocker or configuration gap is currently open.</p>
+        ) : (
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {report.readinessShared.blockers.length > 0 && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-[11px] font-bold uppercase tracking-eyebrow text-red-700">Blockers</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs leading-relaxed text-red-900">
+                  {report.readinessShared.blockers.map((blocker) => (
+                    <li key={blocker}>{blocker}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {report.readinessShared.configGaps.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-[11px] font-bold uppercase tracking-eyebrow text-amber-800">
+                  Configuration gaps
+                </p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs leading-relaxed text-amber-900">
+                  {report.readinessShared.configGaps.map((gap) => (
+                    <li key={gap}>{gap}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
       {/* ---------------- Risks ---------------- */}
       <Card title="Confirmed risks">
         {report.risks.length === 0 ? (

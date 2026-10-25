@@ -1,9 +1,10 @@
 import { prisma } from '@/lib/db';
 import { getSettings, isPlaceholderEmail } from '@/lib/settings';
 import { describePaymentProvider } from '@/lib/payments';
-import { aiProviderConfig, env } from '@/lib/env';
+import { aiProviderConfig, env, isRazorpayConfigured } from '@/lib/env';
 import { toPaise, type MoneyInput } from '@/lib/money';
 import { getAllSupplierSyncReports } from '@/lib/catalog/auto-import';
+import { collectLaunchReadiness } from '@/lib/ops/launch-blockers';
 import type { AiCeoSnapshot, OrderLedgerRow, SupplierProductRow, SupplierSyncSummary } from './contracts';
 
 /**
@@ -291,6 +292,18 @@ export async function loadAiCeoSnapshot(options: LoadSnapshotOptions = {}): Prom
       activeWithoutImage,
     },
     audit: { lastAction: lastAudit?.action ?? null, lastAt: iso(lastAudit?.createdAt ?? null) },
+    sharedReadiness: collectLaunchReadiness({
+      settings,
+      env: {
+        NODE_ENV: env.NODE_ENV,
+        EMAIL_PROVIDER: env.EMAIL_PROVIDER,
+        CRON_SECRET: env.CRON_SECRET,
+        RAZORPAY_WEBHOOK_SECRET: env.RAZORPAY_WEBHOOK_SECRET,
+        STORAGE_PROVIDER: env.STORAGE_PROVIDER,
+        SUPPORT_EMAIL: env.SUPPORT_EMAIL,
+      },
+      razorpayConfigured: isRazorpayConfigured(),
+    }),
   };
 }
 

@@ -8,9 +8,10 @@ import { getAiStatus } from '@/lib/ai/provider';
 import { describePaymentProvider } from '@/lib/payments';
 import { evaluateSupplierProductCandidate, getAllSupplierSyncReports } from '@/lib/catalog/auto-import';
 import { deriveLifecycleState, LIFECYCLE_LABELS, type SupplierProductLifecycleState } from '@/lib/catalog/lifecycle';
-import { env } from '@/lib/env';
+import { env, isRazorpayConfigured } from '@/lib/env';
+import { collectLaunchReadiness } from '@/lib/ops/launch-blockers';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/feedback';
+import { Alert, Card } from '@/components/ui/feedback';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Operations — Admin', robots: { index: false } };
@@ -62,6 +63,8 @@ export default async function OperationsPage() {
     pendingPaymentOld,
     auditLast,
     cronLastRun,
+    productsByStatus,
+    activeProducts,
   ] = await Promise.all([
     getSettings(),
     prisma.supplierProduct.findMany({
@@ -97,6 +100,18 @@ export default async function OperationsPage() {
       orderBy: { createdAt: 'desc' },
       select: { action: true, createdAt: true },
     }),
+    prisma.product.groupBy({ by: ['status'], _count: { _all: true } }),
+    prisma.product.findMany({
+      where: { status: 'ACTIVE' },
+      select: {
+        id: true,
+        supplierId: true,
+        supplierCost: true,
+        supplierShippingCost: true,
+        stock: true,
+        supplierProduct: { select: { lastSyncedAt: true, supplierShippingCost: true, inStock: true, stockQty: true } },
+      },
+    }),
   ]);
 
   const activeRules = await prisma.pricingRule.findMany({ where: { isActive: true } });
@@ -127,6 +142,29 @@ export default async function OperationsPage() {
     demandCounts[evaluation.demandConfidence] += 1;
     if (!lc.isFresh) staleSupplierItems += 1;
   }
+
+  // Catalogue & margin coverage — counted, not estimated.
+  const productCount = (st: string) => productsByStatus.find((p) => p.status === st)?._count._all ?? 0;
+  const staleMs = settings.autoImport.staleAfterHours * 3600e3;
+  const activeWithCost = activeProducts.filter((p) => Number(p.supplierCost) > 0).length;
+  const activeWithShipping = activeProducts.filter(
+    (p) => Number(p.supplierShippingCost) > 0 || p.supplierProduct?.supplierShippingCost != null
+  ).length;
+  const activeSupplierLinked = activeProducts.filter((p) => p.supplierId).length;
+  const activeStaleSupplier = activeProducts.filter(
+    (p) =>
+      p.supplierProduct &&
+      (!p.supplierProduct.lastSyncedAt || Date.now() - p.supplierProduct.lastSyncedAt.getTime() > staleMs)
+  ).length;
+  const activeUnknownStock = activeProducts.filter((p) =>
+    p.supplierProduct ? p.supplierProduct.stockQty == null && p.supplierProduct.inStock == null : p.stock <= 0
+  ).length;
+  const readiness = collectLaunchReadiness({
+    settings,
+    env,
+    razorpayConfigured: isRazorpayConfigured(),
+    isProduction: env.NODE_ENV === 'production',
+  });
 
   const jobCount = (s: string) => jobStats.find((j) => j.status === s)?._count._all ?? 0;
   const whCount = (s: string) => webhookStats24h.find((j) => j.status === s)?._count._all ?? 0;
@@ -198,6 +236,81 @@ export default async function OperationsPage() {
           </p>
         </Card>
       </div>
+
+      {/* Catalogue & margin coverage */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-ink-900">Catalogue &amp; margin coverage</h2>
+          <Link href="/admin/products" className="text-xs font-semibold text-brand-700 hover:underline">
+            Products →
+          </Link>
+        </div>
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
+          <div>
+            <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Active products</dt>
+            <dd className="text-lg font-bold tabular-nums text-ink-900">{activeProducts.length}</dd>
+            <dd className="text-[11px] text-ink-500">
+              draft {productCount('DRAFT')} · archived {productCount('ARCHIVED')}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Known supplier cost</dt>
+            <dd className="text-lg font-bold tabular-nums text-ink-900">
+              {activeWithCost}/{activeProducts.length}
+            </dd>
+            <dd className="text-[11px] text-ink-500">margin computable</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Known shipping cost</dt>
+            <dd className="text-lg font-bold tabular-nums text-ink-900">
+              {activeWithShipping}/{activeProducts.length}
+            </dd>
+            <dd className="text-[11px] text-ink-500">others use an estimate</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Supplier-linked</dt>
+            <dd className="text-lg font-bold tabular-nums text-ink-900">{activeSupplierLinked}</dd>
+            <dd className="text-[11px] text-ink-500">of active</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Stale supplier data</dt>
+            <dd className={`text-lg font-bold tabular-nums ${activeStaleSupplier > 0 ? 'text-amber-700' : 'text-ink-900'}`}>
+              {activeStaleSupplier}
+            </dd>
+            <dd className="text-[11px] text-ink-500">active, synced &gt; {settings.autoImport.staleAfterHours} h ago</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Unknown stock</dt>
+            <dd className={`text-lg font-bold tabular-nums ${activeUnknownStock > 0 ? 'text-amber-700' : 'text-ink-900'}`}>
+              {activeUnknownStock}
+            </dd>
+            <dd className="text-[11px] text-ink-500">active, no stock evidence</dd>
+          </div>
+        </dl>
+      </Card>
+
+      {(readiness.blockers.length > 0 || readiness.configGaps.length > 0) && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {readiness.blockers.length > 0 && (
+            <Alert tone="error" title={`Launch blockers (${readiness.blockers.length})`}>
+              <ul className="list-inside list-disc space-y-0.5">
+                {readiness.blockers.map((b) => (
+                  <li key={b}>{b}</li>
+                ))}
+              </ul>
+            </Alert>
+          )}
+          {readiness.configGaps.length > 0 && (
+            <Alert tone="warning" title={`Configuration gaps (${readiness.configGaps.length})`}>
+              <ul className="list-inside list-disc space-y-0.5">
+                {readiness.configGaps.map((g) => (
+                  <li key={g}>{g}</li>
+                ))}
+              </ul>
+            </Alert>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Supplier lifecycle */}

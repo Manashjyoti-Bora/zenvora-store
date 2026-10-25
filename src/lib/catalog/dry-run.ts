@@ -2,6 +2,7 @@ import { prisma } from '../db';
 import { getSettings } from '../settings';
 import { slugify } from '../utils';
 import { evaluateSupplierProductCandidate } from './auto-import';
+import { buildCandidateEvidence, type CandidateEvidence } from './candidate-evidence';
 import { computeContributionMargin, type ContributionMarginResult } from './contribution-margin';
 import { deriveLifecycleState, type LifecycleResult, type SupplierProductLifecycleState } from './lifecycle';
 import type { DemandConfidence, ProductRankingTier, RankingFactorBreakdown } from './ranking';
@@ -45,6 +46,8 @@ export interface DryRunItem {
   warnings: string[];
   duplicateOf: { slug: string; reason: string } | null;
   mappedProductId: string | null;
+  /** Source, freshness, stock/cost evidence, completeness and confidence — never invented. */
+  evidence: CandidateEvidence;
 }
 
 export interface DryRunReport {
@@ -64,6 +67,13 @@ export interface DryRunReport {
   tierCounts: Record<ProductRankingTier, number>;
   demandCounts: Record<DemandConfidence, number>;
   /** Aggregate unit economics over priceable items (estimates, not forecasts). */
+  /** Evidence quality across examined candidates. */
+  evidenceSummary: {
+    confidence: Record<'HIGH' | 'MEDIUM' | 'LOW', number>;
+    freshness: Record<'FRESH' | 'STALE' | 'NEVER_SYNCED', number>;
+    verifiedCost: number;
+    unknownStock: number;
+  };
   economics: {
     priceableItems: number;
     medianContributionPercent: number | null;
@@ -267,6 +277,30 @@ export async function buildSupplierDryRunReport(params: {
     }
     if (!shippingKnown) unknownShip += 1;
 
+    const evidence = buildCandidateEvidence({
+      supplier: { name: sp.supplier.name, slug: sp.supplier.slug, type: sp.supplier.type },
+      supplierProduct: {
+        supplierSku: sp.supplierSku,
+        externalId: sp.externalId,
+        supplierCost: sp.supplierCost,
+        supplierShippingCost: sp.supplierShippingCost,
+        currency: sp.currency,
+        stockQty: sp.stockQty,
+        inStock: sp.inStock,
+        lastSyncedAt: sp.lastSyncedAt,
+      },
+      meta: {
+        name: meta.name,
+        description: meta.description,
+        categoryName: meta.categoryName,
+        images: meta.images,
+        weightGrams: meta.weightGrams,
+        listedNum: meta.listedNum,
+        shippingSupportedToIndia: meta.shippingSupportedToIndia,
+      },
+      staleAfterHours: settings.autoImport.staleAfterHours,
+    });
+
     items.push({
       supplierProductId: sp.id,
       supplierSku: sp.supplierSku,
@@ -288,6 +322,7 @@ export async function buildSupplierDryRunReport(params: {
       warnings: [...evaluation.warnings, ...pricing.warnings],
       duplicateOf,
       mappedProductId: sp.product?.id ?? null,
+      evidence,
     });
   }
 
@@ -308,6 +343,20 @@ export async function buildSupplierDryRunReport(params: {
     lifecycleCounts,
     tierCounts,
     demandCounts,
+    evidenceSummary: {
+      confidence: {
+        HIGH: items.filter((i) => i.evidence.confidence.level === 'HIGH').length,
+        MEDIUM: items.filter((i) => i.evidence.confidence.level === 'MEDIUM').length,
+        LOW: items.filter((i) => i.evidence.confidence.level === 'LOW').length,
+      },
+      freshness: {
+        FRESH: items.filter((i) => i.evidence.freshness === 'FRESH').length,
+        STALE: items.filter((i) => i.evidence.freshness === 'STALE').length,
+        NEVER_SYNCED: items.filter((i) => i.evidence.freshness === 'NEVER_SYNCED').length,
+      },
+      verifiedCost: items.filter((i) => i.evidence.cost.verified).length,
+      unknownStock: items.filter((i) => i.evidence.stock.evidence === 'UNKNOWN').length,
+    },
     economics: {
       priceableItems: contributions.length,
       medianContributionPercent: median(contributions),

@@ -58,6 +58,15 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().default('Zenvora <no-reply@zenvora.local>'),
   EMAIL_REPLY_TO: optionalNonEmpty(z.string()),
 
+  /**
+   * Owner-supplied support mailbox. Used ONLY while the stored store setting
+   * is still the shipped `support@example.com` placeholder, so a deployment
+   * can advertise a real contact before anyone has saved Admin → Settings.
+   * A value saved in the admin UI always wins.
+   */
+  SUPPORT_EMAIL: optionalNonEmpty(z.string().email().max(160)),
+
+
   // --- Optional AI narrative provider (AI CEO) -------------------------------
   // Absent by default: the AI CEO runs deterministically (see
   // src/lib/ai-ceo/provider.ts). Setting these does NOT enable execution of
@@ -68,6 +77,7 @@ const envSchema = z.object({
   AI_BASE_URL: optionalNonEmpty(z.string().url()),
   AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
   AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(50).max(2_000).default(500),
+
 });
 
 export type Env = z.infer<typeof envSchema>;

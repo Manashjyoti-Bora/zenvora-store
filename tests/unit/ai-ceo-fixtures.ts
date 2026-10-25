@@ -101,6 +101,7 @@ export function makeSnapshot(overrides: Partial<AiCeoSnapshot> = {}): AiCeoSnaps
       activeWithoutImage: 0,
     },
     audit: { lastAction: 'settings.updated', lastAt: '2026-10-25T09:00:00.000Z' },
+    sharedReadiness: { blockers: [], configGaps: [] },
   };
 
   return {
@@ -119,6 +120,7 @@ export function makeSnapshot(overrides: Partial<AiCeoSnapshot> = {}): AiCeoSnaps
     suppliers: { ...base.suppliers, ...(overrides.suppliers ?? {}) },
     catalog: { ...base.catalog, ...(overrides.catalog ?? {}) },
     audit: { ...base.audit, ...(overrides.audit ?? {}) },
+    sharedReadiness: { ...base.sharedReadiness, ...(overrides.sharedReadiness ?? {}) },
   };
 }
 
@@ -146,6 +148,13 @@ export function makeEmptyStoreSnapshot(): AiCeoSnapshot {
     suppliers: { total: 0, inactive: 0, rows: [], syncBySupplier: {} },
     catalog: { productCounts: {}, activeWithoutSupplierLink: 0, activeWithoutImage: 0 },
     audit: { lastAction: null, lastAt: null },
+    sharedReadiness: {
+      blockers: [
+        'Razorpay credentials not configured',
+        'Support e-mail is still the placeholder (support@example.com)',
+      ],
+      configGaps: ['Business details missing: legal/trading name, principal address'],
+    },
   });
 }
 

@@ -187,6 +187,17 @@ describe('AI CEO — deterministic report engine', () => {
     expect(report.risks.some((r) => r.id === 'risk-oversell' && r.blocksLaunch)).toBe(true);
   });
 
+  it('passes the shared Health/Operations readiness list through verbatim', () => {
+    const shared = {
+      blockers: ['Razorpay credentials not configured'],
+      configGaps: ['Business details missing: principal address'],
+    };
+    const report = buildAiCeoReport(makeSnapshot({ sharedReadiness: shared }));
+    expect(report.readinessShared.blockers).toEqual(shared.blockers);
+    expect(report.readinessShared.configGaps).toEqual(shared.configGaps);
+    expect(report.readinessShared.source).toMatch(/collectLaunchReadiness/);
+  });
+
   it('caps the recommendation list without dropping the highest priorities', () => {
     const report = buildAiCeoReport(makeEmptyStoreSnapshot(), { maxRecommendations: 3 });
     expect(report.recommendations.length).toBeLessThanOrEqual(3);

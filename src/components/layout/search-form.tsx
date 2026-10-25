@@ -268,7 +268,7 @@ export function SearchForm({ initialQuery = '' }: { initialQuery?: string }) {
         role="listbox"
         aria-label={showRecent ? 'Recent searches' : 'Search suggestions'}
         className={cn(
-          'glass-panel absolute left-0 right-0 top-12 z-50 overflow-hidden rounded-xl p-2 motion-reveal',
+          'glass-popover absolute left-0 right-0 top-12 overflow-hidden rounded-xl p-2 motion-reveal',
           listOpen ? 'block' : 'hidden'
         )}
       >

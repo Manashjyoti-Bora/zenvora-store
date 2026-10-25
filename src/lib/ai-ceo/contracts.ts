@@ -185,6 +185,14 @@ export interface AiCeoSnapshot {
   };
 
   audit: { lastAction: string | null; lastAt: string | null };
+
+  /**
+   * The SHARED launch-readiness list used by Admin → Health and Admin →
+   * Operations (`src/lib/ops/launch-blockers.ts`), passed through unchanged so
+   * the AI CEO can never disagree with those pages. The typed `readiness[]`
+   * below adds owner actions on top; it does not replace this list.
+   */
+  sharedReadiness: { blockers: string[]; configGaps: string[] };
 }
 
 // ---------------------------------------------------------------------------
@@ -343,6 +351,8 @@ export interface AiCeoReport {
   risks: Risk[];
   recommendations: Recommendation[];
   readiness: ReadinessItem[];
+  /** Canonical shared list (Health/Operations) — identical strings, no re-derivation. */
+  readinessShared: { blockers: string[]; configGaps: string[]; source: string };
   /** Modes available to this deployment right now. */
   modes: {
     observe: true;

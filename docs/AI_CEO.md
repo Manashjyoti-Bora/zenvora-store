@@ -90,6 +90,15 @@ status.
 7. Missing data is stated, not filled: for example “no realised order in the window:
    revenue, margin and demand are not measurable”.
 
+### Shared launch readiness
+
+The dashboard also shows the canonical blocker/gap list produced by
+`src/lib/ops/launch-blockers.ts#collectLaunchReadiness()` — the exact list
+Admin → Health and Admin → Operations render. It is passed through the snapshot
+unchanged (`readinessShared`) so the three screens cannot disagree. The typed
+`readiness[]` items add the precise owner action and stage gating on top; they are
+not a second, competing verdict.
+
 ## 4. Permissions
 
 Levels are the existing ones (`src/lib/auth/permissions.ts`).
@@ -202,7 +211,7 @@ messages.
 ## 9. Tests
 
 ```
-npx vitest run tests/unit/ai-ceo        # 6 files, 72 tests
+npx vitest run tests/unit/ai-ceo        # 6 files, 73 tests
 npm run typecheck:ai-ceo                 # pure layer, no Prisma engines needed
 ```
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { prisma } from './db';
+import { env } from './env';
 
 /**
  * Store settings: typed key-value configuration stored in the database,
@@ -247,6 +248,19 @@ export function configuredSupportEmail(settings: Pick<StoreSettings, 'supportEma
   return isPlaceholderEmail(settings.supportEmail) ? null : settings.supportEmail.trim();
 }
 
+/**
+ * Apply the SUPPORT_EMAIL environment fallback: a stored placeholder is
+ * replaced by the owner-supplied address; a real stored value is kept.
+ */
+export function applySupportEmailFallback<T extends Pick<StoreSettings, 'supportEmail'>>(
+  settings: T,
+  fallback: string | undefined = env.SUPPORT_EMAIL
+): T {
+  if (!fallback || isPlaceholderEmail(fallback)) return settings;
+  if (!isPlaceholderEmail(settings.supportEmail)) return settings;
+  return { ...settings, supportEmail: fallback.trim() };
+}
+
 const SETTINGS_KEY = 'store';
 const CACHE_TTL_MS = 30_000;
 
@@ -262,12 +276,14 @@ export async function getSettings(): Promise<StoreSettings> {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.data;
   try {
     const row = await prisma.setting.findUnique({ where: { key: SETTINGS_KEY } });
-    const data = row ? settingsSchema.parse(mergeDefaults(row.value)) : FALLBACK;
+    const data = applySupportEmailFallback(
+      row ? settingsSchema.parse(mergeDefaults(row.value)) : FALLBACK
+    );
     cache = { data, at: Date.now() };
     return data;
   } catch {
     // Database may be unreachable (e.g. during setup); fall back to defaults.
-    return FALLBACK;
+    return applySupportEmailFallback(FALLBACK);
   }
 }
 

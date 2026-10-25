@@ -9,8 +9,9 @@ import {
   isProduction,
 } from '@/lib/env';
 import { describePaymentProvider } from '@/lib/payments';
-import { getSettings, isPlaceholderEmail } from '@/lib/settings';
+import { getSettings } from '@/lib/settings';
 import { Card, Alert } from '@/components/ui/feedback';
+import { collectLaunchReadiness } from '@/lib/ops/launch-blockers';
 import { Badge } from '@/components/ui/badge';
 
 export const dynamic = 'force-dynamic';
@@ -126,18 +127,13 @@ export default async function AdminHealthPage() {
   const smtpConfigured =
     env.EMAIL_PROVIDER === 'smtp' && Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
   const razorpayWebhookReady = Boolean(env.RAZORPAY_WEBHOOK_SECRET);
-  const productionBlockers: string[] = [];
-  if (isProduction && !isRazorpayConfigured())
-    productionBlockers.push('Razorpay credentials not configured');
-  if (isProduction && env.EMAIL_PROVIDER !== 'smtp')
-    productionBlockers.push('Email provider is console — customers would not receive emails');
-  if (settings.demoMode && isProduction) productionBlockers.push('Demo mode is ON in production');
-  if (!env.CRON_SECRET)
-    productionBlockers.push('CRON_SECRET not set — /api/cron/jobs is unprotected or disabled');
-  if (isPlaceholderEmail(settings.supportEmail))
-    productionBlockers.push(
-      'Support e-mail is still the placeholder (support@example.com) — set a real address in Settings → Store; public pages link to the contact form until then'
-    );
+  const readiness = collectLaunchReadiness({
+    settings,
+    env,
+    razorpayConfigured: isRazorpayConfigured(),
+    isProduction,
+  });
+  const productionBlockers = readiness.blockers;
 
   return (
     <div className="space-y-5">
@@ -160,7 +156,7 @@ export default async function AdminHealthPage() {
             ))}
           </ul>
           <p className="mt-1">
-            Resolve each item per SETUP_CHECKLIST.md before taking real orders.
+            Resolve each item per docs/LAUNCH_READINESS.md before taking real orders.
           </p>
         </Alert>
       ) : (
@@ -178,6 +174,16 @@ export default async function AdminHealthPage() {
               money never moves in this mode.
             </p>
           )}
+        </Alert>
+      )}
+
+      {readiness.configGaps.length > 0 && (
+        <Alert tone="warning" title="Configuration gaps (not blocking, but visible to customers or risky)">
+          <ul className="list-inside list-disc space-y-0.5">
+            {readiness.configGaps.map((g) => (
+              <li key={g}>{g}</li>
+            ))}
+          </ul>
         </Alert>
       )}
 

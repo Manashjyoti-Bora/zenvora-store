@@ -1,11 +1,11 @@
-# ZENVORA DESIGN LANGUAGE — "Obsidian & Pearl Editorial Commerce"
+# ZENVORA DESIGN LANGUAGE — "Petrol & Porcelain Editorial Commerce"
 
 **Written concept, Round 6 (created before implementation, per brief §3).**
 Companion to: `FRONTEND_AUDIT_REPORT.md`, `FRONTEND_REDESIGN_REPORT.md`, `FINAL_EXPERIENCE_UPGRADE.md`.
 
 ## 0. Visual philosophy (5-second recognition test)
 
-A visitor should see: **a pearl canvas, obsidian ink, one electric-violet action colour, one
+A visitor should see: **a porcelain canvas, midnight ink, one deep-petrol action colour, one
 quiet champagne rule, big editorial type, real product photography treated like a magazine
 spread — and motion that behaves like physics, not decoration.** Zenvora reads as "a considered
 Indian commerce house," not a template: no gradients-for-their-own-sake, glass only on the few
@@ -19,31 +19,42 @@ composition, Linear/Stripe-style motion discipline; nothing copied):
 4. Performance is a design material — 0 kB added where CSS can do it; JS only where CSS cannot.
 5. Mobile is the product — most visitors arrive from Instagram on mid-range Androids.
 
-## 1. Color system (2026-10 palette refresh — tokens in `tailwind.config.ts` / `globals.css`)
+## 1. Color system — "Petrol & Porcelain" (2026-10-25 refresh; tokens in `tailwind.config.ts` / `globals.css`)
+Full comparison, measured contrast and token map: `docs/DESIGN_SYSTEM.md` §2.
 Five named colours, each with one job:
-- **Obsidian Black `#101114`** (`ink-900`, `--surface-ink`): branding, dark surfaces
-  (announcement, hero, footer, dark glass), primary text.
-- **Pearl White `#F7F6F2`** (`cream-50`, `--surface-canvas`): every shopping surface. White
-  (`--surface-card`) for cards, forms, tables.
-- **Champagne Gold `#C6A56B`** (`accent-400` / `brass-400`): sparingly — eyebrows and rules on
-  dark surfaces, hero numerals, badges on Obsidian. **Never text on light surfaces** (2.3:1).
-- **Electric Violet `#7965F2`** (`brand-500`): the action colour. Fill for primary buttons is
-  `brand-600 #6350D9` (white text 5.7:1 AA); `brand-700 #5140B8` for links/eyebrows on light;
-  `brand-500` only for focus rings, large text and non-text UI (4.2:1).
-- **Sage Mint `#DDEDE4`** (`sage-100`, `--surface-sage`): success / calm *surfaces* only
-  (confirmation badge, category chips). It is never used for text contrast; success text is
-  `sage-600`/`success-600 #47765C` (5.2:1 on white).
-- **Semantic:** muted text `#62636A` (`ink-400`, 5.5:1 on Pearl); success `#47765C`; error
-  `#B93838` (`red-600` is re-pointed to it); borders `#E3E0D8` (`cream-200`). Amber stays for
-  "pending" states.
+- **Midnight Ink `#111820`** (`ink-900`, `--color-midnight`, `--surface-ink`): branding, dark
+  surfaces (announcement, hero, footer, dark glass, toasts), primary text.
+- **Porcelain Mist `#F6F5F0`** (`cream-50`, `--color-porcelain`, `--surface-canvas`): every
+  shopping surface. White (`--surface-card`) for cards, forms, tables.
+- **Deep Petrol `#174A50`** (`brand-600`, `--color-petrol`, `--brand-primary`): the action
+  colour. Primary button fill (white text **9.85:1**), active nav, selected states;
+  `brand-700 #113C41` for links/eyebrows on light; `brand-500 #1F5A60` for the light focus ring.
+  Continuous with the existing app icon (petrol field + champagne Z), so the brand stays
+  recognisable.
+- **Iridescent Teal `#77C9C1`** (`brand-400`, `--color-teal`): highlight on **dark surfaces
+  only** — focus rings on dark glass, hero accents, active icons on Midnight (9.3:1). **Never
+  text on light** (1.9:1).
+- **Muted Champagne `#C6AD7A`** (`accent-400` / `brass-400`, `--color-champagne`): sparingly —
+  eyebrows and rules on dark surfaces, hero numerals. **Never text on light** (2.2:1).
+- **Pale Sage `#E2ECE5`** (`sage-100`, `--surface-sage`): success / calm *surfaces* only.
+  Success text is `sage-600`/`success-600`/`emerald-600 #347455` (5.6:1 on white).
+- **Semantic:** muted text `#59636B` (`ink-400`, 5.6:1 on Porcelain); error `#B33A42`
+  (`danger-600`, `red-600` re-pointed to it, 5.8:1); borders `#DCE1DE` (`cream-200`). Amber
+  stays for "pending" states.
 All ratios above were computed (WCAG 2.2 relative luminance), not estimated.
 
-### 1a. Liquid-Glass system (`.glass-panel`, `.glass-bar`, `.glass-dark`, `.glass-scrim`, `.crisp`)
-Allowed **only** on: header, search overlays, floating/mobile nav, dialogs, drawers, filter
-panels, toasts. **Never** on product photos, prices, checkout/payment forms, admin tables —
-those stay opaque (`.crisp` forces it). Each class ships an opaque fallback first and adds
-translucency + `backdrop-filter` only inside `@supports`. Blur values are static tokens
-(`--glass-blur` 14px, `--glass-blur-bar` 10px) and are **never transitioned or animated**.
+### 1a. Liquid-Glass system (role classes)
+Role classes: `.glass-header` `.glass-nav` `.glass-floating-control` (bars),
+`.glass-popover` `.glass-drawer` `.glass-dialog` `.glass-filter-panel` (light panels),
+`.glass-toast` (dark). Material primitives `.glass-panel` `.glass-bar` `.glass-dark`
+`.glass-scrim` and the opt-out `.crisp` remain. Allowed **only** on: header, search overlays,
+floating/mobile nav, dialogs, drawers, filter panels, toasts. **Never** on product photos,
+prices, checkout/payment forms, admin tables — those stay opaque. Each class ships an opaque
+fallback first and adds translucency + `backdrop-filter` only inside `@supports` **and** when
+`prefers-reduced-transparency` is not set. Blur values are static tokens (`--glass-blur` 14px,
+`--glass-blur-bar` 10px) and are **never transitioned or animated**. Each role class also
+carries its layer from the z-index ladder (`--z-floating 30 … --z-skip 80`, see
+`docs/DESIGN_SYSTEM.md` §4).
 
 ## 2. Typography
 Inter Variable, **self-hosted** from `@fontsource-variable/inter` (one `woff2` per unicode
