@@ -1,4 +1,5 @@
 import type { StoreSettings } from '../settings';
+import { isSafeMediaUrl } from '../images/url-safety';
 import type { SupplierVariantDto } from '../suppliers/types';
 
 /**
@@ -168,11 +169,9 @@ export function checkProductCompliance(input: {
 }
 
 export function isValidProductImageUrl(url: string | null | undefined): boolean {
-  if (!url || typeof url !== 'string') return false;
-  const trimmed = url.trim();
-  if (!trimmed || trimmed.length > 1000) return false;
-  if (/^(javascript|data|vbscript):/i.test(trimmed)) return false;
-  return /^https?:\/\/\S+/i.test(trimmed) || trimmed.startsWith('/uploads/');
+  // Delegates to the shared media-URL safety rule (https + public host, or
+  // /uploads/). Kept under its historical name for existing call sites.
+  return isSafeMediaUrl(url);
 }
 
 export function evaluateProductCandidate(

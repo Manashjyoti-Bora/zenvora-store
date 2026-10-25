@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isSafeMediaUrl, UNSAFE_MEDIA_URL_MESSAGE } from '../images/url-safety';
 
 /**
  * Shared Zod validation schemas used by BOTH client forms (instant feedback)
@@ -186,9 +187,16 @@ export const percentSchema = (max = 1000) =>
 
 export const productImageSchema = z.object({
   id: z.string().optional(),
-  url: z.string().trim().min(1).max(2000),
+  url: z.string().trim().min(1).max(2000).refine(isSafeMediaUrl, UNSAFE_MEDIA_URL_MESSAGE),
   alt: z.string().trim().max(200).optional().or(z.literal('')),
-  videoUrl: z.string().trim().max(2000).optional().or(z.literal('')).nullable(),
+  videoUrl: z
+    .string()
+    .trim()
+    .max(2000)
+    .refine((v) => v === '' || isSafeMediaUrl(v), UNSAFE_MEDIA_URL_MESSAGE)
+    .optional()
+    .or(z.literal(''))
+    .nullable(),
   position: z.number().int().min(0).max(999).default(0),
   isPrimary: z.boolean().default(false),
 });
