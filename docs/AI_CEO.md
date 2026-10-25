@@ -163,6 +163,18 @@ Policy order (all evaluated before anything is touched):
 10. run → audit `ai_ceo.action` (or `ai_ceo.action.failed`); refusals are audited as
     `ai_ceo.action.denied` so probing is visible.
 
+### Execution history, retry and usage
+
+The dashboard shows the last 10 AI-CEO audit entries (`history.ts` +
+`history-loader.ts`): executed, failed, refused (including refused attempts from
+other sessions), narrative generations and control changes, with the actor and the
+token cost of each narrative. The mapping is **whitelist-based** — only known
+scalar fields are copied, so result blobs, provider error bodies and (never stored)
+narrative text cannot leak into the UI. A `Retry` button is offered only for a
+failed action that can run with no arguments; the retry carries a fresh
+idempotency key and is re-checked against the kill switch, permissions and caps.
+Narrative usage in the trailing 30 days is shown against the configured budget.
+
 **Kill switches** (Settings → `aiCeo`, editable on the dashboard):
 `enabled` (module), `actionsEnabled` (execution, **false by default**),
 `dailyActionLimit` (**0 disables execution**), `providerNarrativeEnabled` (off),
@@ -211,7 +223,7 @@ messages.
 ## 9. Tests
 
 ```
-npx vitest run tests/unit/ai-ceo        # 6 files, 73 tests
+npx vitest run tests/unit/ai-ceo        # 7 files, 79 tests
 npm run typecheck:ai-ceo                 # pure layer, no Prisma engines needed
 ```
 

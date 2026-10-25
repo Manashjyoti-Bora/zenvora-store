@@ -9,6 +9,10 @@ import { formatINR } from '@/lib/money';
 import { loadAiCeoSnapshotSafe } from '@/lib/ai-ceo/snapshot';
 import { buildAiCeoReport } from '@/lib/ai-ceo/engine';
 import { loadRecentAiCeoRuns } from '@/lib/ai-ceo/action-executor';
+import { loadAiCeoHistory } from '@/lib/ai-ceo/history-loader';
+import { historyCounts } from '@/lib/ai-ceo/history';
+import { narrativeTokensUsed } from '@/lib/ai-ceo/narrative-service';
+import { AiCeoRetryButton } from '@/components/admin/ai-ceo-retry-button';
 import { AI_CEO_ACTIONS } from '@/lib/ai-ceo/actions';
 import { EVIDENCE_LABELS, HEALTH_LABELS } from '@/lib/ai-ceo/contracts';
 import type {
@@ -157,7 +161,7 @@ export default async function AiCeoPage() {
   const session = await getSessionUser();
   const level = permissionLevelOf(session?.user ?? null);
 
-  const [loaded, settings, suppliers, recentRuns] = await Promise.all([
+  const [loaded, settings, suppliers, recentRuns, history, tokensUsed30d] = await Promise.all([
     loadAiCeoSnapshotSafe(),
     getSettings(),
     prisma.supplier.findMany({
@@ -166,6 +170,8 @@ export default async function AiCeoPage() {
       take: 50,
     }),
     loadRecentAiCeoRuns(new Date()).catch(() => []),
+    loadAiCeoHistory(10).catch(() => []),
+    narrativeTokensUsed().catch(() => 0),
   ]);
 
   const header = (
@@ -217,6 +223,8 @@ export default async function AiCeoPage() {
 
   const runsLast24h = recentRuns.filter((r: { at: string }) => Date.parse(r.at) >= Date.now() - 86_400_000).length;
   const remainingToday = Math.max(0, settings.aiCeo.dailyActionLimit - runsLast24h);
+  const historyStats = historyCounts(history);
+  const outcomeTone = { SUCCEEDED: 'green', FAILED: 'red', REFUSED: 'amber', RECORDED: 'gray' } as const;
   const generatedAt = new Date(report.generatedAt).toLocaleString('en-IN', {
     dateStyle: 'medium',
     timeStyle: 'short',
@@ -514,8 +522,57 @@ export default async function AiCeoPage() {
         </Card>
         <Card title="Automation controls & kill switch">
           <AiCeoControls initial={settings.aiCeo} />
+          <p className="mt-3 border-t border-ink-900/10 pt-3 text-[11px] leading-relaxed text-ink-500">
+            Narrative usage (30 d): <strong className="tabular-nums text-ink-700">{tokensUsed30d.toLocaleString('en-IN')}</strong>{' '}
+            of {settings.aiCeo.monthlyTokenBudget.toLocaleString('en-IN')} tokens ·{' '}
+            {runsLast24h} action(s) in the last 24 h of {settings.aiCeo.dailyActionLimit}.
+          </p>
         </Card>
       </div>
+
+      <Card
+        title="Execution history"
+        action={
+          <span className="flex flex-wrap items-center gap-1.5">
+            <Badge tone="green">{historyStats.succeeded} ran</Badge>
+            <Badge tone="red">{historyStats.failed} failed</Badge>
+            <Badge tone="amber">{historyStats.refused} refused</Badge>
+          </span>
+        }
+      >
+        {history.length === 0 ? (
+          <p className="text-sm text-ink-500">
+            No AI CEO action has run yet. Executions, failures and refused attempts all appear here — the audit
+            log is the system of record.
+          </p>
+        ) : (
+          <ul className="divide-y divide-ink-900/[0.06]">
+            {history.map((entry) => (
+              <li key={entry.id} className="flex flex-wrap items-start justify-between gap-2 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink-800">{entry.label}</p>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-ink-500">
+                    <span>
+                      {new Date(entry.at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                    </span>
+                    {entry.actorEmail && <span>· {entry.actorEmail}</span>}
+                    {entry.code && <span>· {entry.code.replace(/_/g, ' ').toLowerCase()}</span>}
+                    {entry.tokensUsed !== null && <span>· {entry.tokensUsed.toLocaleString('en-IN')} tokens</span>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge tone={outcomeTone[entry.outcome]}>{entry.outcome.toLowerCase()}</Badge>
+                  {entry.retryable && entry.actionKey && <AiCeoRetryButton actionKey={entry.actionKey} />}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 text-[11px] text-ink-400">
+          Retries generate a fresh idempotency key and are re-checked against the kill switch, permissions and
+          daily caps. Narrative text is never stored in history — only that it was generated and its token cost.
+        </p>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card title="Narrative (optional)">
