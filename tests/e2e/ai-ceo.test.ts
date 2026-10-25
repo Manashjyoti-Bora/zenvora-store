@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db';
 
 import { e2eAdmin } from './env';
 import { HttpAgent, errCode, okData, waitForServer } from './http';
-import { createFixtureUser, loginFixture } from './fixtures';
+import { createFixtureUser, createSessionAgent, sessionAgentForEmail } from './fixtures';
 
 /**
  * E2E — AI CEO surface over real HTTP.
@@ -33,29 +33,20 @@ beforeAll(async () => {
   await waitForServer();
   if (!e2eAdmin.email || !e2eAdmin.password) throw new Error('ADMIN_EMAIL/ADMIN_PASSWORD missing from .env');
 
-  adminAgent = new HttpAgent();
-  // Prime the readable CSRF cookie before the first unsafe request, exactly as
-  // a browser would after loading a page.
-  await adminAgent.get('/api/health');
-  const login = await adminAgent.post('/api/auth/login', {
-    email: e2eAdmin.email,
-    password: e2eAdmin.password,
-  });
-  expect(login.status).toBe(200);
+  // Sessions are minted straight into the database (only sha256(token) stored,
+  // as the app does). This spec verifies AUTHORIZATION; auth-flow owns login,
+  // and the login endpoint is deliberately rate-limited to 20 / 15 min / IP.
+  adminAgent = await sessionAgentForEmail(e2eAdmin.email);
 
   // Deterministic starting posture, whatever a previous run left behind.
   const reset = await adminAgent.patch('/api/admin/ai-ceo/config', DEFAULT_CONFIG);
   expect(reset.status).toBe(200);
 
-  const customer = await createFixtureUser('ai-ceo-customer', 'CUSTOMER');
-  customerAgent = new HttpAgent();
-  expect((await loginFixture(customerAgent, customer)).status).toBe(200);
+  customerAgent = await createSessionAgent(await createFixtureUser('ai-ceo-customer', 'CUSTOMER'));
 
   // STAFF exists in the role model but the admin area (and therefore the action
   // route) is ADMIN-only; this proves the API agrees.
-  const staff = await createFixtureUser('ai-ceo-staff', 'STAFF');
-  staffAgent = new HttpAgent();
-  expect((await loginFixture(staffAgent, staff)).status).toBe(200);
+  staffAgent = await createSessionAgent(await createFixtureUser('ai-ceo-staff', 'STAFF'));
 
   executedKey = `e2e-ai-ceo-${Date.now()}`;
 }, 180_000);
