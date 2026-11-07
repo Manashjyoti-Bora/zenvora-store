@@ -2,97 +2,91 @@ import { prisma } from '../db';
 import { toPaise } from '../money';
 import { getSettings } from '../settings';
 import { estimatePaymentFeePaise } from '../checkout/calc';
-import type { Order } from '@prisma/client';
+import type { Order, Prisma } from '@prisma/client';
 
 /**
  * Order financial ledger.
  *
- * estimatedProfit (frozen at order creation):
- *   revenue - supplier costs - estimated gateway fee
+ * estimatedProfit (frozen at order creation): revenue - supplier costs -
+ * estimated gateway fee.
  *
- * actualProfit (continuously recomputed as real data arrives):
- *   revenue
- *   - supplier cost total      (frozen snapshots on order items)
- *   - shipping cost total      (extra shipping we pay, admin-adjustable)
- *   - payment fee total        (actual gateway fees when known, else estimate)
- *   - other cost total         (admin-adjustable: packaging, platform fees...)
- *   - refunded total           (refunds issued)
- *
- * The UI must NEVER present estimatedProfit as guaranteed net profit - the
- * admin dashboard labels it "estimated" and shows the actual figure once
- * fees/refunds are known. profitFinalizedAt is set when the order reaches a
- * financial end-state (delivered/cancelled/refunded) and no estimated fees
- * remain.
+ * actualProfit is recomputed from booked order value, supplier/shipping/payment
+ * costs, and refunds confirmed COMPLETED. REQUESTED/PROCESSING refunds are
+ * obligations, not settled cash movements, and therefore never reduce realized
+ * profit. Estimated and realized figures remain separate concepts.
  */
 
 const dec = (paise: number) => (paise / 100).toFixed(2);
 
-export async function recalcOrderFinancials(orderId: string): Promise<Order> {
-  const settings = await getSettings();
-  const order = await prisma.order.findUniqueOrThrow({
+async function recalcWithClient(
+  orderId: string,
+  client: Prisma.TransactionClient,
+  settings: Awaited<ReturnType<typeof getSettings>>
+): Promise<Order> {
+  const order = await client.order.findUniqueOrThrow({
     where: { id: orderId },
     include: { items: true, payments: true, refunds: true },
   });
 
-  const supplierCostTotal = order.items.reduce((a, i) => a + toPaise(i.lineSupplierCost), 0);
-
-  const paidPayments = order.payments.filter((p) =>
-    ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(p.status)
+  const supplierCostTotal = order.items.reduce(
+    (sum, item) => sum + toPaise(item.lineSupplierCost),
+    0
   );
-  const paidAmount = paidPayments.reduce((a, p) => a + toPaise(p.amount), 0);
+  const paidPayments = order.payments.filter((payment) =>
+    ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(payment.status)
+  );
   const actualFees = paidPayments
-    .filter((p) => !p.feeIsEstimate)
-    .reduce((a, p) => a + toPaise(p.feeAmount), 0);
-  const hasEstimatedFees = paidPayments.some((p) => p.feeIsEstimate);
-  const estimatedFees = hasEstimatedFees
-    ? paidPayments
-        .filter((p) => p.feeIsEstimate)
-        .reduce((a, p) => a + estimatePaymentFeePaise(toPaise(p.amount), settings), 0)
-    : 0;
+    .filter((payment) => !payment.feeIsEstimate)
+    .reduce((sum, payment) => sum + toPaise(payment.feeAmount), 0);
+  const estimatedFees = paidPayments
+    .filter((payment) => payment.feeIsEstimate)
+    .reduce((sum, payment) => sum + estimatePaymentFeePaise(toPaise(payment.amount), settings), 0);
+  const hasEstimatedFees = paidPayments.some((payment) => payment.feeIsEstimate);
   const paymentFeeTotal = actualFees + estimatedFees;
 
   const refundedTotal = order.refunds
-    .filter((r) => r.status === 'PROCESSING' || r.status === 'COMPLETED')
-    .reduce((a, r) => a + toPaise(r.amount), 0);
-
-  const shippingCostTotal = toPaise(order.shippingCostTotal);
-  const otherCostTotal = toPaise(order.otherCostTotal);
+    .filter((refund) => refund.status === 'COMPLETED')
+    .reduce((sum, refund) => sum + toPaise(refund.amount), 0);
 
   const revenue =
     toPaise(order.subtotal) -
     toPaise(order.discountTotal) +
     toPaise(order.shippingTotal) +
     toPaise(order.codFeeTotal);
-
   const actualProfit =
     revenue -
     supplierCostTotal -
-    shippingCostTotal -
+    toPaise(order.shippingCostTotal) -
     paymentFeeTotal -
-    otherCostTotal -
+    toPaise(order.otherCostTotal) -
     refundedTotal;
-
   const financiallyFinal =
     ['DELIVERED', 'CANCELLED', 'REFUNDED', 'RETURNED'].includes(order.status) && !hasEstimatedFees;
 
-  const codCollected = order.paymentStatus === 'COD_PENDING' ? 0 : paidAmount; // informational
+  return client.order.update({
+    where: { id: orderId },
+    data: {
+      supplierCostTotal: dec(supplierCostTotal),
+      paymentFeeTotal: dec(paymentFeeTotal),
+      refundedTotal: dec(refundedTotal),
+      actualProfit: dec(actualProfit),
+      ...(financiallyFinal ? { profitFinalizedAt: order.profitFinalizedAt ?? new Date() } : {}),
+    },
+  });
+}
 
-  return prisma.order
-    .update({
-      where: { id: orderId },
-      data: {
-        supplierCostTotal: dec(supplierCostTotal),
-        paymentFeeTotal: dec(paymentFeeTotal),
-        refundedTotal: dec(refundedTotal),
-        actualProfit: dec(actualProfit),
-        ...(financiallyFinal ? { profitFinalizedAt: order.profitFinalizedAt ?? new Date() } : {}),
-      },
-    })
-    .then((updated) => {
-      void codCollected;
-      void paidAmount;
-      return updated;
-    });
+/**
+ * Recalculate within the caller's transaction when supplied; otherwise use a
+ * transaction of our own. This lets refund status, aggregates, order events,
+ * and realized profit commit or roll back together.
+ */
+export async function recalcOrderFinancials(
+  orderId: string,
+  tx?: Prisma.TransactionClient
+): Promise<Order> {
+  const settings = await getSettings();
+  if (tx) return recalcWithClient(orderId, tx, settings);
+  return prisma.$transaction((client) => recalcWithClient(orderId, client, settings));
 }
 
 /** Admin adjustment of the manual cost buckets (shipping/other costs). */

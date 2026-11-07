@@ -107,14 +107,19 @@ export async function handleRazorpayWebhook(
       await prisma.webhookEvent.update({
         where: { id: webhookEvent.id },
         data: {
-          status: 'PROCESSED',
-          processedAt: new Date(),
+          status: result.retryable ? 'FAILED' : 'PROCESSED',
+          processedAt: result.retryable ? null : new Date(),
+          error: result.retryable
+            ? 'Financial event could not be matched; retry/reconciliation required.'
+            : null,
           orderId: result.orderId ?? null,
           paymentId: result.paymentId ?? null,
         },
       });
     }
-    return { status: 200, body: { ok: true, handled: result.handled } };
+    return result.retryable
+      ? { status: 500, body: { ok: false, handled: false, retry: true } }
+      : { status: 200, body: { ok: true, handled: result.handled } };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error('Razorpay webhook processing failed', { eventType, error: message });
@@ -132,7 +137,7 @@ export async function handleRazorpayWebhook(
 async function routeRazorpayEvent(
   eventType: string,
   payload: Record<string, unknown>
-): Promise<{ handled: boolean; orderId?: string; paymentId?: string }> {
+): Promise<{ handled: boolean; retryable?: boolean; orderId?: string; paymentId?: string }> {
   const inner = (payload.payload ?? {}) as {
     payment?: RazorpayPaymentEntityPayload;
     refund?: RazorpayRefundEntityPayload;
@@ -150,7 +155,7 @@ async function routeRazorpayEvent(
       });
       if (!payment) {
         logger.warn('Webhook for unknown provider order id', { providerOrderId: entity.order_id });
-        return { handled: false };
+        return { handled: false, retryable: true };
       }
       await confirmPaymentResult({
         orderId: payment.orderId,
@@ -169,11 +174,11 @@ async function routeRazorpayEvent(
     }
     case 'payment.failed': {
       const entity = paymentPayload?.entity;
-      if (!entity?.order_id) return { handled: false };
+      if (!entity?.order_id) return { handled: false, retryable: true };
       const payment = await prisma.payment.findUnique({
         where: { providerOrderId: entity.order_id },
       });
-      if (!payment) return { handled: false };
+      if (!payment) return { handled: false, retryable: true };
       await confirmPaymentResult({
         orderId: payment.orderId,
         provider: 'RAZORPAY',
@@ -185,33 +190,39 @@ async function routeRazorpayEvent(
       });
       return { handled: true, orderId: payment.orderId, paymentId: payment.id };
     }
-    case 'refund.processed': {
-      const entity = refundPayload?.entity;
-      if (!entity?.id) return { handled: false };
-      await settleRefund({
-        providerRefundId: entity.id,
-        status: 'COMPLETED',
-        actor: 'PAYMENT_PROVIDER',
-      });
-      const refund = await prisma.refund.findFirst({ where: { providerRefundId: entity.id } });
-      return { handled: true, orderId: refund?.orderId };
-    }
+    case 'refund.processed':
     case 'refund.failed': {
       const entity = refundPayload?.entity;
-      if (!entity?.id) return { handled: false };
+      if (!entity?.id) return { handled: false, retryable: true };
+      const refund = await prisma.refund.findFirst({ where: { providerRefundId: entity.id } });
+      if (!refund) {
+        logger.warn('Refund webhook has no durable local reservation', {
+          providerRefundId: entity.id,
+          eventType,
+        });
+        return { handled: false, retryable: true };
+      }
       await settleRefund({
         providerRefundId: entity.id,
-        status: 'FAILED',
-        failureReason: 'Gateway reported refund failure',
+        status: eventType === 'refund.processed' ? 'COMPLETED' : 'FAILED',
+        failureReason:
+          eventType === 'refund.failed' ? 'Gateway reported refund failure' : undefined,
         actor: 'PAYMENT_PROVIDER',
       });
-      const refund = await prisma.refund.findFirst({ where: { providerRefundId: entity.id } });
-      return { handled: true, orderId: refund?.orderId };
+      return { handled: true, orderId: refund.orderId };
     }
     case 'refund.pending':
     case 'refund.created': {
-      // Recorded by webhook_events; settleRefund completes on refund.processed.
-      return { handled: true };
+      const entity = refundPayload?.entity;
+      if (!entity?.id) return { handled: false, retryable: true };
+      const refund = await prisma.refund.findFirst({ where: { providerRefundId: entity.id } });
+      if (!refund) {
+        logger.warn('Pending refund webhook not matched to local reservation', {
+          providerRefundId: entity.id,
+        });
+        return { handled: false, retryable: true };
+      }
+      return { handled: true, orderId: refund.orderId };
     }
     default:
       logger.info('Razorpay webhook event stored (no handler)', { eventType });

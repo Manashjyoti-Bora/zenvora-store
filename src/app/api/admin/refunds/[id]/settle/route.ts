@@ -26,13 +26,14 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     if (!raw || typeof raw !== 'object') throw badRequest('Invalid request body');
     const body = settleSchema.parse(raw);
 
-    await settleRefund({
+    const changed = await settleRefund({
       refundId: id,
       status: body.status,
       failureReason: body.status === 'FAILED' ? (body.note ?? 'Marked failed by admin') : undefined,
       actor: 'ADMIN',
       actorId: admin.id,
     });
-    return jsonOk({ settled: body.status });
+    const latest = await prisma.refund.findUniqueOrThrow({ where: { id } });
+    return jsonOk({ settled: latest.status, changed });
   })(req, ctx);
 }

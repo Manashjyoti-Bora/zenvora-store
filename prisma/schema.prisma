@@ -334,6 +334,16 @@ enum SupplierOrderStatus {
   RETURNED
 }
 
+enum SupplierCancellationStatus {
+  NONE
+  REQUESTED
+  SUBMITTING
+  SUBMITTED
+  CONFIRMED
+  REJECTED
+  MANUAL_ACTION_REQUIRED
+}
+
 model Supplier {
   id           String       @id @default(cuid())
   name         String
@@ -407,6 +417,8 @@ model SupplierOrder {
   shippedAt       DateTime?
   deliveredAt     DateTime?
   cancelledAt     DateTime?
+  cancellationStatus SupplierCancellationStatus @default(NONE)
+  cancellationMessage String?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -1116,6 +1128,9 @@ model Job {
   maxAttempts Int       @default(6)
   nextRunAt   DateTime  @default(now())
   lockedAt    DateTime?
+  // Random per-claim fencing token. A worker may update a job only while this
+  // token still matches, so stale workers cannot overwrite a newer claim.
+  claimToken  String?
   lastError   String?
   completedAt DateTime?
   createdAt   DateTime  @default(now())

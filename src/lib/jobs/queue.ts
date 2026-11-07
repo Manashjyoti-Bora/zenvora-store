@@ -21,6 +21,53 @@ export interface EnqueueJobParams {
   maxAttempts?: number;
 }
 
+/**
+ * Enqueue a job using the caller's Prisma transaction. Use this when the
+ * originating domain write must not commit without durable work being queued
+ * (for example, cancellation plus supplier-cancellation requests).
+ *
+ * A dedupe key is inserted with ON CONFLICT DO NOTHING semantics so duplicate
+ * requests inside concurrent transactions do not abort the surrounding domain
+ * transaction. Existing terminal jobs are reset using the same retry semantics
+ * as enqueueJob, without leaving the caller's transaction.
+ */
+export async function enqueueJobInTransaction(
+  tx: Prisma.TransactionClient,
+  params: EnqueueJobParams
+): Promise<void> {
+  const data = {
+    type: params.type,
+    payload: params.payload,
+    dedupeKey: params.dedupeKey ?? null,
+    nextRunAt: params.runAt ?? new Date(),
+    maxAttempts: params.maxAttempts ?? 6,
+  };
+
+  if (params.dedupeKey) {
+    const inserted = await tx.job.createMany({ data: [data], skipDuplicates: true });
+    if (inserted.count === 0) {
+      const existing = await tx.job.findUnique({ where: { dedupeKey: params.dedupeKey } });
+      if (existing && ['DONE', 'FAILED', 'CANCELLED'].includes(existing.status)) {
+        await tx.job.updateMany({
+          where: { id: existing.id, status: { in: ['DONE', 'FAILED', 'CANCELLED'] } },
+          data: {
+            status: 'PENDING',
+            payload: params.payload,
+            attempts: 0,
+            lastError: null,
+            nextRunAt: params.runAt ?? new Date(),
+            lockedAt: null,
+            claimToken: null,
+            completedAt: null,
+          },
+        });
+      }
+    }
+    return;
+  }
+  await tx.job.create({ data });
+}
+
 export async function enqueueJob(params: EnqueueJobParams): Promise<string | null> {
   try {
     const job = await prisma.job.create({
@@ -39,14 +86,16 @@ export async function enqueueJob(params: EnqueueJobParams): Promise<string | nul
       const existing = await prisma.job.findUnique({ where: { dedupeKey: params.dedupeKey } });
       if (existing && ['DONE', 'FAILED', 'CANCELLED'].includes(existing.status)) {
         // Previous run finished: requeue by resetting (keeps one row per dedupe key).
-        await prisma.job.update({
-          where: { id: existing.id },
+        await prisma.job.updateMany({
+          where: { id: existing.id, status: { in: ['DONE', 'FAILED', 'CANCELLED'] } },
           data: {
             status: 'PENDING',
             payload: params.payload,
             attempts: 0,
             lastError: null,
             nextRunAt: params.runAt ?? new Date(),
+            lockedAt: null,
+            claimToken: null,
             completedAt: null,
           },
         });
@@ -63,11 +112,17 @@ export async function enqueueJob(params: EnqueueJobParams): Promise<string | nul
 }
 
 /** Reschedule a job for a later poll (used by supplier-status polling). */
-export async function rescheduleJob(jobId: string, runAt: Date): Promise<void> {
-  await prisma.job.update({
-    where: { id: jobId },
-    data: { status: 'PENDING', nextRunAt: runAt, lockedAt: null },
+export async function rescheduleJob(
+  jobId: string,
+  runAt: Date,
+  claimToken: string
+): Promise<boolean> {
+  if (!claimToken) return false;
+  const result = await prisma.job.updateMany({
+    where: { id: jobId, status: 'RUNNING', claimToken },
+    data: { status: 'PENDING', nextRunAt: runAt, lockedAt: null, claimToken: null },
   });
+  return result.count === 1;
 }
 
 /**

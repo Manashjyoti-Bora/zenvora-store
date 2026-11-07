@@ -5,6 +5,8 @@ import { registerUser } from '@/lib/auth/service';
 import { addToCart } from '@/lib/cart/service';
 import { createOrderFromCart } from '@/lib/orders/create';
 import { recalcOrderFinancials, adjustOrderCosts } from '@/lib/orders/finance';
+import { reserveRefund, settleRefund } from '@/lib/payments/refunds';
+import { confirmPaymentResult } from '@/lib/payments/confirm';
 import { transitionOrder } from '@/lib/orders/state';
 import { getSettings, updateSettings, type StoreSettings } from '@/lib/settings';
 import { cleanupTestData, createTestProduct, testEmail, TEST_ADDRESS } from './fixtures';
@@ -16,6 +18,9 @@ import { cleanupTestData, createTestProduct, testEmail, TEST_ADDRESS } from './f
 describe('order finance engine (actual profit)', () => {
   let orderId: string;
   let userId: string;
+  let processingRefundId: string;
+  let capturedProviderOrderId: string;
+  let capturedProviderPaymentId: string;
   // Shared-DB test isolation: restore the EXACT settings we override (the
   // E2E suite runs against this same seeded database).
   let savedPayments: StoreSettings['payments'];
@@ -74,12 +79,14 @@ describe('order finance engine (actual profit)', () => {
   }, 20_000);
 
   it('real gateway fees (from the payment record) replace estimates', async () => {
+    capturedProviderOrderId = `itest-pay-${Date.now()}`;
+    capturedProviderPaymentId = `itest-payid-${Date.now()}`;
     await prisma.payment.create({
       data: {
         orderId,
         provider: 'TEST',
-        providerOrderId: `itest-pay-${Date.now()}`,
-        providerPaymentId: `itest-payid-${Date.now()}`,
+        providerOrderId: capturedProviderOrderId,
+        providerPaymentId: capturedProviderPaymentId,
         amount: '549.00',
         status: 'PAID',
         feeAmount: '12.00', // what the gateway actually charged
@@ -90,6 +97,23 @@ describe('order finance engine (actual profit)', () => {
     const o = await recalcOrderFinancials(orderId);
     expect(toPaise(o.paymentFeeTotal)).toBe(1_200);
     expect(toPaise(o.actualProfit)).toBe(54_900 - 20_000 - 1_200);
+  }, 20_000);
+
+  it('a late FAILED result cannot downgrade a captured Payment row', async () => {
+    const result = await confirmPaymentResult({
+      orderId,
+      provider: 'TEST',
+      providerOrderId: capturedProviderOrderId,
+      providerPaymentId: capturedProviderPaymentId,
+      outcome: 'FAILED',
+      failureReason: 'Late failure webhook test',
+      actorType: 'PAYMENT_PROVIDER',
+    });
+    const payment = await prisma.payment.findUniqueOrThrow({
+      where: { providerOrderId: capturedProviderOrderId },
+    });
+    expect(result.outcome).toBe('ORDER_NOT_PAYABLE');
+    expect(payment.status).toBe('PAID');
   }, 20_000);
 
   it('manual cost adjustments (shipping paid, other costs) reduce actual profit', async () => {
@@ -138,7 +162,70 @@ describe('order finance engine (actual profit)', () => {
     expect(toPaise(o.actualProfit)).toBe(54_900 - 20_000 - 1_200 - 6_000 - 500);
   }, 20_000);
 
-  it('refunds subtract from actual profit and accumulate in refundedTotal', async () => {
+  it('persists a refund reservation before provider processing and blocks excess balance', async () => {
+    const reservation = await prisma.$transaction((tx) =>
+      reserveRefund(tx, {
+        orderId,
+        amountPaise: 20_000,
+        reason: 'Reservation regression test',
+        actor: 'ADMIN',
+      })
+    );
+    const refund = await prisma.refund.findUniqueOrThrow({ where: { id: reservation.refundId } });
+    const payment = await prisma.payment.findFirstOrThrow({ where: { orderId } });
+    expect(refund.status).toBe('REQUESTED');
+    expect(toPaise(payment.refundedTotal)).toBe(0);
+    await expect(
+      prisma.$transaction((tx) =>
+        reserveRefund(tx, {
+          orderId,
+          amountPaise: 35_000,
+          reason: 'Would exceed remaining balance',
+          actor: 'ADMIN',
+        })
+      )
+    ).rejects.toThrow(/Refund exceeds refundable balance/);
+  }, 20_000);
+
+  it('PROCESSING refunds reserve funds but do not reduce realized profit or refundedTotal', async () => {
+    const refund = await prisma.refund.create({
+      data: {
+        orderId,
+        amount: '40.00',
+        status: 'PROCESSING',
+        reason: 'Provider settlement pending (test)',
+        initiatedBy: 'ADMIN',
+      },
+    });
+    processingRefundId = refund.id;
+    const o = await recalcOrderFinancials(orderId);
+    expect(toPaise(o.refundedTotal)).toBe(0);
+    expect(toPaise(o.actualProfit)).toBe(54_900 - 20_000 - 1_200 - 6_000 - 500);
+  }, 20_000);
+
+  it('settlement is idempotent and a late failure cannot reverse COMPLETED', async () => {
+    expect(
+      await settleRefund({ refundId: processingRefundId, status: 'COMPLETED', actor: 'ADMIN' })
+    ).toBe(true);
+    expect(
+      await settleRefund({ refundId: processingRefundId, status: 'COMPLETED', actor: 'ADMIN' })
+    ).toBe(false);
+    expect(
+      await settleRefund({
+        refundId: processingRefundId,
+        status: 'FAILED',
+        actor: 'PAYMENT_PROVIDER',
+      })
+    ).toBe(false);
+
+    const refund = await prisma.refund.findUniqueOrThrow({ where: { id: processingRefundId } });
+    const order = await recalcOrderFinancials(orderId);
+    expect(refund.status).toBe('COMPLETED');
+    expect(toPaise(order.refundedTotal)).toBe(4_000);
+    expect(toPaise(order.actualProfit)).toBe(54_900 - 20_000 - 1_200 - 6_000 - 500 - 4_000);
+  }, 20_000);
+
+  it('refunds subtract from actual profit and accumulate in refundedTotal only after completion', async () => {
     await prisma.refund.create({
       data: {
         orderId,
@@ -150,8 +237,8 @@ describe('order finance engine (actual profit)', () => {
       },
     });
     const o = await recalcOrderFinancials(orderId);
-    expect(toPaise(o.refundedTotal)).toBe(5_000);
-    expect(toPaise(o.actualProfit)).toBe(54_900 - 20_000 - 1_200 - 6_000 - 500 - 5_000);
+    expect(toPaise(o.refundedTotal)).toBe(9_000);
+    expect(toPaise(o.actualProfit)).toBe(54_900 - 20_000 - 1_200 - 6_000 - 500 - 9_000);
   }, 20_000);
 
   it('finalisation is monotonic: once final, a later recalc keeps it final', async () => {

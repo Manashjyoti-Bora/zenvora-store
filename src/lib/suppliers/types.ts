@@ -218,7 +218,11 @@ export interface SupplierAdapter {
   createOrder(input: SupplierCreateOrderInput): Promise<SupplierCreateOrderResult>;
   getOrderStatus(supplierOrderId: string): Promise<SupplierOrderStatusResult>;
   getShipmentTracking(supplierOrderId: string): Promise<SupplierOrderStatusResult>;
-  cancelOrder(supplierOrderId: string, reason?: string): Promise<SupplierActionResult>;
+  cancelOrder(
+    supplierOrderId: string,
+    reason?: string,
+    idempotencyKey?: string
+  ): Promise<SupplierActionResult>;
   requestReturn(supplierOrderId: string, reason: string): Promise<SupplierActionResult>;
   requestRefund(
     supplierOrderId: string,

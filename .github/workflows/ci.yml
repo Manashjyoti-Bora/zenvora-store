@@ -37,7 +37,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
       DIRECT_URL: postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
-      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_TELEMETRY_DISABLED: "1"
 
     steps:
       - uses: actions/checkout@v4
@@ -97,6 +97,50 @@ jobs:
       - name: Apply migrations to CI database (fresh-database migration check)
         run: npx prisma migrate deploy
 
+      - name: Check worker/cancellation migration with legacy rows
+        env:
+          PGPASSWORD: ci_only_password
+        run: |
+          set -euo pipefail
+          legacy_url='postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_legacy?schema=public'
+          createdb -h 127.0.0.1 -p 5432 -U ci resellix_legacy
+          migration_dir=$(mktemp -d)
+          trap 'rm -rf "$migration_dir"' EXIT
+          mkdir -p "$migration_dir/migrations"
+          cp prisma/schema.prisma "$migration_dir/schema.prisma"
+          cp prisma/migrations/migration_lock.toml "$migration_dir/migrations/"
+          for migration in prisma/migrations/*; do
+            [ -d "$migration" ] || continue
+            [ "$(basename "$migration")" = "20261107113000_job_worker_fencing" ] && continue
+            cp -a "$migration" "$migration_dir/migrations/"
+          done
+          DATABASE_URL="$legacy_url" DIRECT_URL="$legacy_url" npx prisma migrate deploy --schema "$migration_dir/schema.prisma"
+          psql "$legacy_url" -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO "suppliers" ("id", "name", "slug", "updatedAt")
+          VALUES ('ci-legacy-supplier', 'CI legacy supplier', 'ci-legacy-supplier', NOW());
+          INSERT INTO "orders" ("id", "orderNumber", "subtotal", "grandTotal", "shippingAddress", "updatedAt")
+          VALUES ('ci-legacy-order', 'CI-LEGACY-1', 0, 0, '{}'::jsonb, NOW());
+          INSERT INTO "supplier_orders" ("id", "orderId", "supplierId", "idempotencyKey", "status", "updatedAt")
+          VALUES ('ci-legacy-supplier-order', 'ci-legacy-order', 'ci-legacy-supplier', 'ci-legacy-so-key', 'CANCELLED', NOW());
+          INSERT INTO "jobs" ("id", "type", "payload", "status", "lockedAt", "updatedAt")
+          VALUES ('ci-legacy-running-job', 'SEND_NOTIFICATION', '{}'::jsonb, 'RUNNING', NULL, NOW());
+          SQL
+          DATABASE_URL="$legacy_url" DIRECT_URL="$legacy_url" npx prisma migrate deploy
+          psql "$legacy_url" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF (SELECT "claimToken" FROM "jobs" WHERE "id" = 'ci-legacy-running-job') IS NOT NULL THEN
+              RAISE EXCEPTION 'legacy job claimToken was not left null';
+            END IF;
+            IF (SELECT "cancellationStatus"::text FROM "supplier_orders" WHERE "id" = 'ci-legacy-supplier-order') <> 'NONE' THEN
+              RAISE EXCEPTION 'legacy supplier cancellation was incorrectly inferred';
+            END IF;
+            IF (SELECT "cancellationMessage" FROM "supplier_orders" WHERE "id" = 'ci-legacy-supplier-order') IS NOT NULL THEN
+              RAISE EXCEPTION 'legacy supplier cancellation message was not null';
+            END IF;
+          END $$;
+          SQL
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -136,5 +180,4 @@ jobs:
       # Production-dependency advisories. Reported in the job log; does not block
       # unrelated PRs, but keeps the signal visible on every run.
       - name: Production dependency audit (high+)
-        continue-on-error: true
         run: npm audit --omit=dev --audit-level=high
