@@ -101,8 +101,10 @@ jobs:
         env:
           PGPASSWORD: ci_only_password
         run: |
-          set -euo pipefail
+          set -eEuo pipefail
+          trap 'rc=$?; echo "::error title=Legacy migration verification failed::command failed at shell line ${LINENO} (exit ${rc})"; exit "$rc"' ERR
           legacy_url='postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_legacy?schema=public'
+          echo 'Creating isolated pre-existing-schema database.'
           createdb -h 127.0.0.1 -p 5432 -U ci resellix_legacy
           migration_dir=$(mktemp -d)
           trap 'rm -rf "$migration_dir"' EXIT
@@ -114,7 +116,9 @@ jobs:
             [ "$(basename "$migration")" = "20261107113000_job_worker_fencing" ] && continue
             cp -a "$migration" "$migration_dir/migrations/"
           done
+          echo 'Applying prior migrations to the legacy-schema database.'
           DATABASE_URL="$legacy_url" DIRECT_URL="$legacy_url" npx prisma migrate deploy --schema "$migration_dir/schema.prisma"
+          echo 'Inserting representative pre-existing job and supplier-order rows.'
           psql "$legacy_url" -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO "suppliers" ("id", "name", "slug", "updatedAt")
           VALUES ('ci-legacy-supplier', 'CI legacy supplier', 'ci-legacy-supplier', NOW());
@@ -125,7 +129,9 @@ jobs:
           INSERT INTO "jobs" ("id", "type", "payload", "status", "lockedAt", "updatedAt")
           VALUES ('ci-legacy-running-job', 'SEND_NOTIFICATION', '{}'::jsonb, 'RUNNING', NULL, NOW());
           SQL
+          echo 'Applying the worker-fencing/cancellation migration over the legacy rows.'
           DATABASE_URL="$legacy_url" DIRECT_URL="$legacy_url" npx prisma migrate deploy
+          echo 'Asserting the legacy job token and cancellation defaults.'
           psql "$legacy_url" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           BEGIN
