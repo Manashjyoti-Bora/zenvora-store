@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/db', () => ({ prisma: {} }));
 import { canTransition, allowedTransitions, deriveOrderStatus } from '@/lib/orders/state';
 import type { OrderStatus } from '@prisma/client';
 
@@ -29,8 +31,10 @@ describe('canTransition (order state machine)', () => {
     expect(canTransition('SHIPPED', 'ORDER_CONFIRMED')).toBe(false);
   });
 
-  it('REFUNDED is terminal', () => {
-    expect(allowedTransitions('REFUNDED')).toEqual([]);
+  it('reopens a durable refund-recovery state for a late provider capture', () => {
+    expect(allowedTransitions('REFUNDED')).toEqual(['REFUND_PENDING']);
+    expect(canTransition('REFUNDED', 'REFUND_PENDING')).toBe(true);
+    expect(canTransition('PENDING_PAYMENT', 'REFUND_PENDING')).toBe(true);
   });
 
   it('cancellation is possible only before shipping', () => {

@@ -89,7 +89,7 @@ export class ManualAdapter implements SupplierAdapter {
     return {
       success: false,
       requiresManualAction: true,
-      message: `Cancellation must be arranged with ${this.supplier.name} directly${reason ? ` (reason: ${reason})` : ''}. Then cancel it in Admin > Fulfilment.`,
+      message: `Cancellation must be arranged with ${this.supplier.name} directly${reason ? ` (reason: ${reason})` : ''}. Then record the confirmation in Admin > Supplier orders.`,
     };
   }
 
