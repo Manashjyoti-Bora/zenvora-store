@@ -233,7 +233,7 @@ describe('job worker fencing (mocked Prisma; not PostgreSQL concurrency evidence
       },
     };
     vi.mocked(prisma.$transaction).mockImplementation(async (callback) =>
-      (callback as (transaction: typeof tx) => Promise<unknown>)(tx)
+      (callback as unknown as (transaction: typeof tx) => Promise<unknown>)(tx)
     );
 
     await claimJobs(2);

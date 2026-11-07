@@ -51,14 +51,16 @@ describe('admin job retry race (PostgreSQL)', () => {
     const waitForClaim = new Promise<void>((resolve) => {
       releaseRoute = resolve;
     });
-    const findSpy = vi.spyOn(prisma.job, 'findUnique').mockImplementation(async (args) => {
-      const result = await originalFindUnique(args);
-      if (args.where.id === job.id) {
-        signalFound();
-        await waitForClaim;
-      }
-      return result;
-    });
+    const findSpy = vi.spyOn(prisma.job, 'findUnique').mockImplementation(
+      (args) =>
+        originalFindUnique(args).then(async (result) => {
+          if (args.where.id === job.id) {
+            signalFound();
+            await waitForClaim;
+          }
+          return result;
+        }) as never
+    );
 
     const responsePromise = POST(new Request('http://localhost/api/admin/jobs/test/retry'), {
       params: Promise.resolve({ id: job.id }),

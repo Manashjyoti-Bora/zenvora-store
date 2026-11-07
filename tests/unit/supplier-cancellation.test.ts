@@ -171,7 +171,8 @@ describe('supplier cancellation handling (mocked Prisma; no database guarantee)'
       auditLog: { create: vi.fn().mockResolvedValue({ id: 'audit-legacy' }) },
     };
     vi.mocked(prisma.$transaction).mockImplementation(
-      async (callback) => (callback as (transaction: typeof tx) => Promise<unknown>)(tx) as never
+      async (callback) =>
+        (callback as unknown as (transaction: typeof tx) => Promise<unknown>)(tx) as never
     );
 
     await recordManualSupplierCancellation({
@@ -220,7 +221,8 @@ describe('supplier cancellation handling (mocked Prisma; no database guarantee)'
       auditLog: { create: vi.fn().mockResolvedValue({ id: 'audit-1' }) },
     };
     vi.mocked(prisma.$transaction).mockImplementation(
-      async (callback) => (callback as (transaction: typeof tx) => Promise<unknown>)(tx) as never
+      async (callback) =>
+        (callback as unknown as (transaction: typeof tx) => Promise<unknown>)(tx) as never
     );
     const req = new Request('https://store.test/manual-cancel', {
       headers: { 'x-forwarded-for': '203.0.113.7', 'user-agent': 'unit-test' },
