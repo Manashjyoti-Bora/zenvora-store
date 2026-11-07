@@ -141,11 +141,12 @@ describe('worker fencing ownership (independent PostgreSQL clients)', () => {
       retried: 0,
       rescheduled: 0,
     };
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
     const execution = executeJob(job, stats);
     try {
       await handlerStarted;
-      await vi.advanceTimersByTimeAsync(JOB_LEASE_RENEW_INTERVAL_MS);
+      // Exercise the real periodic timer against PostgreSQL instead of only
+      // advancing fake timers around the database driver's own async work.
+      await new Promise((resolve) => setTimeout(resolve, JOB_LEASE_RENEW_INTERVAL_MS + 1_000));
       const heartbeated = await secondClient.job.findUniqueOrThrow({ where: { id: created.id } });
       expect(heartbeated.lockedAt?.getTime()).toBeGreaterThan(originalLock.getTime());
 
@@ -156,11 +157,10 @@ describe('worker fencing ownership (independent PostgreSQL clients)', () => {
     } finally {
       releaseHandler();
       await execution;
-      vi.useRealTimers();
     }
 
     const completed = await secondClient.job.findUniqueOrThrow({ where: { id: created.id } });
     expect(completed.status).toBe('DONE');
     expect(stats.succeeded).toBe(1);
-  }, 30_000);
+  }, 90_000);
 });
