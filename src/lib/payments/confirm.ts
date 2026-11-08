@@ -1,4 +1,5 @@
 import { prisma } from '../db';
+import { withSerializableTransactionRetry } from '../db-transaction';
 import { conflict } from '../errors';
 import { toPaise } from '../money';
 import { logger } from '../logger';
@@ -109,8 +110,8 @@ export async function confirmPaymentResult(
         await tx.orderEvent.create({
           data: {
             orderId: locked.id,
-            type: 'PAYMENT_FAILURE_IGNORED',
-            message: 'Late failure event ignored because this payment is already captured',
+            type: 'PAYMENT_IGNORED',
+            message: 'Late payment failure ignored: payment was already captured',
             actorType,
             data: { providerOrderId: input.providerOrderId, paymentId: previousAttempt.id },
           },
@@ -118,7 +119,9 @@ export async function confirmPaymentResult(
         return { ignored: true, notify: false };
       }
       await upsertPaymentRow(tx, input, locked.id, 'FAILED');
-      const anyPaid = locked.payments.some((payment) => payment.status === 'PAID');
+      const anyPaid = locked.payments.some((payment) =>
+        ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(payment.status)
+      );
       const shouldTransition =
         !anyPaid && locked.paymentStatus === 'PENDING' && locked.status === 'PENDING_PAYMENT';
       if (shouldTransition) {
@@ -189,7 +192,7 @@ export async function confirmPaymentResult(
       return { outcome: 'REJECTED_AMOUNT_MISMATCH', orderNumber: order.orderNumber };
     }
 
-    const mismatch = await prisma.$transaction(
+    const mismatch = await withSerializableTransactionRetry(
       async (tx) => {
         await tx.$queryRaw<Array<{ id: string }>>`
         SELECT "id" FROM "orders" WHERE "id" = ${order.id} FOR UPDATE
@@ -280,7 +283,7 @@ export async function confirmPaymentResult(
       ? estimatePaymentFeePaise(toPaise(order.grandTotal), settings)
       : 0);
 
-  const capture = await prisma.$transaction(
+  const capture = await withSerializableTransactionRetry(
     async (tx) => {
       await tx.$queryRaw<Array<{ id: string }>>`
       SELECT "id" FROM "orders" WHERE "id" = ${input.orderId} FOR UPDATE
@@ -299,7 +302,54 @@ export async function confirmPaymentResult(
         existing.providerPaymentId === (input.providerPaymentId ?? null) &&
         ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(existing.status)
       ) {
-        return { kind: 'duplicate' as const, reservation: null };
+        const refundRecoveryState =
+          ['CANCELLED', 'REFUND_PENDING', 'REFUNDED'].includes(locked.status) ||
+          ['PARTIALLY_REFUNDED', 'REFUNDED'].includes(locked.paymentStatus);
+        const needsOrderRepair =
+          !refundRecoveryState &&
+          (locked.paymentStatus !== 'PAID' ||
+            !locked.paidAt ||
+            ['PENDING_PAYMENT', 'PAYMENT_FAILED'].includes(locked.status));
+        if (!needsOrderRepair) return { kind: 'duplicate' as const, reservation: null };
+
+        // The provider/payment commit may have succeeded immediately before a
+        // crash while the order update did not. Repair only the order side of
+        // that interrupted confirmation; never rewrite a captured/refunded
+        // payment row or manufacture a second capture event.
+        const recoveredPaidAt = locked.paidAt ?? existing.paidAt ?? new Date();
+        const restorePayableState = ['PENDING_PAYMENT', 'PAYMENT_FAILED'].includes(locked.status);
+        await tx.order.update({
+          where: { id: locked.id },
+          data: {
+            paymentStatus: 'PAID',
+            paidAt: recoveredPaidAt,
+            ...(restorePayableState ? { status: 'PAYMENT_VERIFIED' } : {}),
+          },
+        });
+        await tx.orderEvent.create({
+          data: {
+            orderId: locked.id,
+            type: 'PAYMENT_CAPTURED_RECOVERY',
+            message: 'Recovered order state from the durable captured payment',
+            actorType,
+            data: { providerOrderId: input.providerOrderId, paymentId: existing.id },
+          },
+        });
+        if (restorePayableState) {
+          await tx.orderEvent.create({
+            data: {
+              orderId: locked.id,
+              type: 'STATUS_TRANSITION',
+              fromStatus: locked.status,
+              toStatus: 'PAYMENT_VERIFIED',
+              message: 'Payment confirmation recovered after an interrupted commit',
+              actorType,
+              data: { providerOrderId: input.providerOrderId },
+            },
+          });
+        }
+        await recalcOrderFinancials(locked.id, tx);
+        return { kind: 'confirmed' as const, reservation: null };
       }
 
       const payment = await upsertPaymentRow(tx, input, locked.id, 'PAID', {

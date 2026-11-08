@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { prisma } from '../db';
+import { withSerializableTransactionRetry } from '../db-transaction';
 import { badRequest, conflict, notFound } from '../errors';
 import { formatINR, toPaise } from '../money';
 import { logger } from '../logger';
@@ -210,9 +211,7 @@ export async function reserveRefund(tx: Tx, input: CreateRefundInput): Promise<R
 export async function createRefund(
   input: CreateRefundInput
 ): Promise<{ refundId: string; status: string; duplicate: boolean }> {
-  const reservation = await prisma.$transaction((tx) => reserveRefund(tx, input), {
-    isolationLevel: 'Serializable',
-  });
+  const reservation = await withSerializableTransactionRetry((tx) => reserveRefund(tx, input));
   const result = await processRefundReservation(reservation, input.reason);
   if (!reservation.existing) {
     await auditLog({
@@ -396,9 +395,7 @@ export async function settleRefund(params: {
         providerRefundId: params.providerRefundId ?? refund.providerRefundId,
         failureReason:
           params.status === 'FAILED' ? (params.failureReason ?? refund.failureReason) : null,
-        ...(params.status === 'COMPLETED'
-          ? { processedAt: refund.processedAt ?? new Date() }
-          : {}),
+        ...(params.status === 'COMPLETED' ? { processedAt: refund.processedAt ?? new Date() } : {}),
       },
     });
     if (update.count !== 1) return null;
@@ -516,18 +513,10 @@ async function applyRefundLedgerInTransaction(tx: Tx, orderId: string): Promise<
     canTransition(currentOrder.status, 'REFUND_PENDING')
   ) {
     nextStatus = 'REFUND_PENDING';
-  } else if (
-    !hasUnsettledObligation &&
-    settledTotal > 0 &&
-    currentOrder.status === 'REFUND_PENDING'
-  ) {
-    const candidates = currentOrder.cancelledAt
-      ? (['CANCELLED'] as const)
-      : (['DELIVERED', 'SHIPPED', 'PROCESSING', 'ORDER_CONFIRMED'] as const);
-    nextStatus =
-      candidates.find((candidate) => canTransition(currentOrder.status, candidate)) ??
-      currentOrder.status;
   }
+  // A partial settlement stays REFUND_PENDING for explicit operational review.
+  // The schema does not record the pre-refund status, so guessing a return to
+  // DELIVERED/SHIPPED/PROCESSING could fabricate fulfilment that never happened.
 
   if (nextStatus !== currentOrder.status) {
     const updated = await tx.order.updateMany({
@@ -545,9 +534,7 @@ async function applyRefundLedgerInTransaction(tx: Tx, orderId: string): Promise<
         message:
           nextStatus === 'REFUNDED'
             ? 'All captured funds are confirmed refunded'
-            : nextStatus === 'REFUND_PENDING'
-              ? 'Refund obligation remains unresolved'
-              : 'Partial refund settled; order state restored',
+            : 'Refund obligation remains unresolved',
         actorType: 'SYSTEM',
       },
     });

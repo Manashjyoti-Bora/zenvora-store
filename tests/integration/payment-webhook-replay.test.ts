@@ -7,6 +7,7 @@ import { createOrderFromCart } from '@/lib/orders/create';
 import { getSettings, updateSettings, type StoreSettings } from '@/lib/settings';
 import { handleRazorpayWebhook } from '@/lib/payments/webhook';
 import { confirmPaymentResult } from '@/lib/payments/confirm';
+import { reserveRefund } from '@/lib/payments/refunds';
 import { clearCookieJar } from './mock-headers';
 import {
   TEST_ADDRESS,
@@ -279,9 +280,10 @@ describe('Razorpay webhook replay / tamper protection', () => {
     expect((await prisma.payment.findUniqueOrThrow({ where: { providerOrderId } })).paidAt).toEqual(
       capturedAt
     );
-    expect((await prisma.order.findUniqueOrThrow({ where: { id: orderId } })).paidAt).toEqual(
-      capturedAt
-    );
+    const recoveredOrder = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+    expect(recoveredOrder.paidAt).toEqual(capturedAt);
+    expect(recoveredOrder.paymentStatus).toBe('PAID');
+    expect(recoveredOrder.status).not.toBe('PENDING_PAYMENT');
   });
 
   it('ignores a late payment.failed delivery instead of downgrading the captured payment', async () => {
@@ -384,24 +386,23 @@ describe('Razorpay webhook replay / tamper protection', () => {
       data: { status: 'ORDER_CONFIRMED', fulfilmentStatus: 'PENDING' },
     });
     const payment = await prisma.payment.findUniqueOrThrow({ where: { providerOrderId } });
-    const reservation = await prisma.refund.create({
-      data: {
+    const reservation = await prisma.$transaction((tx) =>
+      reserveRefund(tx, {
         orderId,
-        paymentId: payment.id,
-        amount: '10.00',
-        status: 'REQUESTED',
-        provider: 'RAZORPAY',
+        amountPaise: 1_000,
         reason: 'Synthetic provider-result persistence recovery test',
-      },
-    });
-    const raw = refundProcessedEvent('rfnd_itest_recovery', reservation.id, 1_000);
+        actor: 'ADMIN',
+      })
+    );
+    expect(reservation.paymentId).toBe(payment.id);
+    const raw = refundProcessedEvent('rfnd_itest_recovery', reservation.refundId, 1_000);
     const eventsBefore = await prisma.orderEvent.count({
       where: { orderId, type: 'REFUND_COMPLETED' },
     });
 
     const first = await handleRazorpayWebhook(raw, sign(raw), 'evt_itest_refund_recovery');
     expect(first.status).toBe(200);
-    const settled = await prisma.refund.findUniqueOrThrow({ where: { id: reservation.id } });
+    const settled = await prisma.refund.findUniqueOrThrow({ where: { id: reservation.refundId } });
     expect(settled.status).toBe('COMPLETED');
     expect(settled.providerRefundId).toBe('rfnd_itest_recovery');
     expect(await prisma.orderEvent.count({ where: { orderId, type: 'REFUND_COMPLETED' } })).toBe(
@@ -416,7 +417,7 @@ describe('Razorpay webhook replay / tamper protection', () => {
       'evt_itest_refund_recovery_new_id'
     );
     expect(newDeliveryId.status).toBe(200);
-    expect(await prisma.refund.count({ where: { orderId, id: reservation.id } })).toBe(1);
+    expect(await prisma.refund.count({ where: { orderId, id: reservation.refundId } })).toBe(1);
     expect(await prisma.orderEvent.count({ where: { orderId, type: 'REFUND_COMPLETED' } })).toBe(
       eventsBefore + 1
     );
