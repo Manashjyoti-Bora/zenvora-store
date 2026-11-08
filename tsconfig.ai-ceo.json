@@ -6,6 +6,7 @@
     "node_modules",
     "src/lib/ai-ceo/snapshot.ts",
     "src/lib/ai-ceo/action-executor.ts",
-    "src/lib/ai-ceo/narrative-service.ts"
+    "src/lib/ai-ceo/narrative-service.ts",
+    "src/lib/ai-ceo/history-loader.ts"
   ]
 }
