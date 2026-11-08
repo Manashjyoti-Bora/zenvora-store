@@ -13,6 +13,7 @@ vi.mock('@/lib/payments', async (importOriginal) => {
 import { prisma } from '@/lib/db';
 import { addToCart } from '@/lib/cart/service';
 import { createOrderFromCart } from '@/lib/orders/create';
+import { confirmCodOrder } from '@/lib/payments/confirm';
 import { ApiError } from '@/lib/errors';
 import { getSettings, updateSettings, type StoreSettings } from '@/lib/settings';
 import { cleanupTestData, createTestProduct, createTestUser, TEST_ADDRESS } from './fixtures';
@@ -79,9 +80,16 @@ describe('checkout provider availability fail-closed (isolated database)', () =>
       address: TEST_ADDRESS,
       paymentMethod: 'COD',
     });
-    const order = await prisma.order.findUniqueOrThrow({ where: { id: result.orderId } });
-    expect(order.paymentMethod).toBe('COD');
-    expect(order.paymentStatus).toBe('COD_PENDING');
+    const created = await prisma.order.findUniqueOrThrow({ where: { id: result.orderId } });
+    expect(created.paymentMethod).toBe('COD');
+    expect(created.paymentStatus).toBe('PENDING');
+
+    // The real checkout route performs this confirmation immediately after
+    // creation; keep the service-level test on that same path.
+    await confirmCodOrder(result.orderId);
+    const confirmed = await prisma.order.findUniqueOrThrow({ where: { id: result.orderId } });
+    expect(confirmed.paymentStatus).toBe('COD_PENDING');
+    expect(confirmed.status).toBe('ORDER_CONFIRMED');
   });
 
   it('preserves idempotent recovery of an existing order after provider disablement', async () => {
