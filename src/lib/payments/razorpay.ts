@@ -92,7 +92,9 @@ export class RazorpayAdapter implements PaymentProviderAdapter {
       amountPaise: order.amount,
       currency: order.currency,
       checkoutMode: 'razorpay-checkout-js',
-      keyId: env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? env.RAZORPAY_KEY_ID,
+      // Configuration gating proves this is present and exactly matches the
+      // server key; never silently repair a mismatched browser key here.
+      keyId: env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
     };
   }
 

@@ -4,9 +4,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/db';
 import { describePaymentProvider } from '@/lib/payments';
 import {
+  publicCancellationFaqAnswer,
   publicPaymentFaqAnswer,
   publicPaymentMethodLabel,
   publicPaymentTrustLabel,
+  publicReturnRefundFaqAnswer,
 } from '@/lib/payments/public-messaging';
 import { getSettings } from '@/lib/settings';
 
@@ -59,6 +61,13 @@ describe('provider-aware public payment messaging', () => {
     const answer = publicPaymentFaqAnswer({ provider: payments.kind, codEnabled });
     // The answer occurs in both the visible details and the structured-data mirror.
     expect(res.body.split(answer).length - 1).toBeGreaterThanOrEqual(2);
+    const state = { provider: payments.kind, codEnabled };
+    for (const mirrored of [
+      publicCancellationFaqAnswer(state),
+      publicReturnRefundFaqAnswer(state),
+    ]) {
+      expect(res.body.split(mirrored).length - 1).toBeGreaterThanOrEqual(2);
+    }
 
     if (payments.kind !== 'RAZORPAY') {
       expect(res.body).not.toContain('Online payment (UPI, cards, netbanking');

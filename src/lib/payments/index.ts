@@ -6,10 +6,10 @@ import type { PaymentProviderAdapter } from './types';
 
 /**
  * Provider selection:
- *   1. Razorpay - whenever real credentials are configured (any environment).
+ *   1. Razorpay - only with matching server/browser keys and a webhook secret.
  *   2. TEST provider - only when PAYMENTS_TEST_MODE=true and NOT production.
- *   3. null - checkout must then refuse payments with an honest, actionable
- *      error (never silently pretend).
+ *   3. null - checkout must then refuse NEW prepaid orders with an honest,
+ *      actionable error (never silently pretend or create a payable order).
  */
 export function getPaymentProvider(): PaymentProviderAdapter | null {
   if (isRazorpayConfigured()) return new RazorpayAdapter();

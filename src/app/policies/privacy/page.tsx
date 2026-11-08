@@ -128,8 +128,8 @@ export default async function PrivacyPolicyPage() {
                   and deliver your order (name, address, phone, items).
                 </li>
                 <li>
-                  <strong>Email/SMS infrastructure providers</strong> — to send transactional
-                  notifications.
+                  <strong>Email infrastructure providers</strong> — when configured, to send
+                  transactional email notifications.
                 </li>
                 <li>
                   <strong>Hosting/infrastructure providers</strong> — where this application and
@@ -156,10 +156,15 @@ export default async function PrivacyPolicyPage() {
           body: (
             <p>
               Passwords are hashed with bcrypt. Sessions use httpOnly, SameSite cookies. All
-              sensitive operations are protected against CSRF, rate limiting is applied to
-              authentication and checkout endpoints, and payment confirmations require server-side
-              gateway verification. Despite these measures, no system is 100% secure; report any
-              concern to us immediately.
+              sensitive operations are protected against CSRF, and rate limiting is applied to
+              authentication and checkout endpoints.{' '}
+              {payments.kind === 'RAZORPAY'
+                ? 'Online payment confirmations require server-side gateway verification.'
+                : payments.kind === 'TEST'
+                  ? 'TEST confirmations are development-only simulations, not real-money gateway verification.'
+                  : 'No online gateway confirmation is performed while online payments are not configured.'}{' '}
+              Despite these measures, no system is 100% secure; report any concern to us
+              immediately.
             </p>
           ),
         },

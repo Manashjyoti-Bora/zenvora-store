@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   onlinePaymentOptionLabel,
+  publicCancellationFaqAnswer,
   publicCheckoutInstruction,
   publicPaymentFaqAnswer,
   publicPaymentMethodLabel,
   publicPaymentSafetyFaq,
   publicPaymentTrustLabel,
+  publicReturnRefundFaqAnswer,
   type PublicPaymentProvider,
   type PublicPaymentState,
 } from '@/lib/payments/public-messaging';
@@ -20,6 +22,8 @@ function messages(state: PublicPaymentState): string[] {
     publicPaymentTrustLabel(state),
     publicCheckoutInstruction(state),
     publicPaymentFaqAnswer(state),
+    publicCancellationFaqAnswer(state),
+    publicReturnRefundFaqAnswer(state),
     safety.question,
     safety.answer,
     onlinePaymentOptionLabel(state.provider) ?? '',
@@ -52,6 +56,8 @@ describe('public payment messaging', () => {
     expect(publicPaymentSafetyFaq(state).answer).toContain('not currently accepted');
     expect(onlinePaymentOptionLabel(state.provider)).toBeNull();
     expect(messages(state).join('\n')).not.toMatch(/Online payment \+|^Online payment$/);
+    expect(publicCancellationFaqAnswer(state)).toContain('online payments are not configured');
+    expect(publicReturnRefundFaqAnswer(state)).toContain('collected-COD refunds');
   });
 
   it('NONE without COD fails closed in customer-facing instructions', () => {
@@ -72,6 +78,8 @@ describe('public payment messaging', () => {
       expect(publicCheckoutInstruction(state)).toContain('TEST payment simulator');
       expect(publicPaymentFaqAnswer(state)).toContain('development environment');
       expect(publicPaymentSafetyFaq(state).answer).toContain('never represent a real bank debit');
+      expect(publicCancellationFaqAnswer(state)).toContain('no real money moves');
+      expect(publicReturnRefundFaqAnswer(state)).toContain('TEST return refunds are simulations');
       expect(onlinePaymentOptionLabel(state.provider)).toBe(
         'TEST payment (simulation only — no real money)'
       );
@@ -87,6 +95,8 @@ describe('public payment messaging', () => {
       expect(publicCheckoutInstruction(state)).toContain('Pay online via Razorpay');
       expect(publicPaymentFaqAnswer(state)).toContain('UPI, cards and netbanking');
       expect(publicPaymentSafetyFaq(state).answer).toContain('server-side verification');
+      expect(publicCancellationFaqAnswer(state)).toContain('refunded in full, including shipping');
+      expect(publicReturnRefundFaqAnswer(state)).toContain('Razorpay refunds');
       expect(onlinePaymentOptionLabel(state.provider)).toBe(
         'Pay online (UPI / cards / netbanking)'
       );

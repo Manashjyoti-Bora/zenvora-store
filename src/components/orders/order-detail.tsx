@@ -4,7 +4,8 @@ import { formatINR, toPaise } from '@/lib/money';
 import { OrderStatusBadge, PaymentStatusBadge, FulfilmentStatusBadge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/feedback';
 import { BoxIcon, CartIcon, PhoneIcon, XIcon } from '@/components/ui/icons';
-import type { Order, OrderItem, Shipment, Refund, ReturnRequest } from '@prisma/client';
+import type { Order, OrderItem, Shipment, Refund, ReturnRequest, Payment } from '@prisma/client';
+import { describeOrderPayment } from '@/lib/payments/order-messaging';
 
 export interface OrderDetailPayload {
   order: Order;
@@ -12,6 +13,7 @@ export interface OrderDetailPayload {
   shipments: Shipment[];
   refunds: Refund[];
   returns: ReturnRequest[];
+  payments: Payment[];
 }
 
 interface Snapshot {
@@ -31,7 +33,16 @@ function fmtDate(d: Date | null | undefined): string {
 }
 
 /** Order progress timeline derived from real timestamps only. */
-function Timeline({ order, shipments }: { order: Order; shipments: Shipment[] }) {
+function Timeline({
+  order,
+  shipments,
+  payments,
+}: {
+  order: Order;
+  shipments: Shipment[];
+  payments: Payment[];
+}) {
+  const paymentCopy = describeOrderPayment({ ...order, payments });
   const shippedAt = shipments
     .map((s) => s.shippedAt)
     .filter(Boolean)
@@ -41,7 +52,12 @@ function Timeline({ order, shipments }: { order: Order; shipments: Shipment[] })
   const steps = [
     { label: 'Order placed', at: order.placedAt ?? order.createdAt, done: true },
     {
-      label: order.paymentMethod === 'COD' ? 'Confirmed (pay on delivery)' : 'Payment confirmed',
+      label:
+        order.paymentMethod === 'COD'
+          ? order.paidAt
+            ? 'Cash collection recorded'
+            : 'Confirmed (pay on delivery)'
+          : paymentCopy.confirmationTitle,
       at: order.paidAt ?? order.confirmedAt,
       done: Boolean(order.paidAt ?? order.confirmedAt) || order.paymentStatus === 'COD_PENDING',
     },
@@ -120,13 +136,16 @@ export function OrderDetailView({
   shipments,
   refunds,
   returns: returnRequests,
+  payments,
 }: OrderDetailPayload) {
+  const paymentCopy = describeOrderPayment({ ...order, payments });
   const address = order.shippingAddress as Record<string, string | null>;
   const latestShipment = [...shipments].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
   )[0];
   const refundedPaise = toPaise(order.refundedTotal);
   const pendingRefunds = refunds.filter((r) => ['REQUESTED', 'PROCESSING'].includes(r.status));
+  const completedRefunds = refunds.filter((r) => r.status === 'COMPLETED');
 
   return (
     <div className="space-y-6">
@@ -147,7 +166,7 @@ export function OrderDetailView({
           </div>
         </div>
         <div className="mt-4 border-t border-ink-900/5 pt-4">
-          <Timeline order={order} shipments={shipments} />
+          <Timeline order={order} shipments={shipments} payments={payments} />
         </div>
       </div>
 
@@ -183,9 +202,17 @@ export function OrderDetailView({
       {/* Refund/return notices */}
       {pendingRefunds.length > 0 && (
         <Alert tone="info" title="Refund in progress">
-          {formatINR(toPaise(pendingRefunds.reduce((a, r) => a + toPaise(r.amount), 0)))} is being
-          refunded to your original payment method. Refunds typically take 5–7 business days after
-          processing.
+          {formatINR(toPaise(pendingRefunds.reduce((a, r) => a + toPaise(r.amount), 0)))} is
+          pending. {paymentCopy.refundPendingDetail}
+        </Alert>
+      )}
+      {pendingRefunds.length === 0 && completedRefunds.length > 0 && (
+        <Alert
+          tone="info"
+          title={paymentCopy.isTest ? 'TEST refund simulation' : 'Refund recorded'}
+        >
+          {formatINR(toPaise(completedRefunds.reduce((a, r) => a + toPaise(r.amount), 0)))} is
+          recorded as completed. {paymentCopy.refundCompletedDetail}
         </Alert>
       )}
       {returnRequests.length > 0 && (
@@ -298,15 +325,24 @@ export function OrderDetailView({
             )}
             <div className="flex justify-between gap-4 border-t border-ink-900/10 pt-3 text-base">
               <dt className="font-semibold text-ink-900">
-                {refundedPaise > 0 ? 'Order total' : 'Total paid'}
+                {refundedPaise > 0
+                  ? 'Order total'
+                  : order.paymentMethod === 'COD' && order.paymentStatus === 'COD_PENDING'
+                    ? 'Total payable on delivery'
+                    : ['PAID', 'PARTIALLY_REFUNDED'].includes(order.paymentStatus)
+                      ? paymentCopy.isTest
+                        ? 'TEST order total (no real charge)'
+                        : 'Total paid'
+                      : 'Order total'}
               </dt>
               <dd className="font-bold tabular-nums">{formatINR(toPaise(order.grandTotal))}</dd>
             </div>
           </dl>
           <p className="mt-3 text-xs text-ink-400">
-            Payment method:{' '}
-            {order.paymentMethod === 'COD' ? 'Cash on Delivery' : 'Online (gateway)'}
-            {order.paidAt ? ` · Paid ${fmtDate(order.paidAt)}` : ''}
+            Payment method: {paymentCopy.methodLabel}
+            {order.paidAt
+              ? ` · ${paymentCopy.isTest ? 'Simulated' : order.paymentMethod === 'COD' ? 'Collected' : 'Paid'} ${fmtDate(order.paidAt)}`
+              : ''}
           </p>
         </section>
 

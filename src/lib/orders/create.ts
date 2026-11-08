@@ -1,5 +1,5 @@
 import { prisma } from '../db';
-import { badRequest, conflict, notFound } from '../errors';
+import { badRequest, conflict, notFound, serviceUnavailable } from '../errors';
 import { logger } from '../logger';
 import { auditLog } from '../audit';
 import { toPaise } from '../money';
@@ -21,6 +21,7 @@ import {
   type CartItemWithProduct,
 } from '../cart/service';
 import type { SessionUser } from '../auth/session';
+import { describePaymentProvider } from '../payments';
 import type { Prisma } from '@prisma/client';
 
 /**
@@ -105,6 +106,17 @@ export async function createOrderFromCart(input: CreateOrderInput): Promise<Crea
       where: { id: existingCart.convertedOrderId },
     });
     if (existing) return existingToResult(existing, true);
+  }
+
+  // Do not let a direct API call bypass the checkout UI and create an
+  // unpayable prepaid order when no provider is configured. This check comes
+  // AFTER idempotency/existing-cart lookups so an existing order can still be
+  // recovered if the provider is later disabled.
+  if (input.paymentMethod === 'PREPAID_GATEWAY' && describePaymentProvider().kind === 'NONE') {
+    throw serviceUnavailable(
+      'Online payments are not configured. Your cart has not been converted; choose Cash on Delivery if offered or contact support.',
+      'PAYMENTS_NOT_CONFIGURED'
+    );
   }
 
   // --- Load & validate ------------------------------------------------------

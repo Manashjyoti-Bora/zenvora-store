@@ -284,9 +284,8 @@ export function PaymentFlow({
       {phase === 'test-panel' && (
         <div className="space-y-4">
           <Alert tone="warning" title="TEST payment mode">
-            This store has no live payment gateway credentials yet. The TEST provider runs the exact
-            same order pipeline but <strong>no real money moves</strong>. This panel never appears
-            in production.
+            This environment uses the TEST provider to exercise the order pipeline, but{' '}
+            <strong>no real money moves</strong>. This panel never appears in production.
           </Alert>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Button
@@ -324,7 +323,7 @@ export function PaymentFlow({
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button size="lg" onClick={start} className="flex-1">
-              Retry payment
+              {providerKind === 'TEST' ? 'Retry TEST simulation' : 'Retry payment'}
             </Button>
             <Link
               href="/contact"
@@ -338,10 +337,17 @@ export function PaymentFlow({
 
       {phase === 'pending' && (
         <div className="space-y-4">
-          <Alert tone="info" title="Payment is being confirmed">
+          <Alert
+            tone="info"
+            title={
+              providerKind === 'TEST'
+                ? 'TEST simulation is being confirmed'
+                : 'Payment is being confirmed'
+            }
+          >
             {providerKind === 'TEST'
               ? 'TEST payment confirmation is still in progress; no real money moves.'
-              : 'Your bank has accepted the payment but final confirmation is still in progress. This usually resolves within a few minutes. We will email you as soon as it is confirmed — please do not pay again.'}
+              : 'Your bank has accepted the payment but final confirmation is still in progress. This usually resolves within a few minutes. Use the order-status page for updates and please do not pay again.'}
           </Alert>
           <Button
             variant="outline"

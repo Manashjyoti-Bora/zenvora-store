@@ -2,7 +2,12 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getSettings } from '@/lib/settings';
 import { describePaymentProvider } from '@/lib/payments';
-import { publicPaymentFaqAnswer, publicPaymentSafetyFaq } from '@/lib/payments/public-messaging';
+import {
+  publicCancellationFaqAnswer,
+  publicPaymentFaqAnswer,
+  publicPaymentSafetyFaq,
+  publicReturnRefundFaqAnswer,
+} from '@/lib/payments/public-messaging';
 import { SupportContact } from '@/components/store/support-contact';
 import { env } from '@/lib/env';
 import { formatINR } from '@/lib/money';
@@ -27,6 +32,8 @@ export default async function FaqPage() {
   ]);
   const paymentState = { provider: payments.kind, codEnabled: s.shipping.codEnabled };
   const paymentSafety = publicPaymentSafetyFaq(paymentState);
+  const cancellationAnswer = publicCancellationFaqAnswer(paymentState);
+  const returnRefundAnswer = publicReturnRefundFaqAnswer(paymentState);
 
   const faqs = [
     {
@@ -81,12 +88,12 @@ export default async function FaqPage() {
       a: (
         <>
           Most orders are delivered in {s.shipping.estimatedDaysMin}–{s.shipping.estimatedDaysMax}{' '}
-          business days after dispatch. You will receive tracking details by email and can follow
-          live status on the{' '}
+          business days after dispatch. You can follow live status on the{' '}
           <Link href="/track" className="link-primary">
             tracking page
           </Link>
-          .
+          . Tracking details are shown there; email updates are also sent when email delivery is
+          configured.
         </>
       ),
     },
@@ -125,8 +132,7 @@ export default async function FaqPage() {
               order page as soon as possible.
             </>
           )}{' '}
-          Paid orders are refunded to the original payment method; COD orders are simply cancelled.
-          See the{' '}
+          {cancellationAnswer} See the{' '}
           <Link href="/policies/returns" className="link-primary">
             returns &amp; refunds policy
           </Link>
@@ -142,14 +148,14 @@ export default async function FaqPage() {
             <>
               Returns are accepted within <strong>{s.policies.returnWindowDays} days</strong> of
               delivery for eligible items (see policy for exclusions). Request a return from your
-              order page; our team reviews every request and responds by email. Approved refunds go
-              back to the original payment method, usually within 5–7 business days after we receive
-              and check the item.
+              order page; our team reviews every request and updates the order status.{' '}
+              {returnRefundAnswer}
             </>
           ) : (
             <>
               Our returns policy explains eligibility and the process. Request a return from your
-              order page; our team reviews every request and responds by email.
+              order page; our team reviews every request and updates the order status.{' '}
+              {returnRefundAnswer}
             </>
           )}{' '}
           <Link href="/policies/returns" className="link-primary">
@@ -167,7 +173,7 @@ export default async function FaqPage() {
           <Link href="/track" className="link-primary">
             tracking page
           </Link>{' '}
-          with your order number (from the confirmation email, format RX-YYMMDD-XXXXXX) and the
+          with your order number (shown at order confirmation, format RX-YYMMDD-XXXXXX) and the
           email address you used at checkout. Both are required to protect your privacy.
         </>
       ),
@@ -208,21 +214,21 @@ export default async function FaqPage() {
       'Add products to your cart, proceed to checkout, enter your shipping address and choose a payment method. Guest checkout is supported; an account adds order history and saved addresses.',
     'Which payment methods do you accept?': publicPaymentFaqAnswer(paymentState),
     [paymentSafety.question]: paymentSafety.answer,
-    'How long does delivery take?': `Most orders arrive in ${s.shipping.estimatedDaysMin}-${s.shipping.estimatedDaysMax} business days after dispatch, with tracking by email and on the tracking page.`,
+    'How long does delivery take?': `Most orders arrive in ${s.shipping.estimatedDaysMin}-${s.shipping.estimatedDaysMax} business days after dispatch. Tracking is available on the tracking page; email updates are also sent when email delivery is configured.`,
     'What does shipping cost?':
       s.shipping.freeAbovePaise > 0
         ? `Free shipping on orders above Rs ${s.shipping.freeAbovePaise / 100}; otherwise a flat rate of Rs ${s.shipping.flatRatePaise / 100}. The exact amount is shown at checkout.`
         : `A flat shipping rate of Rs ${s.shipping.flatRatePaise / 100} applies and is shown at checkout.`,
     'Can I cancel my order?':
       s.policies.cancellationWindowHours > 0
-        ? `Yes, before the order ships and within ${s.policies.cancellationWindowHours} hours of placing it, using the Cancel button on your order page. Paid orders are refunded to the original payment method.`
-        : 'Orders can be cancelled before they ship using the Cancel button on your order page. Paid orders are refunded to the original payment method.',
+        ? `Yes, before the order ships and within ${s.policies.cancellationWindowHours} hours of placing it, using the Cancel button on your order page. ${cancellationAnswer}`
+        : `Orders can be cancelled before they ship using the Cancel button on your order page. ${cancellationAnswer}`,
     'How do returns and refunds work?':
       s.policies.returnWindowDays > 0
-        ? `Returns are accepted within ${s.policies.returnWindowDays} days of delivery for eligible items. Request a return from your order page; approved refunds return to the original payment method, usually within 5-7 business days after inspection.`
-        : 'See the returns policy. Request a return from your order page; approved refunds return to the original payment method.',
+        ? `Returns are accepted within ${s.policies.returnWindowDays} days of delivery for eligible items. Request a return from your order page. ${returnRefundAnswer}`
+        : `See the returns policy and request a return from your order page. ${returnRefundAnswer}`,
     'How do I track a guest order (without an account)?':
-      'Use the tracking page with your order number (format RX-YYMMDD-XXXXXX from your confirmation email) and the email used at checkout.',
+      'Use the tracking page with your order number (format RX-YYMMDD-XXXXXX shown at order confirmation) and the email used at checkout.',
     'Are prices inclusive of taxes (GST)?': s.tax.pricesIncludeTax
       ? 'Yes, displayed prices include applicable GST.'
       : 'Applicable taxes are added and shown separately at checkout.',

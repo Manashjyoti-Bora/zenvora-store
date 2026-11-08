@@ -13,9 +13,11 @@ const boolStr = z
   .default(false);
 
 const optionalNonEmpty = <T extends z.ZodTypeAny>(schema: T) =>
-  schema.optional().transform((value): z.infer<T> | undefined =>
-    typeof value === 'string' && value.trim() === '' ? undefined : value
-  );
+  schema
+    .optional()
+    .transform((value): z.infer<T> | undefined =>
+      typeof value === 'string' && value.trim() === '' ? undefined : value
+    );
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -68,7 +70,6 @@ const envSchema = z.object({
    */
   SUPPORT_EMAIL: optionalNonEmpty(z.string().email().max(160)),
 
-
   // --- Optional AI narrative provider (AI CEO) -------------------------------
   // Absent by default: the AI CEO runs deterministically (see
   // src/lib/ai-ceo/provider.ts). Setting these does NOT enable execution of
@@ -79,7 +80,6 @@ const envSchema = z.object({
   AI_BASE_URL: optionalNonEmpty(z.string().url()),
   AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(15_000),
   AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(50).max(2_000).default(500),
-
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -104,30 +104,42 @@ export const isTest = env.NODE_ENV === 'test';
 export const isDev = env.NODE_ENV === 'development';
 
 /**
- * Razorpay is usable only when both key id and secret are present AND the key
- * prefix matches the environment:
- *  - TEST keys (rzp_test_…) are refused in production, so a live store can
- *    never route real customers through the sandbox by misconfiguration.
- *  - LIVE keys (rzp_live_…) are refused outside production, so real money can
- *    never move from development/test runs.
- * Returns null when the configuration is usable, otherwise the reason.
+ * Razorpay is available only with a complete server + browser + webhook
+ * integration. A partial configuration must never make checkout advertise a
+ * live gateway or send the browser a different key from the server.
+ *
+ * Key prefixes must also match the runtime:
+ *  - production accepts only rzp_live_… (never sandbox credentials);
+ *  - development/test accept only rzp_test_… (never real-money credentials).
+ * Returns null when the complete integration is usable, otherwise the reason.
  */
 export function razorpayConfigIssue(): string | null {
   const keyId = env.RAZORPAY_KEY_ID;
   const secret = env.RAZORPAY_KEY_SECRET;
+  const browserKeyId = env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+  const webhookSecret = env.RAZORPAY_WEBHOOK_SECRET;
   if (!keyId || !secret) {
-    return 'Razorpay keys are not configured (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET)';
+    return 'Razorpay server keys are not configured (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET)';
   }
-  if (isProduction && keyId.startsWith('rzp_test_')) {
-    return 'RAZORPAY_KEY_ID is a TEST key (rzp_test_…) while NODE_ENV=production — production refuses test credentials';
+  if (!browserKeyId) {
+    return 'Razorpay browser key is not configured (NEXT_PUBLIC_RAZORPAY_KEY_ID)';
   }
-  if (!isProduction && keyId.startsWith('rzp_live_')) {
-    return 'RAZORPAY_KEY_ID is a LIVE key (rzp_live_…) while NODE_ENV is not production — live keys are refused outside production';
+  if (browserKeyId !== keyId) {
+    return 'NEXT_PUBLIC_RAZORPAY_KEY_ID must exactly match RAZORPAY_KEY_ID';
+  }
+  if (!webhookSecret) {
+    return 'Razorpay webhook confirmation is not configured (RAZORPAY_WEBHOOK_SECRET)';
+  }
+  const expectedPrefix = isProduction ? 'rzp_live_' : 'rzp_test_';
+  if (!keyId.startsWith(expectedPrefix)) {
+    return isProduction
+      ? 'RAZORPAY_KEY_ID must be a LIVE key (rzp_live_…) in production; TEST or unrecognised keys are refused'
+      : 'RAZORPAY_KEY_ID must be a TEST key (rzp_test_…) outside production; LIVE or unrecognised keys are refused';
   }
   return null;
 }
 
-/** Razorpay is usable only when both key id and secret are present. */
+/** Razorpay is usable only when the complete integration passes every guard. */
 export function isRazorpayConfigured(): boolean {
   return razorpayConfigIssue() === null;
 }
@@ -168,9 +180,7 @@ export function aiProviderConfig(): AiProviderConfig | null {
   if (!provider || !apiKey || !model) return null;
   const baseUrl =
     env.AI_BASE_URL ??
-    (provider === 'anthropic'
-      ? 'https://api.anthropic.com'
-      : 'https://api.openai.com');
+    (provider === 'anthropic' ? 'https://api.anthropic.com' : 'https://api.openai.com');
   return {
     provider,
     apiKey,

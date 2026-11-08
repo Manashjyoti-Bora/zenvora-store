@@ -32,6 +32,9 @@ export function notFound(message = 'Resource not found'): ApiError {
 export function conflict(message: string, details?: unknown): ApiError {
   return new ApiError(409, message, 'CONFLICT', details);
 }
+export function serviceUnavailable(message: string, code = 'SERVICE_UNAVAILABLE'): ApiError {
+  return new ApiError(503, message, code);
+}
 export function payloadTooLarge(maxBytes: number): ApiError {
   return new ApiError(
     413,

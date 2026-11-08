@@ -115,45 +115,53 @@ export const templates: Record<NotificationTemplate, TemplateFn> = {
   }),
 
   ORDER_CONFIRMATION: (vars, ctx) => ({
-    subject: `Order ${vars.orderNumber} confirmed - ${ctx.storeName}`,
+    subject: `${vars.paymentSubjectPrefix ?? ''}Order ${vars.orderNumber} confirmed - ${ctx.storeName}`,
     html: layout(
       ctx,
-      'Thank you! Your order is confirmed.',
+      vars.orderConfirmationHeading ?? 'Thank you! Your order is confirmed.',
       p(
         `Hi ${escapeHtml(vars.customerName)}, we have received your order <strong>${escapeHtml(vars.orderNumber)}</strong> (${escapeHtml(vars.paymentMethod)}).`
       ) +
         `<div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin:12px 0;">${vars.linesHtml}</div>` +
-        `<p style="font-size:14px;color:#111827;"><strong>Total paid/payable: ${escapeHtml(vars.total)}</strong></p>` +
+        `<p style="font-size:14px;color:#111827;"><strong>${escapeHtml(vars.totalLabel ?? 'Order total')}: ${escapeHtml(vars.total)}</strong></p>` +
         p(`Delivering to:<br/>${vars.addressHtml}`) +
         p(`Estimated delivery: ${escapeHtml(vars.estimatedDelivery)}.`),
       { label: 'View / track your order', url: vars.trackUrl }
     ),
-    text: `Order ${vars.orderNumber} confirmed.\n${vars.itemsSummary}\nTotal: ${vars.total}\nTrack: ${vars.trackUrl}`,
+    text: `${vars.paymentSubjectPrefix ?? ''}Order ${vars.orderNumber} confirmed.\nPayment: ${vars.paymentMethod}\n${vars.itemsSummary}\n${vars.totalLabel ?? 'Order total'}: ${vars.total}\nTrack: ${vars.trackUrl}`,
   }),
 
   PAYMENT_FAILED: (vars, ctx) => ({
-    subject: `Payment failed for order ${vars.orderNumber}`,
+    subject: `${vars.paymentSubjectPrefix ?? ''}Payment failed for order ${vars.orderNumber}`,
     html: layout(
       ctx,
-      'We could not process your payment',
+      vars.paymentIsTest === 'true'
+        ? 'TEST payment simulation did not complete'
+        : 'We could not process your payment',
       p(
-        `Hi ${escapeHtml(vars.customerName)}, the payment for order <strong>${escapeHtml(vars.orderNumber)}</strong> (${escapeHtml(vars.total)}) did not go through.`
+        `Hi ${escapeHtml(vars.customerName)}, the payment for order <strong>${escapeHtml(vars.orderNumber)}</strong> (${escapeHtml(vars.total)}) did not go through. Payment method: <strong>${escapeHtml(vars.paymentMethod ?? 'Online payment')}</strong>.`
       ) +
         p(
-          'No money has been captured. You can retry the payment safely - your order is reserved for a short while.'
+          escapeHtml(
+            vars.paymentFailureDetail ??
+              'The payment could not be confirmed. If your bank shows a debit, contact support before retrying.'
+          )
         ),
-      { label: 'Retry payment', url: vars.retryUrl }
+      {
+        label: vars.paymentIsTest === 'true' ? 'Retry TEST simulation' : 'Review payment options',
+        url: vars.retryUrl,
+      }
     ),
-    text: `Payment failed for order ${vars.orderNumber}. Retry: ${vars.retryUrl}`,
+    text: `${vars.paymentSubjectPrefix ?? ''}Payment failed for order ${vars.orderNumber}. ${vars.paymentFailureDetail ?? 'Contact support before retrying if your bank shows a debit.'} Review: ${vars.retryUrl}`,
   }),
 
   ORDER_PROCESSING: (vars, ctx) => ({
-    subject: `Order ${vars.orderNumber} is being processed`,
+    subject: `${vars.paymentSubjectPrefix ?? ''}Order ${vars.orderNumber} is being processed`,
     html: layout(
       ctx,
       'Your order is being prepared',
       p(
-        `Hi ${escapeHtml(vars.customerName)}, your order <strong>${escapeHtml(vars.orderNumber)}</strong> has been sent for fulfilment. We will email you the tracking details as soon as it ships.`
+        `Hi ${escapeHtml(vars.customerName)}, your order <strong>${escapeHtml(vars.orderNumber)}</strong> has been sent for fulfilment. Tracking details will be available on the order page; a shipping notification is also sent when email delivery is configured.`
       ),
       { label: 'Track your order', url: vars.trackUrl }
     ),
@@ -161,7 +169,7 @@ export const templates: Record<NotificationTemplate, TemplateFn> = {
   }),
 
   ORDER_SHIPPED: (vars, ctx) => ({
-    subject: `Order ${vars.orderNumber} has shipped!`,
+    subject: `${vars.paymentSubjectPrefix ?? ''}Order ${vars.orderNumber} has shipped!`,
     html: layout(
       ctx,
       'Your order is on the way',
@@ -179,7 +187,7 @@ export const templates: Record<NotificationTemplate, TemplateFn> = {
   }),
 
   ORDER_DELIVERED: (vars, ctx) => ({
-    subject: `Order ${vars.orderNumber} delivered`,
+    subject: `${vars.paymentSubjectPrefix ?? ''}Order ${vars.orderNumber} delivered`,
     html: layout(
       ctx,
       'Your order has been delivered',
@@ -195,7 +203,7 @@ export const templates: Record<NotificationTemplate, TemplateFn> = {
   }),
 
   ORDER_CANCELLED: (vars, ctx) => ({
-    subject: `Order ${vars.orderNumber} cancelled`,
+    subject: `${vars.paymentSubjectPrefix ?? ''}Order ${vars.orderNumber} cancelled`,
     html: layout(
       ctx,
       'Your order was cancelled',
@@ -210,36 +218,51 @@ export const templates: Record<NotificationTemplate, TemplateFn> = {
   }),
 
   REFUND_INITIATED: (vars, ctx) => ({
-    subject: `Refund initiated for order ${vars.orderNumber}`,
+    subject: `${vars.paymentSubjectPrefix ?? ''}Refund initiated for order ${vars.orderNumber}`,
     html: layout(
       ctx,
-      'Your refund has been initiated',
+      vars.paymentIsTest === 'true'
+        ? 'TEST refund simulation recorded'
+        : 'Your refund has been initiated',
       p(
-        `Hi ${escapeHtml(vars.customerName)}, we have initiated a refund of <strong>${escapeHtml(vars.refundAmount)}</strong> for order <strong>${escapeHtml(vars.orderNumber)}</strong>.`
+        `Hi ${escapeHtml(vars.customerName)}, a refund of <strong>${escapeHtml(vars.refundAmount)}</strong> has been initiated for order <strong>${escapeHtml(vars.orderNumber)}</strong>. Payment method: <strong>${escapeHtml(vars.paymentMethod ?? 'Online payment')}</strong>.`
       ) +
         p(
-          'Refunds typically reflect as per your bank/payment provider timelines after the gateway processes them.'
+          escapeHtml(
+            vars.refundPendingDetail ??
+              'The store is processing this refund. Contact support for provider-specific status and timing.'
+          )
         ),
       { label: 'View order', url: vars.orderUrl }
     ),
-    text: `Refund of ${vars.refundAmount} initiated for order ${vars.orderNumber}.`,
+    text: `${vars.paymentSubjectPrefix ?? ''}Refund of ${vars.refundAmount} initiated for order ${vars.orderNumber}. Payment method: ${vars.paymentMethod ?? 'Online payment'}. ${vars.refundPendingDetail ?? 'Contact support for status and timing.'}`,
   }),
 
   REFUND_COMPLETED: (vars, ctx) => ({
-    subject: `Refund completed for order ${vars.orderNumber}`,
+    subject: `${vars.paymentSubjectPrefix ?? ''}Refund completed for order ${vars.orderNumber}`,
     html: layout(
       ctx,
-      'Refund completed',
+      vars.paymentIsTest === 'true'
+        ? 'TEST refund simulation completed'
+        : vars.paymentMethod === 'Cash on Delivery'
+          ? 'Manual refund settlement recorded'
+          : 'Refund completed',
       p(
-        `Hi ${escapeHtml(vars.customerName)}, your refund of <strong>${escapeHtml(vars.refundAmount)}</strong> for order <strong>${escapeHtml(vars.orderNumber)}</strong> has been processed by the payment gateway.`
-      ) + p('Depending on your bank, it may take a few business days to appear in your account.'),
+        `Hi ${escapeHtml(vars.customerName)}, a refund of <strong>${escapeHtml(vars.refundAmount)}</strong> for order <strong>${escapeHtml(vars.orderNumber)}</strong> is recorded as completed. Payment method: <strong>${escapeHtml(vars.paymentMethod ?? 'Online payment')}</strong>.`
+      ) +
+        p(
+          escapeHtml(
+            vars.refundCompletedDetail ??
+              'The store has recorded this refund as completed. Contact support if the credit has not appeared.'
+          )
+        ),
       { label: 'View order', url: vars.orderUrl }
     ),
-    text: `Refund of ${vars.refundAmount} completed for order ${vars.orderNumber}.`,
+    text: `${vars.paymentSubjectPrefix ?? ''}Refund of ${vars.refundAmount} completed for order ${vars.orderNumber}. Payment method: ${vars.paymentMethod ?? 'Online payment'}. ${vars.refundCompletedDetail ?? 'Contact support if the credit has not appeared.'}`,
   }),
 
   RETURN_UPDATE: (vars, ctx) => ({
-    subject: `Return update for order ${vars.orderNumber}`,
+    subject: `${vars.paymentSubjectPrefix ?? ''}Return update for order ${vars.orderNumber}`,
     html: layout(
       ctx,
       `Return ${escapeHtml(vars.returnStatus)}`,

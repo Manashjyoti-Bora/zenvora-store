@@ -50,9 +50,11 @@ export default async function ShippingPolicyPage() {
           body: (
             <p>
               {payments.kind === 'RAZORPAY' &&
-                'Orders are confirmed on verified online payment, or immediately for Cash on Delivery. '}
+                (settings.shipping.codEnabled
+                  ? 'Orders are confirmed on verified online payment, or immediately for Cash on Delivery. '
+                  : 'Orders are confirmed on verified online payment. ')}
               {payments.kind === 'TEST' &&
-                'TEST payment orders are development-only simulations; no real money moves. Cash on Delivery orders are confirmed at checkout. '}
+                `TEST payment orders are development-only simulations; no real money moves. ${settings.shipping.codEnabled ? 'Cash on Delivery orders are confirmed at checkout.' : ''} `}
               {payments.kind === 'NONE' &&
                 settings.shipping.codEnabled &&
                 'Cash on Delivery orders are confirmed at checkout. Online payments are not currently available. '}
@@ -60,7 +62,8 @@ export default async function ShippingPolicyPage() {
                 !settings.shipping.codEnabled &&
                 'Checkout is unavailable until a payment method is configured. '}
               Dispatch/handover to our fulfilment network typically happens within 1–2 business
-              days, subject to supplier stock. You will be notified by email at each step.
+              days, subject to supplier stock. Order status is available online; email updates are
+              also sent when email delivery is configured.
             </p>
           ),
         },
@@ -98,9 +101,9 @@ export default async function ShippingPolicyPage() {
           heading: 'Tracking',
           body: (
             <p>
-              Once dispatched, tracking details (carrier, tracking number, live status) are emailed
-              to you and shown on the order page and our public tracking page (order number + email
-              required).
+              Once dispatched, tracking details (carrier, tracking number, live status) are shown on
+              the order page and our public tracking page (order number + email required). Email
+              updates are also sent when email delivery is configured.
             </p>
           ),
         },

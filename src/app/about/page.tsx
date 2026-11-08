@@ -5,6 +5,7 @@ import { describePaymentProvider } from '@/lib/payments';
 import { SupportContact } from '@/components/store/support-contact';
 import { env } from '@/lib/env';
 import { Alert } from '@/components/ui/feedback';
+import { publicCheckoutInstruction } from '@/lib/payments/public-messaging';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,9 +37,9 @@ export default async function AboutPage() {
         <section className="card p-5 sm:p-6" aria-labelledby="who-we-are">
           <h2 id="who-we-are">Who we are</h2>
           <p className="mt-2">
-            {settings.storeName} is an online store bringing carefully selected products to
-            customers across India. We work directly with verified suppliers and fulfilment
-            partners, which lets us keep prices transparent and quality consistent.
+            {settings.storeName} is an online store offering products to customers across India.
+            Product specifications, supplier evidence and fulfilment details must be verified by the
+            store owner before publication; the website does not independently certify them.
             {settings.storeTagline ? ` ${settings.storeTagline}.` : ''}
           </p>
         </section>
@@ -47,8 +48,9 @@ export default async function AboutPage() {
           <h2 id="how-it-works">How our store works</h2>
           <ul className="mt-2 list-disc space-y-2 pl-5">
             <li>
-              <strong>Curated catalog:</strong> every product listed here is sourced through a
-              supplier we have vetted. Product details, prices and availability are kept up to date.
+              <strong>Configured catalog:</strong> product details, prices and availability come
+              from the store&apos;s product and supplier records. Owner verification is required
+              before publication.
             </li>
             <li>
               <strong>Transparent pricing:</strong> the price you see in ₹ is the price you pay
@@ -59,13 +61,17 @@ export default async function AboutPage() {
               .
             </li>
             <li>
-              <strong>Automated fulfilment:</strong> when you pay, your order is confirmed instantly
-              and routed to our fulfilment network. You receive tracking updates by email and can
-              follow your shipment any time on our{' '}
+              <strong>Order handling:</strong>{' '}
+              {publicCheckoutInstruction({
+                provider: payments.kind,
+                codEnabled: settings.shipping.codEnabled,
+              })}{' '}
+              Confirmed orders enter the configured fulfilment queue; manual suppliers require admin
+              action. You can follow your shipment any time on our{' '}
               <Link href="/track" className="link-primary">
                 tracking page
               </Link>
-              .
+              . Email updates are also sent when email delivery is configured.
             </li>
             <li>
               <strong>Real support:</strong> questions about an order are answered by our team —

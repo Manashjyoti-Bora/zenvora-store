@@ -36,6 +36,7 @@ export default async function AccountOrderDetail({ params }: Ctx) {
         shipments: { orderBy: { createdAt: 'desc' } },
         refunds: { orderBy: { createdAt: 'desc' } },
         returns: { orderBy: { createdAt: 'desc' } },
+        payments: { orderBy: { createdAt: 'desc' } },
       },
     }),
     getSettings(),
@@ -79,6 +80,7 @@ export default async function AccountOrderDetail({ params }: Ctx) {
         shipments={order.shipments}
         refunds={order.refunds}
         returns={order.returns}
+        payments={order.payments}
       />
 
       <OrderActions

@@ -122,6 +122,12 @@ export default async function TermsPage() {
                   .
                 </li>
               )}
+              {payments.kind === 'NONE' && settings.shipping.codEnabled && (
+                <li>
+                  Online payments are not currently available; Cash on Delivery is the only checkout
+                  payment method.
+                </li>
+              )}
               {payments.kind === 'NONE' && !settings.shipping.codEnabled && (
                 <li>No payment method is currently configured, so checkout is unavailable.</li>
               )}

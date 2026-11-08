@@ -44,7 +44,7 @@ export function publicCheckoutInstruction({ provider, codEnabled }: PublicPaymen
   }
   if (provider === 'TEST') {
     return codEnabled
-      ? 'Use the clearly marked TEST payment simulator (no real money) or choose Cash on Delivery.'
+      ? 'Use the clearly marked TEST payment simulator (no real money moves) or choose Cash on Delivery.'
       : 'Use the clearly marked TEST payment simulator; no real money moves.';
   }
   return codEnabled
@@ -92,6 +92,26 @@ export function publicPaymentSafetyFaq({ provider, codEnabled }: PublicPaymentSt
     answer:
       'Payments are confirmed only after server-side verification with Razorpay. If money is debited but the order is not confirmed, do not pay again - contact support with your order number. Unsettled amounts are typically auto-refunded by the gateway within 5-7 business days.',
   };
+}
+
+export function publicCancellationFaqAnswer({ provider }: PublicPaymentState): string {
+  const online =
+    provider === 'RAZORPAY'
+      ? 'An eligible confirmed Razorpay payment is refunded in full, including shipping, to the original payment method after cancellation.'
+      : provider === 'TEST'
+        ? 'TEST payment cancellations and refunds are simulations; no real money moves.'
+        : 'New orders do not involve an online payment or online-payment refund while online payments are not configured.';
+  return `${online} COD cancellation does not use a payment gateway; if cash has already been collected, any refund requires manual settlement.`;
+}
+
+export function publicReturnRefundFaqAnswer({ provider }: PublicPaymentState): string {
+  if (provider === 'RAZORPAY') {
+    return 'Approved Razorpay refunds are initiated to the original payment method after the returned item is received and checked; the bank or card issuer may take another 5-7 business days. Collected-COD refunds are settled manually by the store, not through a payment gateway.';
+  }
+  if (provider === 'TEST') {
+    return 'TEST return refunds are simulations; no real money moves. Collected-COD refunds are settled manually by the store, not through a payment gateway.';
+  }
+  return 'New online payments are unavailable because no online payment provider is configured. Approved collected-COD refunds are settled manually by the store; support confirms the settlement method and reference.';
 }
 
 /** Null means the online radio option must not be rendered at all. */
