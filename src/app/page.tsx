@@ -17,6 +17,10 @@ import {
 } from '@/lib/catalog/storefront';
 import { prisma } from '@/lib/db';
 import { describePaymentProvider } from '@/lib/payments';
+import {
+  publicCheckoutInstruction,
+  publicPaymentTrustLabel,
+} from '@/lib/payments/public-messaging';
 import { ProductGrid } from '@/components/store/product-grid';
 import { LinkButton } from '@/components/ui/button';
 import { formatINR } from '@/lib/money';
@@ -108,13 +112,9 @@ export default async function HomePage() {
     Promise.resolve(describePaymentProvider()),
   ]);
 
-  const onlineLabel =
-    payments.kind === 'RAZORPAY'
-      ? 'via Razorpay'
-      : payments.kind === 'TEST'
-        ? '(TEST mode — no real money moves)'
-        : '(being configured)';
-  const codLabel = settings.shipping.codEnabled ? ' + Cash on Delivery' : '';
+  const paymentState = { provider: payments.kind, codEnabled: settings.shipping.codEnabled };
+  const paymentTrustLabel = publicPaymentTrustLabel(paymentState);
+  const checkoutInstruction = publicCheckoutInstruction(paymentState);
   const heroProduct = featured.find((p) => p.imageUrls.length > 0) ?? null;
 
   return (
@@ -154,7 +154,7 @@ export default async function HomePage() {
                 {settings.storeTagline || 'Quality products, delivered across India'}
               </h1>
               <p className="mt-3.5 max-w-xl text-sm leading-relaxed text-cream-100/80 sm:mt-5 sm:text-base">
-                Transparent pricing in ₹, secure payments, and honest order tracking — from
+                Transparent pricing in ₹, clear payment options, and honest order tracking — from
                 checkout to your doorstep. Every price you see is final and tax-inclusive.
               </p>
 
@@ -186,10 +186,7 @@ export default async function HomePage() {
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-300/15 text-accent-300">
                     <LockIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                   </span>
-                  <span className="leading-snug">
-                    Secure payments {onlineLabel}
-                    {codLabel}
-                  </span>
+                  <span className="leading-snug">{paymentTrustLabel}</span>
                 </li>
                 <li className="flex items-center gap-2.5">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-300/15 text-accent-300">
@@ -469,7 +466,7 @@ export default async function HomePage() {
               {
                 n: '02',
                 t: 'Secure checkout',
-                d: 'Pay online via our payment gateway or choose Cash on Delivery where available.',
+                d: checkoutInstruction,
               },
               {
                 n: '03',

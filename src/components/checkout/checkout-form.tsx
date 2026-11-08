@@ -15,6 +15,7 @@ import { Field, Input, Textarea } from '@/components/ui/form';
 import { Alert } from '@/components/ui/feedback';
 import { formatINR } from '@/lib/money';
 import type { CartView } from '@/lib/cart/service';
+import { onlinePaymentOptionLabel } from '@/lib/payments/public-messaging';
 
 export interface CheckoutAddress {
   id: string;
@@ -123,6 +124,9 @@ export function CheckoutForm(props: CheckoutProps) {
   );
   const canPayOnline = payments.gatewayAvailable;
   const canCheckout = canPayOnline || settings.codEnabled;
+  const onlinePaymentLabel = onlinePaymentOptionLabel(
+    !canPayOnline ? 'NONE' : payments.gatewayIsTest ? 'TEST' : 'RAZORPAY'
+  );
 
   function err(path: string): string | undefined {
     return fieldErrors[path];
@@ -432,35 +436,37 @@ export function CheckoutForm(props: CheckoutProps) {
             Payment method
           </h2>
           <div className="mt-3 space-y-2" role="radiogroup" aria-labelledby="payment-method">
-            <label
-              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3.5 transition-colors ${
-                form.paymentMethod === 'PREPAID_GATEWAY'
-                  ? 'border-brand-500 bg-brand-50'
-                  : 'border-ink-900/10 hover:border-brand-300'
-              } ${!canPayOnline ? 'cursor-not-allowed opacity-50' : ''}`}
-            >
-              <input
-                type="radio"
-                name="paymentMethod"
-                value="PREPAID_GATEWAY"
-                checked={form.paymentMethod === 'PREPAID_GATEWAY'}
-                onChange={() => set('paymentMethod', 'PREPAID_GATEWAY')}
-                disabled={!canPayOnline}
-                className="mt-0.5 h-4 w-4 border-ink-900/20 text-brand-600 focus:ring-brand-500"
-              />
-              <span className="text-sm">
-                <span className="block font-semibold text-ink-900">
-                  Pay online (UPI / cards / netbanking)
-                </span>
-                <span className="mt-0.5 block text-xs text-ink-400">
-                  {canPayOnline
-                    ? payments.gatewayIsTest
+            {onlinePaymentLabel ? (
+              <label
+                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3.5 transition-colors ${
+                  form.paymentMethod === 'PREPAID_GATEWAY'
+                    ? 'border-brand-500 bg-brand-50'
+                    : 'border-ink-900/10 hover:border-brand-300'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="PREPAID_GATEWAY"
+                  checked={form.paymentMethod === 'PREPAID_GATEWAY'}
+                  onChange={() => set('paymentMethod', 'PREPAID_GATEWAY')}
+                  className="mt-0.5 h-4 w-4 border-ink-900/20 text-brand-600 focus:ring-brand-500"
+                />
+                <span className="text-sm">
+                  <span className="block font-semibold text-ink-900">{onlinePaymentLabel}</span>
+                  <span className="mt-0.5 block text-xs text-ink-400">
+                    {payments.gatewayIsTest
                       ? 'TEST mode — the payment simulator will run; no real money moves. Clearly marked in your order history.'
-                      : `Securely processed by ${payments.gatewayLabel}. We never see or store your card details.`
-                    : 'Online payments are not configured on this store yet.'}
+                      : `Securely processed by ${payments.gatewayLabel}. We never see or store your card details.`}
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+            ) : (
+              <p className="rounded-lg border border-ink-900/10 bg-ink-50 p-3.5 text-sm text-ink-600">
+                Online payments are not configured on this store.
+                {settings.codEnabled ? ' Choose Cash on Delivery below.' : ''}
+              </p>
+            )}
 
             <label
               className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3.5 transition-colors ${
@@ -486,7 +492,7 @@ export function CheckoutForm(props: CheckoutProps) {
                 </span>
                 <span className="mt-0.5 block text-xs text-ink-400">
                   {settings.codEnabled
-                    ? 'Pay in cash/UPI when your order arrives. Keep exact change handy.'
+                    ? 'Pay for your order when it arrives. Keep the payable amount ready.'
                     : 'Cash on Delivery is not available on this store right now.'}
                 </span>
               </span>

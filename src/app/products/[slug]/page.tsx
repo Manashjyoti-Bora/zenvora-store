@@ -4,6 +4,8 @@ import Link from 'next/link';
 import Image from '@/components/ui/remote-image';
 import { env } from '@/lib/env';
 import { getSettings } from '@/lib/settings';
+import { describePaymentProvider } from '@/lib/payments';
+import { publicPaymentMethodLabel } from '@/lib/payments/public-messaging';
 import { getStorefrontProduct, getRelatedProducts, availabilityOf } from '@/lib/catalog/storefront';
 import { schemaAvailability } from '@/lib/catalog/availability';
 import { toPublicProductDto } from '@/lib/catalog/public-dto';
@@ -64,7 +66,11 @@ export default async function ProductPage({ params }: Ctx) {
   const product = await getStorefrontProduct(slug);
   if (!product) notFound();
 
-  const [settings, related] = await Promise.all([getSettings(), getRelatedProducts(product, 4)]);
+  const [settings, related, payments] = await Promise.all([
+    getSettings(),
+    getRelatedProducts(product, 4),
+    Promise.resolve(describePaymentProvider()),
+  ]);
 
   const activeVariants = product.variants.filter((v) => v.isActive);
   const basePricePaise = toPaise(product.sellingPrice);
@@ -234,7 +240,10 @@ export default async function ProductPage({ params }: Ctx) {
             <div className="flex items-center gap-2">
               <dt className="flex items-center gap-1.5 text-ink-400"><CreditCardIcon className="h-4 w-4" />Payment</dt>
               <dd className="font-medium text-ink-900">
-                Online{settings.shipping.codEnabled ? ' + COD' : ''}
+                {publicPaymentMethodLabel({
+                  provider: payments.kind,
+                  codEnabled: settings.shipping.codEnabled,
+                })}
               </dd>
             </div>
             <div className="flex items-center gap-2">

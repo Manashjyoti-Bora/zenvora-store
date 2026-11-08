@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getSettings } from '@/lib/settings';
+import { describePaymentProvider } from '@/lib/payments';
+import { publicPaymentFaqAnswer, publicPaymentSafetyFaq } from '@/lib/payments/public-messaging';
 import { SupportContact } from '@/components/store/support-contact';
 import { env } from '@/lib/env';
 import { formatINR } from '@/lib/money';
@@ -19,7 +21,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function FaqPage() {
-  const s = await getSettings();
+  const [s, payments] = await Promise.all([
+    getSettings(),
+    Promise.resolve(describePaymentProvider()),
+  ]);
+  const paymentState = { provider: payments.kind, codEnabled: s.shipping.codEnabled };
+  const paymentSafety = publicPaymentSafetyFaq(paymentState);
 
   const faqs = [
     {
@@ -40,35 +47,34 @@ export default async function FaqPage() {
       q: 'Which payment methods do you accept?',
       a: (
         <>
-          {s.shipping.codEnabled
-            ? 'Online payment (UPI, cards, netbanking — processed by our licensed payment gateway provider) and Cash on Delivery.'
-            : 'Online payment via UPI, cards and netbanking, processed by our licensed payment gateway provider.'}{' '}
-          We never see or store your card number, CVV or UPI PIN — those are entered only in the
-          gateway&apos;s secure window.
+          {publicPaymentFaqAnswer(paymentState)}
           {s.shipping.codEnabled && s.shipping.codFeePaise > 0 && (
             <>
               {' '}
-              Cash on Delivery carries a small handling fee of {formatINR(s.shipping.codFeePaise)},
-              shown at checkout.
+              Cash on Delivery carries a handling fee of {formatINR(s.shipping.codFeePaise)}, shown
+              at checkout.
             </>
           )}
         </>
       ),
     },
     {
-      q: 'Is my payment safe? What if money is debited but the order fails?',
-      a: (
-        <>
-          Payments are confirmed only after server-side verification with the gateway, so a failed
-          or interrupted payment never marks an order as paid. If your bank shows a debit but the
-          order is not confirmed, <strong>do not pay again</strong> — contact{' '}
-          <Link href="/contact" className="link-primary">
-            support
-          </Link>{' '}
-          with your order number. Unsettled amounts are auto-refunded by the gateway, typically
-          within 5–7 business days.
-        </>
-      ),
+      q: paymentSafety.question,
+      a:
+        payments.kind === 'RAZORPAY' ? (
+          <>
+            Payments are confirmed only after server-side verification with the gateway, so a failed
+            or interrupted payment never marks an order as paid. If your bank shows a debit but the
+            order is not confirmed, <strong>do not pay again</strong> — contact{' '}
+            <Link href="/contact" className="link-primary">
+              support
+            </Link>{' '}
+            with your order number. Unsettled amounts are auto-refunded by the gateway, typically
+            within 5–7 business days.
+          </>
+        ) : (
+          paymentSafety.answer
+        ),
     },
     {
       q: 'How long does delivery take?',
@@ -90,7 +96,7 @@ export default async function FaqPage() {
         <>
           {s.shipping.freeAbovePaise > 0 ? (
             <>
-              Shipping is <strong>free</strong> on prepaid orders above{' '}
+              Shipping is <strong>free</strong> on orders above{' '}
               {formatINR(s.shipping.freeAbovePaise)}. Below that, a flat rate of{' '}
               {formatINR(s.shipping.flatRatePaise)} applies.
             </>
@@ -200,15 +206,12 @@ export default async function FaqPage() {
   const faqText: Record<string, string> = {
     'How do I place an order?':
       'Add products to your cart, proceed to checkout, enter your shipping address and choose a payment method. Guest checkout is supported; an account adds order history and saved addresses.',
-    'Which payment methods do you accept?': s.shipping.codEnabled
-      ? 'Online payment (UPI, cards, netbanking via our licensed payment gateway) and Cash on Delivery. Card details are never seen or stored by the store.'
-      : 'Online payment via UPI, cards and netbanking through our licensed payment gateway. Card details are never seen or stored by the store.',
-    'Is my payment safe? What if money is debited but the order fails?':
-      'Payments are confirmed only after server-side verification with the gateway. If money is debited but the order is not confirmed, do not pay again - contact support with your order number. Unsettled amounts are typically auto-refunded within 5-7 business days.',
+    'Which payment methods do you accept?': publicPaymentFaqAnswer(paymentState),
+    [paymentSafety.question]: paymentSafety.answer,
     'How long does delivery take?': `Most orders arrive in ${s.shipping.estimatedDaysMin}-${s.shipping.estimatedDaysMax} business days after dispatch, with tracking by email and on the tracking page.`,
     'What does shipping cost?':
       s.shipping.freeAbovePaise > 0
-        ? `Free shipping on prepaid orders above Rs ${s.shipping.freeAbovePaise / 100}; otherwise a flat rate of Rs ${s.shipping.flatRatePaise / 100}. The exact amount is shown at checkout.`
+        ? `Free shipping on orders above Rs ${s.shipping.freeAbovePaise / 100}; otherwise a flat rate of Rs ${s.shipping.flatRatePaise / 100}. The exact amount is shown at checkout.`
         : `A flat shipping rate of Rs ${s.shipping.flatRatePaise / 100} applies and is shown at checkout.`,
     'Can I cancel my order?':
       s.policies.cancellationWindowHours > 0

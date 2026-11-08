@@ -83,7 +83,7 @@ export function policySettingsContext(s: StoreSettings) {
   return {
     freeShippingText:
       s.shipping.freeAbovePaise > 0
-        ? `free shipping on prepaid orders above ${formatINR(s.shipping.freeAbovePaise)}`
+        ? `free shipping on orders above ${formatINR(s.shipping.freeAbovePaise)}`
         : 'no free-shipping threshold configured',
     flatShippingText: formatINR(s.shipping.flatRatePaise),
     codText: s.shipping.codEnabled

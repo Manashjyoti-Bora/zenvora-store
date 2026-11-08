@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getSettings } from '@/lib/settings';
+import { describePaymentProvider } from '@/lib/payments';
 import { env } from '@/lib/env';
 import { PolicyView } from '@/components/policies/policy-view';
 
@@ -22,7 +23,10 @@ export async function generateMetadata(): Promise<Metadata> {
 const LAST_UPDATED = '2026-09-05';
 
 export default async function ReturnsPage() {
-  const settings = await getSettings();
+  const [settings, payments] = await Promise.all([
+    getSettings(),
+    Promise.resolve(describePaymentProvider()),
+  ]);
   const windowDays = settings.policies.returnWindowDays;
 
   return (
@@ -38,7 +42,10 @@ export default async function ReturnsPage() {
               {settings.policies.cancellationWindowHours > 0
                 ? `Orders can be cancelled from your order page within ${settings.policies.cancellationWindowHours} hours of placing them and before dispatch.`
                 : 'Orders can be cancelled from your order page before dispatch.'}{' '}
-              Cancelled prepaid orders are refunded in full (including shipping).
+              {payments.kind === 'RAZORPAY' &&
+                'Cancelled prepaid orders are refunded in full (including shipping).'}
+              {payments.kind === 'TEST' &&
+                'Cancelled TEST payment orders are simulations; no real money moves.'}
             </p>
           ),
         },
@@ -94,11 +101,16 @@ export default async function ReturnsPage() {
           heading: 'Refunds',
           body: (
             <ul className="list-disc space-y-1 pl-5">
-              <li>
-                Refunds are issued to the <strong>original payment method</strong> after the
-                returned item is received and passes quality check — typically 5–7 business days for
-                UPI/cards/netbanking (bank processing times vary).
-              </li>
+              {payments.kind === 'RAZORPAY' && (
+                <li>
+                  Prepaid refunds are issued to the <strong>original payment method</strong> after
+                  the returned item is received and passes quality check — typically 5–7 business
+                  days for UPI/cards/netbanking (bank processing times vary).
+                </li>
+              )}
+              {payments.kind === 'TEST' && (
+                <li>TEST payment refunds are simulations; no real money moves.</li>
+              )}
               <li>
                 COD orders: refunds are issued via bank transfer/UPI to an account you provide.
               </li>

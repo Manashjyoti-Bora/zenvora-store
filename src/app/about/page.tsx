@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getSettings } from '@/lib/settings';
+import { describePaymentProvider } from '@/lib/payments';
 import { SupportContact } from '@/components/store/support-contact';
 import { env } from '@/lib/env';
 import { Alert } from '@/components/ui/feedback';
@@ -18,7 +19,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AboutPage() {
-  const settings = await getSettings();
+  const [settings, payments] = await Promise.all([
+    getSettings(),
+    Promise.resolve(describePaymentProvider()),
+  ]);
   const b = settings.business;
 
   return (
@@ -80,10 +84,15 @@ export default async function AboutPage() {
                 ? `Returns accepted within ${settings.policies.returnWindowDays} days of delivery, per our returns policy.`
                 : 'Our returns policy explains exactly what can be returned and how.'}
             </li>
-            <li>
-              Your payment details are processed by licensed payment providers — we never see or
-              store card numbers, CVVs or UPI PINs.
-            </li>
+            {payments.kind === 'RAZORPAY' && (
+              <li>
+                Your payment details are processed by licensed payment providers — we never see or
+                store card numbers, CVVs or UPI PINs.
+              </li>
+            )}
+            {payments.kind === 'TEST' && (
+              <li>TEST payments are development-only simulations; no real money moves.</li>
+            )}
             <li>
               Your personal data is handled as described in our{' '}
               <Link href="/policies/privacy" className="link-primary">
