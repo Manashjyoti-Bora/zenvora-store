@@ -42,6 +42,33 @@ export default async function JobsLogPage({
     prisma.job.count({ where: { status: { in: ['PENDING', 'RUNNING'] } } }),
     prisma.job.count({ where: { status: 'FAILED' } }),
   ]);
+  const cancellationIds = Array.from(
+    new Set(
+      jobs.flatMap((job) => {
+        if (
+          job.type !== 'CANCEL_SUPPLIER_ORDER' ||
+          !job.payload ||
+          typeof job.payload !== 'object'
+        ) {
+          return [];
+        }
+        const supplierOrderId = (job.payload as Record<string, unknown>).supplierOrderId;
+        return typeof supplierOrderId === 'string' ? [supplierOrderId] : [];
+      })
+    )
+  );
+  const relatedSupplierOrders = cancellationIds.length
+    ? await prisma.supplierOrder.findMany({
+        where: { id: { in: cancellationIds } },
+        select: {
+          id: true,
+          cancellationStatus: true,
+          order: { select: { id: true, orderNumber: true } },
+        },
+      })
+    : [];
+  const supplierOrderById = new Map(relatedSupplierOrders.map((so) => [so.id, so]));
+
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
   const fmt = (d: Date | null) =>
@@ -63,9 +90,9 @@ export default async function JobsLogPage({
 
       {failedCount > 0 && (
         <Alert tone="error" title={`${failedCount} failed job${failedCount === 1 ? '' : 's'}`}>
-          Failed jobs exhausted their retries (last error shown per row). Fix the cause (supplier
-          credentials, network, bad payload) and use <em>Retry</em> — it resets attempts and runs
-          immediately. Idempotency keys prevent duplicate supplier orders on retry.
+          Jobs can fail permanently or exhaust transient retries. The last error and related order
+          are shown per row. Supplier cancellations that require a manual step link to the supplier
+          order for audited resolution; do not retry those automatically.
         </Alert>
       )}
 
@@ -116,6 +143,7 @@ export default async function JobsLogPage({
           <thead className="bg-cream-50">
             <tr>
               <Th>Type</Th>
+              <Th>Related order</Th>
               <Th>Status</Th>
               <Th className="hidden md:table-cell">Dedupe key</Th>
               <Th className="hidden sm:table-cell">Attempts</Th>
@@ -131,48 +159,101 @@ export default async function JobsLogPage({
                 <Td className="py-8 text-center text-ink-400">No jobs match.</Td>
               </tr>
             )}
-            {jobs.map((j) => (
-              <tr
-                key={j.id}
-                className={j.status === 'FAILED' ? 'bg-red-50/40' : 'hover:bg-cream-50/70'}
-              >
-                <Td className="text-[11px] font-medium text-ink-700">
-                  {j.type.replace(/_/g, ' ')}
-                </Td>
-                <Td>
-                  <Badge tone={tone(j.status) as 'green' | 'red' | 'blue' | 'amber'}>
-                    {j.status}
-                  </Badge>
-                </Td>
-                <Td className="hidden max-w-[180px] md:table-cell">
-                  <span
-                    className="block truncate font-mono text-[10px] text-ink-400"
-                    title={j.dedupeKey ?? undefined}
-                  >
-                    {j.dedupeKey ?? '—'}
-                  </span>
-                </Td>
-                <Td className="hidden text-xs tabular-nums text-ink-400 sm:table-cell">
-                  {j.attempts}/{j.maxAttempts}
-                </Td>
-                <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
-                  {fmt(j.nextRunAt)}
-                </Td>
-                <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
-                  {fmt(j.completedAt)}
-                </Td>
-                <Td className="hidden max-w-[220px] md:table-cell">
-                  {j.lastError && (
-                    <span className="block truncate text-[10px] text-red-500" title={j.lastError}>
-                      {j.lastError}
+            {jobs.map((j) => {
+              const payload =
+                j.payload && typeof j.payload === 'object'
+                  ? (j.payload as Record<string, unknown>)
+                  : {};
+              const supplierOrderId =
+                j.type === 'CANCEL_SUPPLIER_ORDER' && typeof payload.supplierOrderId === 'string'
+                  ? payload.supplierOrderId
+                  : null;
+              const relatedSupplierOrder = supplierOrderId
+                ? supplierOrderById.get(supplierOrderId)
+                : undefined;
+              const isCancellationJob = j.type === 'CANCEL_SUPPLIER_ORDER';
+              const cancellationStatus = relatedSupplierOrder?.cancellationStatus ?? 'NONE';
+              const cancellationLabel =
+                cancellationStatus === 'SUBMITTED'
+                  ? 'Supplier confirmation pending'
+                  : cancellationStatus === 'SUBMITTING'
+                    ? 'Cancellation outcome pending'
+                    : ['MANUAL_ACTION_REQUIRED', 'REJECTED'].includes(cancellationStatus)
+                      ? 'Manual action required'
+                      : null;
+              return (
+                <tr
+                  key={j.id}
+                  className={j.status === 'FAILED' ? 'bg-red-50/40' : 'hover:bg-cream-50/70'}
+                >
+                  <Td className="text-[11px] font-medium text-ink-700">
+                    {j.type.replace(/_/g, ' ')}
+                  </Td>
+                  <Td>
+                    {relatedSupplierOrder ? (
+                      <Link
+                        href={`/admin/orders/${relatedSupplierOrder.order.id}`}
+                        className="text-xs font-medium text-brand-700 hover:underline"
+                      >
+                        {relatedSupplierOrder.order.orderNumber}
+                      </Link>
+                    ) : (
+                      '—'
+                    )}
+                  </Td>
+                  <Td>
+                    <Badge tone={tone(j.status) as 'green' | 'red' | 'blue' | 'amber'}>
+                      {j.status}
+                    </Badge>
+                    {cancellationLabel && (
+                      <span className="mt-1 block text-[10px] font-semibold uppercase text-amber-700">
+                        {cancellationLabel}
+                      </span>
+                    )}
+                  </Td>
+                  <Td className="hidden max-w-[180px] md:table-cell">
+                    <span
+                      className="block truncate font-mono text-[10px] text-ink-400"
+                      title={j.dedupeKey ?? undefined}
+                    >
+                      {j.dedupeKey ?? '—'}
                     </span>
-                  )}
-                </Td>
-                <Td className="text-right">
-                  {j.status === 'FAILED' ? <RetryJobButton jobId={j.id} /> : null}
-                </Td>
-              </tr>
-            ))}
+                  </Td>
+                  <Td className="hidden text-xs tabular-nums text-ink-400 sm:table-cell">
+                    {j.attempts}/{j.maxAttempts}
+                  </Td>
+                  <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
+                    {fmt(j.nextRunAt)}
+                  </Td>
+                  <Td className="hidden text-[11px] text-ink-400 lg:table-cell">
+                    {fmt(j.completedAt)}
+                  </Td>
+                  <Td className="hidden max-w-[220px] md:table-cell">
+                    {j.lastError && (
+                      <span className="block truncate text-[10px] text-red-500" title={j.lastError}>
+                        {j.lastError}
+                      </span>
+                    )}
+                  </Td>
+                  <Td className="text-right">
+                    {j.status === 'FAILED' && isCancellationJob ? (
+                      supplierOrderId ? (
+                        <Link
+                          href={`/admin/supplier-orders?focus=${encodeURIComponent(supplierOrderId)}`}
+                          className="text-xs font-semibold text-brand-700 hover:underline"
+                        >
+                          Review supplier order
+                        </Link>
+                      ) : (
+                        <span className="text-[10px] text-amber-700">Manual review required</span>
+                      )
+                    ) : j.status === 'FAILED' ? (
+                      <RetryJobButton jobId={j.id} />
+                    ) : null}
+                  </Td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </TableWrap>

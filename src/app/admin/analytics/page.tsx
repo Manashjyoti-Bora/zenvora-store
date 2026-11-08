@@ -71,7 +71,8 @@ export default async function AdminAnalyticsPage({
       orderBy: { _count: { couponCode: 'desc' } },
       take: 6,
     }),
-    prisma.refund.aggregate({
+    prisma.refund.groupBy({
+      by: ['status'],
       where: { createdAt: { gte: range.from, lte: range.to } },
       _count: { _all: true },
       _sum: { amount: true },
@@ -98,6 +99,16 @@ export default async function AdminAnalyticsPage({
   const topCustomers = [...customersBy.entries()]
     .sort((a, b) => b[1].revenuePaise - a[1].revenuePaise)
     .slice(0, 6);
+  const refundAmount = (statuses: string[]) =>
+    toPaise(
+      refundStats
+        .filter((refund) => statuses.includes(refund.status))
+        .reduce((sum, refund) => sum + Number(refund._sum.amount ?? 0), 0)
+    );
+  const refundCount = (statuses: string[]) =>
+    refundStats
+      .filter((refund) => statuses.includes(refund.status))
+      .reduce((sum, refund) => sum + refund._count._all, 0);
 
   const exportUrl = (type: string) =>
     `/api/admin/reports/export?type=${type}&from=${range.from.toISOString().slice(0, 10)}&to=${range.to.toISOString().slice(0, 10)}`;
@@ -112,7 +123,8 @@ export default async function AdminAnalyticsPage({
           <p className="mt-1 text-sm text-ink-400">
             {new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(range.from)} →{' '}
             {new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(range.to)} · confirmed
-            orders only (pending / failed / cancelled excluded)
+            orders only (pending / failed / cancelled excluded); booked value and ledger profit are
+            not cash collections
           </p>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -165,9 +177,9 @@ export default async function AdminAnalyticsPage({
 
       <section aria-label="Financial totals" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
-          label="Revenue (gross)"
+          label="Confirmed order value"
           value={inr(totals.revenuePaise)}
-          sub={`${totals.orderCount} confirmed orders · AOV ${inr(totals.aovPaise)}`}
+          sub={`${totals.orderCount} confirmed orders · booked value, not cash · AOV ${inr(totals.aovPaise)}`}
         />
         <StatCard
           label="Refunds"
@@ -191,6 +203,35 @@ export default async function AdminAnalyticsPage({
           }
           tone={profitPositive ? 'positive' : 'negative'}
         />
+      </section>
+
+      <section aria-label="Collections and refund status">
+        <Card className="p-4">
+          <h2 className="text-sm font-semibold text-ink-900">Collections &amp; refund status</h2>
+          <p className="mt-1 text-xs text-ink-400">
+            Cash view is separate from confirmed order value. Pending/failed refunds are not treated
+            as settled cash movements; TEST payments are excluded from real collections.
+          </p>
+          <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm md:grid-cols-4">
+            {[
+              ['Gateway collected (non-TEST)', totals.gatewayCollectedPaise],
+              ['COD collected', totals.codCollectedPaise],
+              ['COD uncollected', totals.codUncollectedPaise],
+              ['Net real collections', totals.netCollectedPaise],
+              ['Pending refund reservations', totals.pendingRefundPaise],
+              ['Failed refunds needing review', totals.failedRefundPaise],
+              ['TEST payment volume (excluded)', totals.testTransactionsPaise],
+            ].map(([label, value]) => (
+              <div
+                key={label as string}
+                className="flex justify-between gap-2 border-b border-dashed border-ink-900/5 pb-1"
+              >
+                <dt className="text-ink-400">{label}</dt>
+                <dd className="font-medium tabular-nums">{inr(value as number)}</dd>
+              </div>
+            ))}
+          </dl>
+        </Card>
       </section>
 
       <section aria-label="Cost breakdown">
@@ -231,7 +272,7 @@ export default async function AdminAnalyticsPage({
       <section aria-label="Trends" className="grid gap-4 lg:grid-cols-2">
         <Card className="p-4">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-ink-900">Revenue by day</h2>
+            <h2 className="text-sm font-semibold text-ink-900">Confirmed order value by day</h2>
             <a
               href={exportUrl('daily')}
               className="text-xs font-medium text-brand-700 hover:underline"
@@ -381,14 +422,27 @@ export default async function AdminAnalyticsPage({
           <h2 className="mb-3 text-sm font-semibold text-ink-900">
             Refunds &amp; returns (period)
           </h2>
-          <p className="text-sm tabular-nums">
-            <span className="font-semibold text-ink-900">{refundStats._count._all ?? 0}</span>
-            <span className="text-ink-400"> refunds · </span>
-            <span className="font-semibold text-ink-900">
-              {inr(toPaise(refundStats._sum.amount ?? 0))}
-            </span>
-            <span className="text-ink-400"> total refunded</span>
-          </p>
+          <ul className="space-y-1 text-sm tabular-nums">
+            <li className="flex justify-between gap-2">
+              <span className="text-ink-500">Completed refunds</span>
+              <span className="font-medium">
+                {refundCount(['COMPLETED'])} · {inr(refundAmount(['COMPLETED']))}
+              </span>
+            </li>
+            <li className="flex justify-between gap-2">
+              <span className="text-ink-500">Pending (requested / processing)</span>
+              <span className="font-medium">
+                {refundCount(['REQUESTED', 'PROCESSING'])} ·{' '}
+                {inr(refundAmount(['REQUESTED', 'PROCESSING']))}
+              </span>
+            </li>
+            <li className="flex justify-between gap-2">
+              <span className="text-ink-500">Failed · review required</span>
+              <span className="font-medium">
+                {refundCount(['FAILED'])} · {inr(refundAmount(['FAILED']))}
+              </span>
+            </li>
+          </ul>
           <ul className="mt-2 space-y-1.5">
             {returnStats.map((r) => (
               <li key={r.status} className="flex items-center justify-between gap-2 text-xs">
