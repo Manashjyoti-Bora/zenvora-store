@@ -76,7 +76,19 @@ export const POST = apiRoute(async (req: Request) => {
     });
     kickJobRunner();
     if (confirm.outcome === 'REJECTED_AMOUNT_MISMATCH') {
-      throw conflict('Payment amount does not match the order total. Support has been notified.');
+      throw conflict('Payment amount could not be verified. Support has been notified.');
+    }
+    if (
+      confirm.outcome === 'CAPTURED_REQUIRES_REFUND' ||
+      (confirm.outcome === 'DUPLICATE' &&
+        ['CANCELLED', 'REFUND_PENDING', 'REFUNDED'].includes(order.status))
+    ) {
+      return jsonOk({
+        status: 'RECOVERY_REQUIRED',
+        message:
+          'The provider confirmed a capture, but this order is cancelled or mismatched. Support will reconcile it; do not retry payment.',
+        redirect: `/order/${order.orderNumber}/confirmation`,
+      });
     }
     return jsonOk({ status: 'PAID', redirect: `/order/${order.orderNumber}/confirmation` });
   }

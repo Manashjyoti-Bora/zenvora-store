@@ -1,6 +1,7 @@
 import { prisma } from '../db';
 import { toPaise, sumPaise } from '../money';
 import type { OrderStatus, Prisma } from '@prisma/client';
+import { classifyCollections } from './financial-classification';
 
 /**
  * Admin reporting queries.
@@ -55,7 +56,14 @@ export function parseRange(sp: { from?: string; to?: string; days?: string }): D
 export interface FinancialTotals {
   orderCount: number;
   revenuePaise: number;
-  refundsPaise: number;
+  refundsPaise: number; // completed refunds only
+  pendingRefundPaise: number;
+  failedRefundPaise: number;
+  gatewayCollectedPaise: number;
+  codCollectedPaise: number;
+  codUncollectedPaise: number;
+  testTransactionsPaise: number;
+  netCollectedPaise: number;
   netRevenuePaise: number;
   supplierCostPaise: number;
   shippingCostPaise: number;
@@ -73,6 +81,14 @@ export interface FinancialTotals {
 const ORDER_FIN_SELECT = {
   id: true,
   status: true,
+  paymentMethod: true,
+  paymentStatus: true,
+  payments: {
+    select: { id: true, provider: true, status: true, amount: true },
+  },
+  refunds: {
+    select: { paymentId: true, status: true, amount: true },
+  },
   grandTotal: true,
   subtotal: true,
   discountTotal: true,
@@ -89,34 +105,67 @@ const ORDER_FIN_SELECT = {
 } satisfies Prisma.OrderSelect;
 
 export async function computeFinancialTotals(range: DateRange): Promise<FinancialTotals> {
-  const orders = await prisma.order.findMany({
-    where: {
-      createdAt: { gte: range.from, lte: range.to },
-      status: { notIn: NON_CONFIRMED_STATUSES },
-    },
+  // Load every order in the range for cash/refund classification, then preserve
+  // the existing confirmed-order scope for booked value and profit metrics.
+  const allOrders = await prisma.order.findMany({
+    where: { createdAt: { gte: range.from, lte: range.to } },
     select: ORDER_FIN_SELECT,
     take: 10_000,
   });
+  const orders = allOrders.filter((order) => !NON_CONFIRMED_STATUSES.includes(order.status));
+  const collections = classifyCollections(
+    allOrders.map((order) => ({
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus,
+      grandTotalPaise: toPaise(order.grandTotal),
+      payments: order.payments.map((payment) => ({
+        id: payment.id,
+        provider: payment.provider,
+        status: payment.status,
+        amountPaise: toPaise(payment.amount),
+      })),
+      refunds: order.refunds.map((refund) => ({
+        paymentId: refund.paymentId,
+        status: refund.status,
+        amountPaise: toPaise(refund.amount),
+      })),
+    }))
+  );
 
-  const revenuePaise = sumPaise(orders.map((o) => toPaise(o.grandTotal)));
-  const refundsPaise = sumPaise(orders.map((o) => toPaise(o.refundedTotal)));
-  const supplierCostPaise = sumPaise(orders.map((o) => toPaise(o.supplierCostTotal)));
-  const shippingCostPaise = sumPaise(orders.map((o) => toPaise(o.shippingCostTotal)));
-  const paymentFeePaise = sumPaise(orders.map((o) => toPaise(o.paymentFeeTotal)));
-  const codFeeCollectedPaise = sumPaise(orders.map((o) => toPaise(o.codFeeTotal)));
-  const otherCostPaise = sumPaise(orders.map((o) => toPaise(o.otherCostTotal)));
-  const discountsPaise = sumPaise(orders.map((o) => toPaise(o.discountTotal)));
-  const actualProfitPaise = sumPaise(orders.map((o) => toPaise(o.actualProfit)));
+  const revenuePaise = sumPaise(orders.map((order) => toPaise(order.grandTotal)));
+  const refundsPaise = collections.completedRefundsPaise;
+  const supplierCostPaise = sumPaise(orders.map((order) => toPaise(order.supplierCostTotal)));
+  const shippingCostPaise = sumPaise(orders.map((order) => toPaise(order.shippingCostTotal)));
+  const paymentFeePaise = sumPaise(orders.map((order) => toPaise(order.paymentFeeTotal)));
+  const codFeeCollectedPaise = sumPaise(
+    orders
+      .filter(
+        (order) =>
+          order.paymentMethod === 'COD' &&
+          ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(order.paymentStatus)
+      )
+      .map((order) => toPaise(order.codFeeTotal))
+  );
+  const otherCostPaise = sumPaise(orders.map((order) => toPaise(order.otherCostTotal)));
+  const discountsPaise = sumPaise(orders.map((order) => toPaise(order.discountTotal)));
+  const actualProfitPaise = sumPaise(orders.map((order) => toPaise(order.actualProfit)));
   const unfinalizedOrders = orders.filter(
-    (o) => !o.profitFinalizedAt && !['DELIVERED', 'REFUNDED', 'CANCELLED'].includes(o.status)
+    (order) =>
+      !order.profitFinalizedAt && !['DELIVERED', 'REFUNDED', 'CANCELLED'].includes(order.status)
   ).length;
-
   const totalCostsPaise = supplierCostPaise + shippingCostPaise + paymentFeePaise + otherCostPaise;
 
   return {
     orderCount: orders.length,
     revenuePaise,
     refundsPaise,
+    pendingRefundPaise: collections.pendingRefundsPaise,
+    failedRefundPaise: collections.failedRefundsPaise,
+    gatewayCollectedPaise: collections.gatewayCollectedPaise,
+    codCollectedPaise: collections.codCollectedPaise,
+    codUncollectedPaise: collections.codUncollectedPaise,
+    testTransactionsPaise: collections.testTransactionsPaise,
+    netCollectedPaise: collections.netCollectedPaise,
     netRevenuePaise: revenuePaise - refundsPaise,
     supplierCostPaise,
     shippingCostPaise,

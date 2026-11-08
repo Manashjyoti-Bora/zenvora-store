@@ -46,14 +46,17 @@ import {
  * }
  *
  * Every call is logged to `api_logs` with sanitised payloads and durations.
- * Retries are handled by the job runner around these calls; createOrder always
- * sends an `Idempotency-Key` header so safe retries cannot duplicate orders.
+ * Retries are handled by the job runner. Sending an idempotency header does not
+ * guarantee deduplication unless the supplier documents and honors that contract;
+ * cancellation forwards its key only when the endpoint explicitly opts in.
  */
 
 interface EndpointConfig {
   path: string;
   method?: string;
   response?: Record<string, string>;
+  /** Set only when this supplier documents support for Idempotency-Key. */
+  supportsIdempotencyKey?: boolean;
 }
 
 interface SupplierHttpConfig {
@@ -221,10 +224,16 @@ export class HttpRestAdapter implements SupplierAdapter {
     };
   }
 
-  async cancelOrder(supplierOrderId: string, reason?: string): Promise<SupplierActionResult> {
+  async cancelOrder(
+    supplierOrderId: string,
+    reason?: string,
+    idempotencyKey?: string
+  ): Promise<SupplierActionResult> {
+    const endpoint = this.config.endpoints?.cancelOrder;
     const res = await this.call('cancelOrder', {
       params: { supplierOrderId },
       body: { reason: reason ?? 'Cancelled' },
+      ...(endpoint?.supportsIdempotencyKey && idempotencyKey ? { idempotencyKey } : {}),
     });
     return this.actionResult(res.status, res.body);
   }

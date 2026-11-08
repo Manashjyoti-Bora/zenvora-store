@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/db';
-import { enqueueJob } from '@/lib/jobs/queue';
-import { processDueJobs } from '@/lib/jobs/runner';
+import { enqueueJob, enqueueJobInTransaction } from '@/lib/jobs/queue';
+import { claimJobs, processDueJobs, recoverStaleLocks } from '@/lib/jobs/runner';
 import { queueNotification } from '@/lib/notifications/notify';
 import { cleanupTestData, unique } from './fixtures';
 
@@ -31,6 +32,125 @@ describe('job queue (dedupe, retry bookkeeping, execution)', () => {
     expect(second).toBe(first);
     expect(await prisma.job.count({ where: { dedupeKey: key } })).toBe(1);
   });
+
+  it('transactional enqueue rolls back when its caller aborts and deduplicates concurrent requests', async () => {
+    const rollbackKey = `itest:${unique('tx-rollback')}`;
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await enqueueJobInTransaction(tx, {
+          type: 'CANCEL_SUPPLIER_ORDER',
+          payload: { supplierOrderId: 'rollback-supplier-order', reason: 'test' },
+          dedupeKey: rollbackKey,
+        });
+        throw new Error('intentional rollback');
+      })
+    ).rejects.toThrow('intentional rollback');
+    expect(await prisma.job.count({ where: { dedupeKey: rollbackKey } })).toBe(0);
+
+    const dedupeKey = `itest:${unique('tx-concurrent')}`;
+    const params = {
+      type: 'CANCEL_SUPPLIER_ORDER' as const,
+      payload: { supplierOrderId: 'concurrent-supplier-order', reason: 'test' },
+      dedupeKey,
+    };
+    await Promise.all([
+      prisma.$transaction((tx) => enqueueJobInTransaction(tx, params)),
+      prisma.$transaction((tx) => enqueueJobInTransaction(tx, params)),
+    ]);
+    expect(await prisma.job.count({ where: { dedupeKey } })).toBe(1);
+    await prisma.job.deleteMany({ where: { dedupeKey } });
+  }, 20_000);
+
+  it('concurrent PostgreSQL claimers assign each due row one fresh fencing token', async () => {
+    const keys = [`itest:${unique('fence-a')}`, `itest:${unique('fence-b')}`];
+    await prisma.job.createMany({
+      data: keys.map((dedupeKey) => ({
+        type: 'SEND_NOTIFICATION',
+        payload: { notificationId: 'fencing-claim-test' },
+        dedupeKey,
+        nextRunAt: new Date(Date.now() - 1_000),
+      })),
+    });
+
+    const firstClient = new PrismaClient();
+    const secondClient = new PrismaClient();
+    try {
+      await Promise.all([firstClient.$connect(), secondClient.$connect()]);
+      const [first, second] = await Promise.all([
+        claimJobs(1, firstClient),
+        claimJobs(1, secondClient),
+      ]);
+      const claimed = await prisma.job.findMany({ where: { dedupeKey: { in: keys } } });
+      const returnedIds = [...first, ...second]
+        .filter((job) => keys.includes(job.dedupeKey ?? ''))
+        .map((job) => job.id);
+      expect(returnedIds).toHaveLength(2);
+      expect(new Set(returnedIds).size).toBe(2);
+      expect(claimed).toHaveLength(2);
+      expect(claimed.every((job) => job.status === 'RUNNING' && job.claimToken)).toBe(true);
+      expect(new Set(claimed.map((job) => job.claimToken)).size).toBe(2);
+    } finally {
+      await Promise.allSettled([firstClient.$disconnect(), secondClient.$disconnect()]);
+      await prisma.job.deleteMany({ where: { dedupeKey: { in: keys } } });
+    }
+  }, 20_000);
+
+  it('recovers an expired lease, increments crash attempts, and clears its old token', async () => {
+    const dedupeKey = `itest:${unique('expired-lease')}`;
+    const stale = await prisma.job.create({
+      data: {
+        type: 'SEND_NOTIFICATION',
+        payload: { notificationId: 'expired-lease-test' },
+        dedupeKey,
+        status: 'RUNNING',
+        attempts: 1,
+        maxAttempts: 4,
+        claimToken: `claim:${unique('old-token')}`,
+        lockedAt: new Date(Date.now() - 11 * 60_000),
+      },
+    });
+
+    try {
+      await recoverStaleLocks();
+      const recovered = await prisma.job.findUniqueOrThrow({ where: { id: stale.id } });
+      expect(recovered.status).toBe('PENDING');
+      expect(recovered.attempts).toBe(2);
+      expect(recovered.claimToken).toBeNull();
+      expect(recovered.lockedAt).toBeNull();
+      expect(recovered.lastError).toContain('lease expired');
+    } finally {
+      await prisma.job.deleteMany({ where: { id: stale.id } });
+    }
+  }, 20_000);
+
+  it('recovers a legacy RUNNING row with null lockedAt', async () => {
+    const dedupeKey = `itest:${unique('null-lock')}`;
+    const stale = await prisma.job.create({
+      data: {
+        type: 'SEND_NOTIFICATION',
+        payload: { notificationId: 'legacy-null-lock-test' },
+        dedupeKey,
+        status: 'RUNNING',
+        attempts: 0,
+        maxAttempts: 4,
+        claimToken: null,
+        lockedAt: null,
+      },
+    });
+
+    try {
+      const result = await recoverStaleLocks();
+      const recovered = await prisma.job.findUniqueOrThrow({ where: { id: stale.id } });
+      expect(result.recovered).toBeGreaterThanOrEqual(1);
+      expect(recovered.status).toBe('PENDING');
+      expect(recovered.attempts).toBe(1);
+      expect(recovered.claimToken).toBeNull();
+      expect(recovered.lockedAt).toBeNull();
+      expect(recovered.lastError).toContain('lease expired');
+    } finally {
+      await prisma.job.deleteMany({ where: { id: stale.id } });
+    }
+  }, 20_000);
 
   it('jobs without dedupeKey always enqueue separately', async () => {
     const a = await enqueueJob({

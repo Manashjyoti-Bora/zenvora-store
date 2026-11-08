@@ -59,7 +59,9 @@ export const settingsSchema = z.object({
       minSellingPricePaise: z.number().int().min(0).max(50_000_000).default(9900),
       maxSellingPricePaise: z.number().int().min(0).max(100_000_000).default(5_000_000),
       defaultMarkupPercent: z.number().min(0).max(500).default(40),
-      defaultRoundingRule: z.enum(['NONE', 'ROUND_UP_10', 'NEAREST_9', 'NEAREST_99']).default('NEAREST_99'),
+      defaultRoundingRule: z
+        .enum(['NONE', 'ROUND_UP_10', 'NEAREST_9', 'NEAREST_99'])
+        .default('NEAREST_99'),
       marginProtectionEnabled: z.boolean().default(true),
       // Expected return / RTO reserve, packaging and operational overheads
       // added to landed cost before margin is applied (paise / percent).
@@ -93,8 +95,10 @@ export const settingsSchema = z.object({
       minSellingPricePaise: z.number().int().min(0).max(50_000_000).default(9900),
       maxSellingPricePaise: z.number().int().min(0).max(100_000_000).default(2_500_000),
       dailyImportLimit: z.number().int().min(1).max(2000).default(100),
-      allowedCategories: z.array(z.string()).default([]),
-      excludedCategories: z.array(z.string()).default([]),
+      // Explicit item caps complement the JSON body-size cap and mitigate
+      // Zod 3 array-validation resource exhaustion without a breaking major upgrade.
+      allowedCategories: z.array(z.string()).max(500).default([]),
+      excludedCategories: z.array(z.string()).max(500).default([]),
       requireVerifiedStock: z.boolean().default(true),
       requireValidImages: z.boolean().default(true),
       minDescriptionLength: z.number().int().min(10).max(2000).default(20),
@@ -113,7 +117,12 @@ export const settingsSchema = z.object({
       // Normalised score (0-100) a candidate needs to be recommended ACTIVE.
       minScoreForAutoPublish: z.number().int().min(0).max(100).default(55),
       // Hours after which an un-synced supplier item is treated as STALE.
-      staleAfterHours: z.number().int().min(1).max(24 * 30).default(48),
+      staleAfterHours: z
+        .number()
+        .int()
+        .min(1)
+        .max(24 * 30)
+        .default(48),
       rankingWeights: z
         .object({
           costAndMargin: z.number().min(0).max(100).default(25),
@@ -244,7 +253,9 @@ export function isPlaceholderEmail(email: string | null | undefined): boolean {
 }
 
 /** The configured support address, or null while it is still the placeholder. */
-export function configuredSupportEmail(settings: Pick<StoreSettings, 'supportEmail'>): string | null {
+export function configuredSupportEmail(
+  settings: Pick<StoreSettings, 'supportEmail'>
+): string | null {
   return isPlaceholderEmail(settings.supportEmail) ? null : settings.supportEmail.trim();
 }
 

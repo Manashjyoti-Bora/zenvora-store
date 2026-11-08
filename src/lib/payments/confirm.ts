@@ -1,10 +1,13 @@
 import { prisma } from '../db';
+import { conflict } from '../errors';
 import { toPaise } from '../money';
 import { logger } from '../logger';
 import { auditLog } from '../audit';
 import { getSettings } from '../settings';
 import { estimatePaymentFeePaise } from '../checkout/calc';
-import { transitionOrder, recordOrderEvent } from '../orders/state';
+import { recordOrderEvent, canTransition } from '../orders/state';
+import { processRefundReservation, reserveRefund } from './refunds';
+import { reservedRefundTotalPaise } from './refund-accounting';
 import { enqueueOrderFulfilment } from '../orders/fulfilment';
 import { recalcOrderFinancials } from '../orders/finance';
 import { queueNotification } from '../notifications/notify';
@@ -40,7 +43,12 @@ export interface PaymentResultInput {
 }
 
 export type ConfirmOutcome =
-  'CONFIRMED' | 'DUPLICATE' | 'FAILED_RECORDED' | 'REJECTED_AMOUNT_MISMATCH' | 'ORDER_NOT_PAYABLE';
+  | 'CONFIRMED'
+  | 'DUPLICATE'
+  | 'FAILED_RECORDED'
+  | 'REJECTED_AMOUNT_MISMATCH'
+  | 'ORDER_NOT_PAYABLE'
+  | 'CAPTURED_REQUIRES_REFUND';
 
 const dec = (paise: number) => (paise / 100).toFixed(2);
 
@@ -54,11 +62,14 @@ export async function confirmPaymentResult(
   });
   if (!order) throw new Error(`Order not found for payment confirmation: ${input.orderId}`);
 
-  if (['CANCELLED', 'REFUNDED', 'REFUND_PENDING'].includes(order.status)) {
+  if (
+    input.outcome === 'FAILED' &&
+    ['CANCELLED', 'REFUNDED', 'REFUND_PENDING'].includes(order.status)
+  ) {
     await recordOrderEvent({
       orderId: order.id,
       type: 'PAYMENT_IGNORED',
-      message: `Payment result (${input.outcome}) ignored: order is ${order.status}`,
+      message: `Payment failure result ignored: order is ${order.status}`,
       actorType,
       data: { providerOrderId: input.providerOrderId },
     });
@@ -67,18 +78,80 @@ export async function confirmPaymentResult(
 
   // --- FAILED outcome --------------------------------------------------------
   if (input.outcome === 'FAILED') {
-    await upsertPaymentRow(input, order.id, 'FAILED');
-    const anyPaid = order.payments.some((p) => p.status === 'PAID');
-    if (!anyPaid && order.paymentStatus === 'PENDING') {
-      await prisma.order.update({ where: { id: order.id }, data: { paymentStatus: 'FAILED' } });
-      await transitionOrder({
-        orderId: order.id,
-        to: 'PAYMENT_FAILED',
-        actorType,
-        expectedFrom: ['PENDING_PAYMENT'],
-        message: input.failureReason ?? 'Payment failed',
-        data: { providerOrderId: input.providerOrderId },
+    const failed = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "orders" WHERE "id" = ${order.id} FOR UPDATE
+      `;
+      const locked = await tx.order.findUnique({
+        where: { id: order.id },
+        include: { payments: true },
       });
+      if (!locked) return { ignored: true, notify: false };
+      if (['CANCELLED', 'REFUNDED', 'REFUND_PENDING'].includes(locked.status)) {
+        await tx.orderEvent.create({
+          data: {
+            orderId: locked.id,
+            type: 'PAYMENT_IGNORED',
+            message: `Payment failure result ignored: order is ${locked.status}`,
+            actorType,
+            data: { providerOrderId: input.providerOrderId },
+          },
+        });
+        return { ignored: true, notify: false };
+      }
+      const previousAttempt = locked.payments.find(
+        (payment) => payment.providerOrderId === input.providerOrderId
+      );
+      if (
+        previousAttempt &&
+        ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(previousAttempt.status)
+      ) {
+        await tx.orderEvent.create({
+          data: {
+            orderId: locked.id,
+            type: 'PAYMENT_FAILURE_IGNORED',
+            message: 'Late failure event ignored because this payment is already captured',
+            actorType,
+            data: { providerOrderId: input.providerOrderId, paymentId: previousAttempt.id },
+          },
+        });
+        return { ignored: true, notify: false };
+      }
+      await upsertPaymentRow(tx, input, locked.id, 'FAILED');
+      const anyPaid = locked.payments.some((payment) => payment.status === 'PAID');
+      const shouldTransition =
+        !anyPaid && locked.paymentStatus === 'PENDING' && locked.status === 'PENDING_PAYMENT';
+      if (shouldTransition) {
+        const moved = await tx.order.updateMany({
+          where: { id: locked.id, status: 'PENDING_PAYMENT' },
+          data: { paymentStatus: 'FAILED', status: 'PAYMENT_FAILED' },
+        });
+        if (moved.count !== 1)
+          throw new Error('Order changed during payment failure finalization.');
+        await tx.orderEvent.create({
+          data: {
+            orderId: locked.id,
+            type: 'STATUS_TRANSITION',
+            fromStatus: 'PENDING_PAYMENT',
+            toStatus: 'PAYMENT_FAILED',
+            message: input.failureReason ?? 'Payment failed',
+            actorType,
+            data: { providerOrderId: input.providerOrderId },
+          },
+        });
+      }
+      await tx.orderEvent.create({
+        data: {
+          orderId: locked.id,
+          type: 'PAYMENT_FAILED',
+          message: input.failureReason ?? 'Payment failed',
+          actorType,
+          data: { providerOrderId: input.providerOrderId, provider: input.provider },
+        },
+      });
+      return { ignored: false, notify: shouldTransition };
+    });
+    if (failed.notify) {
       const vars = await renderOrderEmailVars(order.id);
       await queueNotification({
         template: 'PAYMENT_FAILED',
@@ -89,46 +162,114 @@ export async function confirmPaymentResult(
         skipIfNoEmail: true,
       });
     }
-    await recordOrderEvent({
-      orderId: order.id,
-      type: 'PAYMENT_FAILED',
-      message: input.failureReason ?? 'Payment failed',
-      actorType,
-      data: { providerOrderId: input.providerOrderId, provider: input.provider },
-    });
-    return { outcome: 'FAILED_RECORDED', orderNumber: order.orderNumber };
+    return {
+      outcome: failed.ignored ? 'ORDER_NOT_PAYABLE' : 'FAILED_RECORDED',
+      orderNumber: order.orderNumber,
+    };
   }
 
   // --- PAID outcome ----------------------------------------------------------
   if (input.amountPaise != null && input.amountPaise !== toPaise(order.grandTotal)) {
-    // Payment manipulation protection: gateway amount must equal order total.
-    logger.error('Payment amount mismatch - rejecting confirmation', {
+    // Do not fulfil an under/over-captured order, but retain a verified positive
+    // capture in the ledger and reserve its full captured amount for manual
+    // refund recovery. It is never silently discarded or counted as order value.
+    logger.error('Payment amount mismatch - storing capture for recovery', {
       orderId: order.id,
       expected: toPaise(order.grandTotal),
       received: input.amountPaise,
     });
-    await recordOrderEvent({
-      orderId: order.id,
-      type: 'PAYMENT_AMOUNT_MISMATCH',
-      message: `Gateway amount ${input.amountPaise} paise != order total ${toPaise(order.grandTotal)} paise`,
-      actorType,
-      data: { providerOrderId: input.providerOrderId, received: input.amountPaise },
-    });
-    return { outcome: 'REJECTED_AMOUNT_MISMATCH', orderNumber: order.orderNumber };
-  }
+    if (!Number.isSafeInteger(input.amountPaise) || input.amountPaise <= 0) {
+      await recordOrderEvent({
+        orderId: order.id,
+        type: 'PAYMENT_AMOUNT_MISMATCH',
+        message: `Invalid captured amount ${input.amountPaise} paise; manual provider review required`,
+        actorType,
+        data: { providerOrderId: input.providerOrderId, received: input.amountPaise },
+      });
+      return { outcome: 'REJECTED_AMOUNT_MISMATCH', orderNumber: order.orderNumber };
+    }
 
-  const existingPaid = order.payments.find(
-    (p) => p.providerOrderId === input.providerOrderId && p.status === 'PAID'
-  );
-  if (
-    existingPaid &&
-    order.paymentStatus === 'PAID' &&
-    order.status !== 'PENDING_PAYMENT' &&
-    order.status !== 'PAYMENT_FAILED'
-  ) {
-    // Fully processed already - duplicate webhook/verify call.
-    logger.info('Duplicate payment confirmation ignored', { orderId: order.id });
-    return { outcome: 'DUPLICATE', orderNumber: order.orderNumber };
+    const mismatch = await prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "orders" WHERE "id" = ${order.id} FOR UPDATE
+      `;
+        const locked = await tx.order.findUnique({
+          where: { id: order.id },
+          include: { payments: true },
+        });
+        if (!locked) throw new Error(`Order not found for payment mismatch: ${order.id}`);
+        const existing = locked.payments.find(
+          (payment) => payment.providerOrderId === input.providerOrderId
+        );
+        if (
+          existing?.providerPaymentId === (input.providerPaymentId ?? null) &&
+          ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(existing.status)
+        ) {
+          return { duplicate: true, reservation: null };
+        }
+        if (existing && existing.status !== 'FAILED') {
+          await tx.orderEvent.create({
+            data: {
+              orderId: locked.id,
+              type: 'PAYMENT_AMOUNT_MISMATCH',
+              message:
+                'A second distinct capture used an already-recorded provider order; manual reconciliation required',
+              actorType,
+              data: { providerOrderId: input.providerOrderId, received: input.amountPaise },
+            },
+          });
+          return { duplicate: false, reservation: null };
+        }
+        const payment = await upsertPaymentRow(
+          tx,
+          input,
+          locked.id,
+          'PAID',
+          { feePaise: input.feePaise ?? 0, feeIsEstimate: input.feePaise == null },
+          input.amountPaise!
+        );
+        await tx.order.update({
+          where: { id: locked.id },
+          data: { paymentStatus: 'PAID', paidAt: locked.paidAt ?? new Date() },
+        });
+        await tx.orderEvent.create({
+          data: {
+            orderId: locked.id,
+            type: 'PAYMENT_AMOUNT_MISMATCH',
+            message: `Captured ${input.amountPaise} paise does not match order total ${toPaise(locked.grandTotal)} paise; refund recovery reserved`,
+            actorType,
+            data: {
+              providerOrderId: input.providerOrderId,
+              providerPaymentId: payment.providerPaymentId,
+            },
+          },
+        });
+        const priorRefund = await tx.refund.findFirst({
+          where: { orderId: locked.id, paymentId: payment.id },
+        });
+        const reservation = priorRefund
+          ? null
+          : await reserveRefund(tx, {
+              orderId: locked.id,
+              amountPaise: input.amountPaise!,
+              reason: 'Captured amount does not match order total; manual recovery required',
+              actor: 'SYSTEM',
+            });
+        await recalcOrderFinancials(locked.id, tx);
+        return { duplicate: false, reservation };
+      },
+      { isolationLevel: 'Serializable' }
+    );
+
+    if (mismatch.duplicate) return { outcome: 'DUPLICATE', orderNumber: order.orderNumber };
+    await auditLog({
+      action: 'payment.amount_mismatch_recovery',
+      entityType: 'Order',
+      entityId: order.id,
+      data: { providerOrderId: input.providerOrderId, capturedPaise: input.amountPaise },
+    });
+    return { outcome: 'CAPTURED_REQUIRES_REFUND', orderNumber: order.orderNumber };
   }
 
   const settings = await getSettings();
@@ -139,38 +280,174 @@ export async function confirmPaymentResult(
       ? estimatePaymentFeePaise(toPaise(order.grandTotal), settings)
       : 0);
 
-  await upsertPaymentRow(input, order.id, 'PAID', { feePaise, feeIsEstimate });
+  const capture = await prisma.$transaction(
+    async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "orders" WHERE "id" = ${input.orderId} FOR UPDATE
+    `;
+      const locked = await tx.order.findUnique({
+        where: { id: input.orderId },
+        include: { payments: true },
+      });
+      if (!locked) throw new Error(`Order not found for payment confirmation: ${input.orderId}`);
 
-  await prisma.order.update({
-    where: { id: order.id },
-    data: { paymentStatus: 'PAID', paidAt: order.paidAt ?? new Date() },
-  });
+      const existing = locked.payments.find(
+        (payment) => payment.providerOrderId === input.providerOrderId
+      );
+      if (
+        existing &&
+        existing.providerPaymentId === (input.providerPaymentId ?? null) &&
+        ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(existing.status)
+      ) {
+        return { kind: 'duplicate' as const, reservation: null };
+      }
 
-  await transitionOrder({
-    orderId: order.id,
-    to: 'PAYMENT_VERIFIED',
-    actorType,
-    expectedFrom: ['PENDING_PAYMENT', 'PAYMENT_FAILED'],
-    message: `Payment verified via ${input.verifiedVia ?? 'gateway'} (${input.provider}${input.providerPaymentId ? ` ${input.providerPaymentId}` : ''})`,
-    data: { providerOrderId: input.providerOrderId },
-  });
+      const payment = await upsertPaymentRow(tx, input, locked.id, 'PAID', {
+        feePaise,
+        feeIsEstimate,
+      });
+      const lateCapture = ['CANCELLED', 'REFUND_PENDING', 'REFUNDED'].includes(locked.status);
+      if (lateCapture) {
+        await tx.order.update({
+          where: { id: locked.id },
+          data: { paymentStatus: 'PAID', paidAt: locked.paidAt ?? new Date() },
+        });
+        await tx.orderEvent.create({
+          data: {
+            orderId: locked.id,
+            type: 'PAYMENT_CAPTURED_RECOVERY',
+            message:
+              'Provider confirmed capture after cancellation/refund finalization; refund recovery required',
+            actorType,
+            data: { providerOrderId: input.providerOrderId, paymentId: payment.id },
+          },
+        });
+        if (locked.status !== 'REFUND_PENDING' && canTransition(locked.status, 'REFUND_PENDING')) {
+          const moved = await tx.order.updateMany({
+            where: { id: locked.id, status: locked.status },
+            data: { status: 'REFUND_PENDING' },
+          });
+          if (moved.count !== 1)
+            throw new Error('Order changed during late-capture recovery transition.');
+          await tx.orderEvent.create({
+            data: {
+              orderId: locked.id,
+              type: 'STATUS_TRANSITION',
+              fromStatus: locked.status,
+              toStatus: 'REFUND_PENDING',
+              message: 'Late provider capture requires refund/reconciliation',
+              actorType: 'SYSTEM',
+              data: { paymentId: payment.id },
+            },
+          });
+        }
+        const priorRefund = await tx.refund.findFirst({
+          where: { orderId: locked.id, paymentId: payment.id },
+        });
+        const [allPayments, allRefunds] = await Promise.all([
+          tx.payment.findMany({ where: { orderId: locked.id } }),
+          tx.refund.findMany({ where: { orderId: locked.id } }),
+        ]);
+        const capturedPaise = allPayments
+          .filter((row) => ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(row.status))
+          .reduce((sum, row) => sum + toPaise(row.amount), 0);
+        const reservedPaise = reservedRefundTotalPaise(
+          allRefunds.map((refund) => ({
+            amountPaise: toPaise(refund.amount),
+            status: refund.status,
+          }))
+        );
+        const availablePaise = Math.max(0, capturedPaise - reservedPaise);
+        const reservation =
+          priorRefund || availablePaise === 0
+            ? null
+            : await reserveRefund(tx, {
+                orderId: locked.id,
+                amountPaise: availablePaise,
+                reason: 'Late provider capture after cancellation; recovery reservation',
+                actor: 'SYSTEM',
+              });
+        await recalcOrderFinancials(locked.id, tx);
+        return { kind: 'recovery' as const, reservation };
+      }
 
-  await recordOrderEvent({
-    orderId: order.id,
-    type: 'PAYMENT_CAPTURED',
-    message: `Captured ${dec(toPaise(order.grandTotal))} INR via ${input.provider}`,
-    actorType,
-    data: sanitizeForLog({
-      providerPaymentId: input.providerPaymentId,
-      method: input.method,
-      feePaise,
-      feeIsEstimate,
-      raw: input.raw ?? undefined,
-    }) as Prisma.InputJsonValue,
-  });
+      if (!['PENDING_PAYMENT', 'PAYMENT_FAILED'].includes(locked.status)) {
+        await tx.orderEvent.create({
+          data: {
+            orderId: locked.id,
+            type: 'PAYMENT_CAPTURED_RECOVERY',
+            message: `Provider confirmed capture while order was ${locked.status}; manual review required`,
+            actorType,
+            data: { providerOrderId: input.providerOrderId, paymentId: payment.id },
+          },
+        });
+        await recalcOrderFinancials(locked.id, tx);
+        return { kind: 'recovery' as const, reservation: null };
+      }
+
+      const changed = await tx.order.updateMany({
+        where: { id: locked.id, status: locked.status },
+        data: {
+          paymentStatus: 'PAID',
+          paidAt: locked.paidAt ?? new Date(),
+          status: 'PAYMENT_VERIFIED',
+        },
+      });
+      if (changed.count !== 1)
+        throw new Error('Order changed during payment capture finalization.');
+      await tx.orderEvent.create({
+        data: {
+          orderId: locked.id,
+          type: 'STATUS_TRANSITION',
+          fromStatus: locked.status,
+          toStatus: 'PAYMENT_VERIFIED',
+          message: `Payment verified via ${input.verifiedVia ?? 'gateway'} (${input.provider}${input.providerPaymentId ? ` ${input.providerPaymentId}` : ''})`,
+          actorType,
+          data: { providerOrderId: input.providerOrderId },
+        },
+      });
+      await tx.orderEvent.create({
+        data: {
+          orderId: locked.id,
+          type: 'PAYMENT_CAPTURED',
+          message: `Captured ${dec(toPaise(locked.grandTotal))} INR via ${input.provider}`,
+          actorType,
+          data: sanitizeForLog({
+            providerPaymentId: input.providerPaymentId,
+            method: input.method,
+            feePaise,
+            feeIsEstimate,
+            raw: input.raw ?? undefined,
+          }) as Prisma.InputJsonValue,
+        },
+      });
+      await recalcOrderFinancials(locked.id, tx);
+      return { kind: 'confirmed' as const, reservation: null };
+    },
+    { isolationLevel: 'Serializable' }
+  );
+
+  if (capture.reservation) {
+    await processRefundReservation(capture.reservation, 'Late provider capture after cancellation');
+  }
+  if (capture.kind === 'recovery') {
+    await auditLog({
+      action: 'payment.capture_recovery_required',
+      entityType: 'Order',
+      entityId: order.id,
+      data: {
+        providerOrderId: input.providerOrderId,
+        reservationCreated: Boolean(capture.reservation),
+      },
+    });
+    return { outcome: 'CAPTURED_REQUIRES_REFUND', orderNumber: order.orderNumber };
+  }
+  if (capture.kind === 'duplicate') {
+    logger.info('Duplicate payment confirmation ignored', { orderId: order.id });
+    return { outcome: 'DUPLICATE', orderNumber: order.orderNumber };
+  }
 
   const confirmed = await confirmOrderForFulfilment(order.id, actorType);
-  await recalcOrderFinancials(order.id);
   await auditLog({
     action: 'payment.confirmed',
     entityType: 'Order',
@@ -193,38 +470,65 @@ export async function confirmOrderForFulfilment(
   actorType: OrderActorType = 'SYSTEM',
   actorId?: string | null
 ): Promise<boolean> {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order) return false;
-  if (order.status === 'ORDER_CONFIRMED' || order.confirmedAt) {
-    // Already confirmed - ensure fulfilment is queued (self-healing) and stop.
-    await enqueueOrderFulfilment(orderId);
-    return false;
-  }
-  if (order.paymentStatus !== 'PAID' && order.paymentStatus !== 'COD_PENDING') {
-    logger.warn('confirmOrderForFulfilment called on unpaid order', {
-      orderId,
-      paymentStatus: order.paymentStatus,
-    });
-    return false;
-  }
+  const confirmation = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE
+    `;
+    const order = await tx.order.findUnique({ where: { id: orderId } });
+    if (!order) return { shouldQueue: false as const, newlyConfirmed: false, order: null };
+    if (['CANCELLED', 'REFUND_PENDING', 'REFUNDED'].includes(order.status)) {
+      logger.warn('Fulfilment skipped for cancelled/refund recovery order', {
+        orderId,
+        status: order.status,
+      });
+      return { shouldQueue: false as const, newlyConfirmed: false, order };
+    }
+    if (order.status === 'ORDER_CONFIRMED' || order.confirmedAt) {
+      return { shouldQueue: true as const, newlyConfirmed: false, order };
+    }
+    if (order.paymentStatus !== 'PAID' && order.paymentStatus !== 'COD_PENDING') {
+      logger.warn('confirmOrderForFulfilment called on unpaid order', {
+        orderId,
+        paymentStatus: order.paymentStatus,
+      });
+      return { shouldQueue: false as const, newlyConfirmed: false, order };
+    }
+    if (!canTransition(order.status, 'ORDER_CONFIRMED')) {
+      logger.warn('Fulfilment confirmation skipped for an incompatible order state', {
+        orderId,
+        status: order.status,
+      });
+      return { shouldQueue: false as const, newlyConfirmed: false, order };
+    }
 
-  await transitionOrder({
-    orderId,
-    to: 'ORDER_CONFIRMED',
-    actorType,
-    actorId,
-    expectedFrom: ['PAYMENT_VERIFIED', 'PENDING_PAYMENT'],
-    set: { confirmedAt: new Date() },
-    message: 'Order confirmed - queuing supplier fulfilment',
+    const moved = await tx.order.updateMany({
+      where: { id: orderId, status: order.status },
+      data: { status: 'ORDER_CONFIRMED', confirmedAt: order.confirmedAt ?? new Date() },
+    });
+    if (moved.count !== 1) return { shouldQueue: false as const, newlyConfirmed: false, order };
+    await tx.orderEvent.create({
+      data: {
+        orderId,
+        type: 'STATUS_TRANSITION',
+        fromStatus: order.status,
+        toStatus: 'ORDER_CONFIRMED',
+        message: 'Order confirmed - queuing supplier fulfilment',
+        actorType,
+        actorId: actorId ?? null,
+      },
+    });
+    return { shouldQueue: true as const, newlyConfirmed: true, order };
   });
 
+  if (!confirmation.shouldQueue) return false;
   await enqueueOrderFulfilment(orderId);
+  if (!confirmation.newlyConfirmed || !confirmation.order) return false;
 
   const vars = await renderOrderEmailVars(orderId);
   await queueNotification({
     template: 'ORDER_CONFIRMATION',
-    email: order.userId ? vars.email : (order.guestEmail ?? vars.email),
-    userId: order.userId,
+    email: confirmation.order.userId ? vars.email : (confirmation.order.guestEmail ?? vars.email),
+    userId: confirmation.order.userId,
     orderId,
     vars,
     skipIfNoEmail: true,
@@ -244,33 +548,54 @@ export async function confirmCodOrder(orderId: string): Promise<void> {
 
 /** Admin action: record that COD cash was collected on delivery. */
 export async function markCodCollected(orderId: string, actorId: string): Promise<void> {
-  const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
-  if (order.paymentMethod !== 'COD') throw new Error('Order is not a COD order');
-  if (order.paymentStatus === 'PAID') return;
-  await prisma.order.update({
-    where: { id: orderId },
-    data: { paymentStatus: 'PAID', paidAt: new Date() },
+  const changed = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE
+    `;
+    const order = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
+    if (order.paymentMethod !== 'COD') throw new Error('Order is not a COD order');
+    if (order.paymentStatus === 'PAID') return false;
+    if (order.cancelledAt || ['CANCELLED', 'REFUND_PENDING', 'REFUNDED'].includes(order.status)) {
+      throw conflict('Cannot mark COD cash collected on a cancelled/refund-recovery order.');
+    }
+    await tx.order.update({
+      where: { id: orderId },
+      data: { paymentStatus: 'PAID', paidAt: new Date() },
+    });
+    await tx.orderEvent.create({
+      data: {
+        orderId,
+        type: 'COD_COLLECTED',
+        message: 'Cash on Delivery amount collected',
+        actorType: 'ADMIN',
+        actorId,
+      },
+    });
+    await recalcOrderFinancials(orderId, tx);
+    return true;
   });
-  await recordOrderEvent({
-    orderId,
-    type: 'COD_COLLECTED',
-    message: 'Cash on Delivery amount collected',
-    actorType: 'ADMIN',
-    actorId,
-  });
-  await recalcOrderFinancials(orderId);
+  if (changed) {
+    await auditLog({
+      actor: { id: actorId },
+      action: 'payment.cod_collected',
+      entityType: 'Order',
+      entityId: orderId,
+    });
+  }
 }
 
 async function upsertPaymentRow(
+  tx: Prisma.TransactionClient,
   input: PaymentResultInput,
   orderId: string,
   status: 'PAID' | 'FAILED',
-  fee?: { feePaise: number; feeIsEstimate: boolean }
-): Promise<void> {
-  const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+  fee?: { feePaise: number; feeIsEstimate: boolean },
+  capturedAmountPaise?: number
+) {
+  const order = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
   const data = {
     provider: input.provider,
-    amount: dec(toPaise(order.grandTotal)),
+    amount: dec(capturedAmountPaise ?? toPaise(order.grandTotal)),
     currency: order.currency,
     status,
     method: input.method ?? null,
@@ -285,14 +610,13 @@ async function upsertPaymentRow(
     raw: (input.raw ? sanitizeForLog(input.raw) : Prisma.DbNull) as Prisma.InputJsonValue,
     ...(status === 'PAID' ? { paidAt: new Date() } : {}),
   };
-  const existing = await prisma.payment.findUnique({
+  const existing = await tx.payment.findUnique({
     where: { providerOrderId: input.providerOrderId },
   });
   if (existing) {
-    await prisma.payment.update({ where: { id: existing.id }, data });
-  } else {
-    await prisma.payment.create({
-      data: { ...data, orderId, providerOrderId: input.providerOrderId },
-    });
+    return tx.payment.update({ where: { id: existing.id }, data });
   }
+  return tx.payment.create({
+    data: { ...data, orderId, providerOrderId: input.providerOrderId },
+  });
 }

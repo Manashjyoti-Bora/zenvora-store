@@ -1,8 +1,14 @@
 import { prisma } from '../db';
+import { conflict, notFound } from '../errors';
+import { hashIp } from '../audit';
 import { logger, sanitizeForLog } from '../logger';
 import { toPaise, formatINR } from '../money';
 import { getSupplierAdapter } from '../suppliers/registry';
-import { SupplierRejectedError, UnsupportedSupplierOperation } from '../suppliers/types';
+import {
+  SupplierRejectedError,
+  UnsupportedSupplierOperation,
+  type SupplierActionResult,
+} from '../suppliers/types';
 import { PermanentJobError } from '../jobs/errors';
 import { enqueueJob, kickJobRunner } from '../jobs/queue';
 import { transitionOrder, recordOrderEvent, canTransition } from './state';
@@ -160,14 +166,7 @@ export async function sendToSupplier(supplierOrderRowId: string): Promise<void> 
     unitCostPaise: toPaise(item.unitSupplierCost),
   }));
   const missingSku = so.orderItems.some(
-    (i) =>
-      !(
-        i.supplierSku ??
-        i.variant?.sku ??
-        i.product?.supplierSku ??
-        i.product?.sku ??
-        i.sku
-      )
+    (i) => !(i.supplierSku ?? i.variant?.sku ?? i.product?.supplierSku ?? i.product?.sku ?? i.sku)
   );
   if (missingSku && so.supplier.type !== 'MANUAL') {
     throw new PermanentJobError(
@@ -415,7 +414,8 @@ export async function handleFulfilmentFailure(
   const settingsModule = await import('../settings');
   const settings = await settingsModule.getSettings();
   // Operational alert: real support mailbox, else the admin account; never the placeholder.
-  const alertEmail = settingsModule.configuredSupportEmail(settings) ?? process.env.ADMIN_EMAIL ?? '';
+  const alertEmail =
+    settingsModule.configuredSupportEmail(settings) ?? process.env.ADMIN_EMAIL ?? '';
   await queueNotification({
     template: 'FULFILMENT_FAILED_ADMIN',
     email: alertEmail,
@@ -559,6 +559,18 @@ export async function applySupplierStatusUpdate(
           status: update.status === 'CANCELLED' ? 'CANCELLED' : 'FAILED',
           cancelledAt: update.status === 'CANCELLED' ? new Date() : null,
           lastError: update.message ?? `Supplier reported ${update.status}`,
+          ...(update.status === 'CANCELLED'
+            ? {
+                cancellationStatus: 'CONFIRMED',
+                cancellationMessage: update.message ?? 'Supplier confirmed cancellation.',
+              }
+            : ['REQUESTED', 'SUBMITTED'].includes(so.cancellationStatus)
+              ? {
+                  cancellationStatus: 'REJECTED',
+                  cancellationMessage:
+                    update.message ?? 'Supplier rejected the cancellation request.',
+                }
+              : {}),
         },
       });
       if (update.status === 'CANCELLED') {
@@ -850,36 +862,259 @@ export async function retrySupplierFulfilment(
   kickJobRunner();
 }
 
-/** Job handler: ask the supplier to cancel (best effort, honest failures). */
+/** Job handler: submit cancellation; provider acceptance is not supplier confirmation. */
 export async function cancelSupplierOrder(supplierOrderId: string, reason: string): Promise<void> {
   const so = await prisma.supplierOrder.findUnique({
     where: { id: supplierOrderId },
     include: { supplier: true },
   });
-  if (!so || so.status === 'CANCELLED') return;
-  const adapter = getSupplierAdapter(so.supplier);
-  if (!adapter.capabilities.cancellation) {
-    await prisma.supplierOrder.update({
-      where: { id: so.id },
+  if (!so || so.status === 'CANCELLED' || so.cancellationStatus === 'CONFIRMED') return;
+  if (so.cancellationStatus === 'SUBMITTED') return;
+  if (so.cancellationStatus === 'SUBMITTING') {
+    const message =
+      'Manual action required: a previous cancellation attempt may have reached the supplier. Verify its outcome before retrying.';
+    await prisma.supplierOrder.updateMany({
+      where: { id: so.id, cancellationStatus: 'SUBMITTING' },
       data: {
-        lastError: `Cancellation not available via API (${so.supplier.name}). Cancel manually with the supplier.`,
+        cancellationStatus: 'MANUAL_ACTION_REQUIRED',
+        cancellationMessage: message,
+        lastError: message,
       },
     });
-    return;
+    throw new PermanentJobError(message);
   }
-  const result = await adapter.cancelOrder(so.supplierOrderId ?? so.id, reason);
+  if (so.cancellationStatus === 'MANUAL_ACTION_REQUIRED' || so.cancellationStatus === 'REJECTED') {
+    throw new PermanentJobError(
+      so.cancellationMessage ?? 'Manual action required: verify cancellation with the supplier.'
+    );
+  }
+  const adapter = getSupplierAdapter(so.supplier);
+  if (!adapter.capabilities.cancellation) {
+    const message = `Manual action required: cancellation is not available via API (${so.supplier.name}). Confirm cancellation with the supplier, then record it in Admin → Supplier orders.`;
+    await prisma.supplierOrder.updateMany({
+      where: { id: so.id, cancellationStatus: 'REQUESTED' },
+      data: {
+        cancellationStatus: 'MANUAL_ACTION_REQUIRED',
+        cancellationMessage: message,
+        lastError: message,
+      },
+    });
+    throw new PermanentJobError(message);
+  }
+
+  const started = await prisma.supplierOrder.updateMany({
+    where: { id: so.id, cancellationStatus: 'REQUESTED' },
+    data: {
+      cancellationStatus: 'SUBMITTING',
+      cancellationMessage: 'Cancellation request is being submitted; outcome is not yet confirmed.',
+      lastError: null,
+    },
+  });
+  if (started.count !== 1) return;
+
+  let result: SupplierActionResult;
+  try {
+    result = await adapter.cancelOrder(so.supplierOrderId ?? so.id, reason, `cancel_${so.id}`);
+  } catch (error) {
+    const message =
+      error instanceof UnsupportedSupplierOperation
+        ? `Manual action required: ${error.message}`
+        : 'Manual action required: the cancellation request outcome is uncertain. Verify directly with the supplier before any retry.';
+    try {
+      await prisma.supplierOrder.updateMany({
+        where: { id: so.id, cancellationStatus: 'SUBMITTING' },
+        data: {
+          cancellationStatus: 'MANUAL_ACTION_REQUIRED',
+          cancellationMessage: message,
+          lastError: message,
+        },
+      });
+    } catch (persistError) {
+      logger.error('Could not persist uncertain supplier cancellation state', {
+        supplierOrderId: so.id,
+        error: persistError instanceof Error ? persistError.message : String(persistError),
+      });
+    }
+    throw new PermanentJobError(message, error);
+  }
+
+  if (result.requiresManualAction) {
+    const message = result.message ?? 'Manual action required: contact the supplier directly.';
+    try {
+      await prisma.supplierOrder.updateMany({
+        where: { id: so.id, cancellationStatus: 'SUBMITTING' },
+        data: {
+          cancellationStatus: 'MANUAL_ACTION_REQUIRED',
+          cancellationMessage: message,
+          lastError: message,
+        },
+      });
+    } catch (error) {
+      throw new PermanentJobError(message, error);
+    }
+    throw new PermanentJobError(message);
+  }
   if (result.success) {
-    await prisma.supplierOrder.update({
-      where: { id: so.id },
-      data: { status: 'CANCELLED', cancelledAt: new Date() },
-    });
+    try {
+      const updated = await prisma.supplierOrder.updateMany({
+        where: { id: so.id, cancellationStatus: 'SUBMITTING' },
+        data: {
+          cancellationStatus: 'SUBMITTED',
+          cancellationMessage:
+            result.message ?? 'Cancellation request submitted; supplier confirmation is pending.',
+          lastError: null,
+        },
+      });
+      if (updated.count !== 1) return;
+    } catch (error) {
+      const message =
+        'Manual action required: supplier accepted the request, but the result could not be recorded. Verify with the supplier before any retry.';
+      try {
+        await prisma.supplierOrder.updateMany({
+          where: { id: so.id, cancellationStatus: 'SUBMITTING' },
+          data: {
+            cancellationStatus: 'MANUAL_ACTION_REQUIRED',
+            cancellationMessage: message,
+            lastError: message,
+          },
+        });
+      } catch (persistError) {
+        logger.error('Could not persist supplier cancellation acceptance state', {
+          supplierOrderId: so.id,
+          error: persistError instanceof Error ? persistError.message : String(persistError),
+        });
+      }
+      throw new PermanentJobError(message, error);
+    }
   } else {
-    await prisma.supplierOrder.update({
-      where: { id: so.id },
-      data: { lastError: result.message ?? 'Supplier cancellation failed' },
-    });
-    throw new Error(result.message ?? 'Supplier cancellation failed');
+    const message = result.message ?? 'Supplier rejected the cancellation request.';
+    try {
+      await prisma.supplierOrder.updateMany({
+        where: { id: so.id, cancellationStatus: 'SUBMITTING' },
+        data: {
+          cancellationStatus: 'REJECTED',
+          cancellationMessage: message,
+          lastError: message,
+        },
+      });
+    } catch (error) {
+      const uncertainMessage =
+        'Manual action required: supplier response could not be recorded. Verify the outcome before retrying.';
+      try {
+        await prisma.supplierOrder.updateMany({
+          where: { id: so.id, cancellationStatus: 'SUBMITTING' },
+          data: {
+            cancellationStatus: 'MANUAL_ACTION_REQUIRED',
+            cancellationMessage: uncertainMessage,
+            lastError: uncertainMessage,
+          },
+        });
+      } catch (persistError) {
+        logger.error('Could not persist rejected supplier cancellation state', {
+          supplierOrderId: so.id,
+          error: persistError instanceof Error ? persistError.message : String(persistError),
+        });
+      }
+      throw new PermanentJobError(uncertainMessage, error);
+    }
+    throw new PermanentJobError(message);
   }
+}
+
+/**
+ * Record a human-confirmed supplier cancellation. This does not contact the
+ * supplier; the caller must require an explicit admin attestation. The supplier
+ * row, unresolved automation job and audit event commit together.
+ */
+export async function recordManualSupplierCancellation(input: {
+  supplierOrderId: string;
+  actorId: string;
+  actorEmail: string;
+  note: string;
+  req: Request;
+}): Promise<void> {
+  const note = input.note.trim();
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "supplier_orders" WHERE "id" = ${input.supplierOrderId} FOR UPDATE
+      `;
+      const supplierOrder = await tx.supplierOrder.findUnique({
+        where: { id: input.supplierOrderId },
+        include: { supplier: true, order: { select: { orderNumber: true } } },
+      });
+      if (!supplierOrder) throw notFound('Supplier order not found');
+      const legacyCancelledUnverified =
+        supplierOrder.status === 'CANCELLED' && supplierOrder.cancellationStatus === 'NONE';
+      if (supplierOrder.status === 'CANCELLED' && !legacyCancelledUnverified) {
+        throw conflict('Supplier order is already recorded as cancelled.');
+      }
+      if (
+        !legacyCancelledUnverified &&
+        !['MANUAL_ACTION_REQUIRED', 'SUBMITTING', 'SUBMITTED', 'REJECTED'].includes(
+          supplierOrder.cancellationStatus
+        )
+      ) {
+        throw conflict('This supplier order is not waiting for manual cancellation confirmation.');
+      }
+
+      const job = await tx.job.findUnique({ where: { dedupeKey: `cancel_${supplierOrder.id}` } });
+      if (job?.status === 'RUNNING') {
+        throw conflict('The supplier-cancellation job is running; wait for it to finish first.');
+      }
+
+      const now = new Date();
+      const message = `Manual supplier cancellation confirmed by ${input.actorEmail}: ${note}`;
+      const changed = await tx.supplierOrder.updateMany({
+        where: {
+          id: supplierOrder.id,
+          status: supplierOrder.status,
+          cancellationStatus: supplierOrder.cancellationStatus,
+        },
+        data: {
+          ...(legacyCancelledUnverified ? {} : { status: 'CANCELLED', cancelledAt: now }),
+          cancellationStatus: 'CONFIRMED',
+          cancellationMessage: message,
+          lastError: null,
+        },
+      });
+      if (changed.count !== 1) throw conflict('Supplier order changed; reload and retry.');
+
+      if (job) {
+        const closed = await tx.job.updateMany({
+          where: { id: job.id, status: { not: 'RUNNING' } },
+          data: {
+            status: 'CANCELLED',
+            completedAt: now,
+            lockedAt: null,
+            claimToken: null,
+            lastError: message,
+          },
+        });
+        if (closed.count !== 1) throw conflict('Cancellation job was claimed; reload and retry.');
+      }
+
+      const forwarded = input.req.headers.get('x-forwarded-for');
+      const ip = forwarded?.split(',')[0]?.trim() ?? input.req.headers.get('x-real-ip');
+      await tx.auditLog.create({
+        data: {
+          actorId: input.actorId,
+          actorEmail: input.actorEmail,
+          action: 'supplier_order.manual_cancellation_confirmed',
+          entityType: 'SupplierOrder',
+          entityId: supplierOrder.id,
+          data: sanitizeForLog({
+            orderNumber: supplierOrder.order.orderNumber,
+            supplier: supplierOrder.supplier.name,
+            note,
+          }) as object,
+          ipHash: hashIp(ip),
+          userAgent: input.req.headers.get('user-agent')?.slice(0, 300) ?? null,
+        },
+      });
+    },
+    { isolationLevel: 'Serializable' }
+  );
 }
 
 /** Money summary used in admin alerts. */

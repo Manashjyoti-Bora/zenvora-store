@@ -175,13 +175,34 @@ export default async function AdminSupplierOrdersPage({
                   <Badge tone={toneFor(so.status) as 'red' | 'green' | 'blue' | 'gray' | 'amber'}>
                     {so.status.replace(/_/g, ' ')}
                   </Badge>
-                  {so.lastError && (
+                  {so.cancellationStatus !== 'NONE' ? (
                     <span
-                      className="mt-0.5 block max-w-[220px] truncate text-[10px] text-red-500"
-                      title={so.lastError}
+                      className={`mt-0.5 block max-w-[260px] truncate text-[10px] ${
+                        so.cancellationStatus === 'CONFIRMED'
+                          ? 'text-emerald-700'
+                          : so.cancellationStatus === 'MANUAL_ACTION_REQUIRED' ||
+                              so.cancellationStatus === 'REJECTED'
+                            ? 'text-red-600'
+                            : 'text-amber-700'
+                      }`}
+                      title={so.cancellationMessage ?? undefined}
                     >
-                      {so.lastError}
+                      Cancellation {so.cancellationStatus.replace(/_/g, ' ').toLowerCase()}
+                      {so.cancellationMessage ? ` — ${so.cancellationMessage}` : ''}
                     </span>
+                  ) : so.status === 'CANCELLED' ? (
+                    <span className="mt-0.5 block max-w-[260px] text-[10px] text-amber-700">
+                      Supplier cancellation confirmation was not recorded for this legacy status.
+                    </span>
+                  ) : (
+                    so.lastError && (
+                      <span
+                        className="mt-0.5 block max-w-[220px] truncate text-[10px] text-red-500"
+                        title={so.lastError}
+                      >
+                        {so.lastError}
+                      </span>
+                    )
                   )}
                 </Td>
                 <Td className="hidden max-w-[130px] truncate font-mono text-[11px] text-ink-400 lg:table-cell">
@@ -197,7 +218,22 @@ export default async function AdminSupplierOrdersPage({
                   {fmt(so.updatedAt)}
                 </Td>
                 <Td>
-                  <SupplierOrderActions supplierOrderId={so.id} status={so.status} />
+                  <SupplierOrderActions
+                    supplierOrderId={so.id}
+                    status={so.status}
+                    manualCancellationRequired={[
+                      'MANUAL_ACTION_REQUIRED',
+                      'SUBMITTING',
+                      'SUBMITTED',
+                      'REJECTED',
+                    ].includes(so.cancellationStatus)}
+                    manualCancellationAvailable={
+                      ['MANUAL_ACTION_REQUIRED', 'SUBMITTED', 'REJECTED'].includes(
+                        so.cancellationStatus
+                      ) ||
+                      (so.status === 'CANCELLED' && so.cancellationStatus === 'NONE')
+                    }
+                  />
                 </Td>
               </tr>
             ))}

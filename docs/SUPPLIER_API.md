@@ -58,7 +58,12 @@ Admin → Suppliers → _New supplier_ (type **HTTP REST**):
         "trackingUrl": "tracking.url",
       },
     },
-    "cancelOrder": { "path": "/orders/{supplierOrderId}/cancel", "method": "POST" },
+    "cancelOrder": {
+      "path": "/orders/{supplierOrderId}/cancel",
+      "method": "POST",
+      // Include only when this supplier explicitly documents Idempotency-Key support.
+      "supportsIdempotencyKey": true,
+    },
     "requestReturn": { "path": "/orders/{supplierOrderId}/returns", "method": "POST" },
     "requestRefund": { "path": "/orders/{supplierOrderId}/refunds", "method": "POST" },
   },
@@ -115,10 +120,10 @@ Authorization: per auth config
 Idempotency-Key: <stable unique key per supplier order>
 ```
 
-**The supplier MUST honour `Idempotency-Key`**: if a request is retried with a
-key it has already processed, it must return the original result, not create a
-second order. Resellix retries failed calls with exponential backoff; without
-idempotency support, retries could duplicate orders.
+The adapter sends a stable `Idempotency-Key` for order creation, but this does
+not guarantee deduplication by itself. Verify that the supplier documents and
+honours this contract before relying on retries; without provider-side support,
+retries can create duplicate orders.
 
 Request body (canonical):
 
@@ -212,9 +217,16 @@ notification email is queued automatically.
 
 `cancelOrder`, `requestReturn`, `requestRefund` endpoints (all `POST` with
 `{supplierOrderId}` substituted, JSON body `{ "reason": "..." }`). Optional —
-when absent, the adapter reports the operation as unsupported and the admin UI
-falls back to manual handling (contacting the supplier out-of-band and recording
-the outcome in the panel).
+when absent, cancellation is marked manual-action-required and is not submitted.
+
+Cancellation idempotency is opt-in per endpoint: set `supportsIdempotencyKey`
+only when this supplier explicitly documents that it honors the `Idempotency-Key`
+header. Otherwise no cancellation idempotency header is sent. An API response
+that accepts a cancellation request is recorded as `SUBMITTED`, not supplier
+confirmation. An uncertain request outcome is marked for manual verification and
+is not automatically retried, because a timeout or server error does not prove
+the supplier did not act. Admins must verify the result with the supplier before
+recording a manual cancellation confirmation.
 
 ## 6. What is logged
 
@@ -227,7 +239,7 @@ the env vars that hold them.
 ## 7. Implementing a compatible supplier API (checklist)
 
 1. JSON REST over HTTPS; stable ids for products and orders.
-2. Honour `Idempotency-Key` on order creation.
+2. Document and honor `Idempotency-Key` on order creation if relying on retry deduplication; otherwise disable/avoid unsafe retries.
 3. Return machine-readable status strings (you map them via `statusMap`).
 4. Ideally push signed webhooks (`X-Supplier-Signature`, HMAC-SHA256 hex of the
    raw body) for status/tracking changes; include an `eventId` per event.
@@ -248,16 +260,18 @@ The API key lives ONLY in an env var; the supplier record stores just its NAME
 My CJ → Authorization → API.
 
 Supplier record `config` JSON:
+
 ```json
 {
-  "fxRateInrPerUsd": 88.5,          // REQUIRED - CJ costs are USD; conversion is explicit
+  "fxRateInrPerUsd": 88.5, // REQUIRED - CJ costs are USD; conversion is explicit
   "logisticName": "CJPacket Ordinary", // optional shipping line
-  "fromCountryCode": "CN",          // optional source warehouse country
-  "platformToken": "…"              // optional, sent as platformToken header if CJ requires it
+  "fromCountryCode": "CN", // optional source warehouse country
+  "platformToken": "…" // optional, sent as platformToken header if CJ requires it
 }
 ```
 
 Endpoints used:
+
 - Catalogue: `GET /product/myProduct/query` (connected products), `GET /product/variant/queryByVid`
 - Stock: `GET /product/stock/queryBySku`, `GET /product/stock/queryByVid`
 - Orders: `POST /shopping/order/createOrderV2` (body per CJ docs: orderNumber, shipping*,
@@ -272,6 +286,7 @@ key>:<line>`; duplicate createOrder responses fall back to `shopping/order/list`
 retry can never create a second CJ order.
 
 Catalog sync semantics (intentional):
+
 - Sync pulls **My Products only** (`GET /product/myProduct/query`). CJ's general catalogue
   (`/product/listV2`) is deliberately NOT auto-imported: nothing becomes publicly sellable in
   Zenvora without the owner explicitly adding it to CJ My Products, syncing, and mapping it to
@@ -294,6 +309,7 @@ Catalog sync semantics (intentional):
   silently degrades to the manual adapter on this endpoint.
 
 Diagnostics (safe, no secret values):
+
 - `GET /api/admin/suppliers/<id>/diagnostics` → `{ configured, apiKeyEnvVar, valuePresent, adapterError }`.
   `valuePresent` only says whether the named env var exists in the current runtime — the value
   is never returned.
@@ -324,6 +340,7 @@ Diagnostics (safe, no secret values):
   Variables**, then **Redeploy** the Preview deployment.
 
 Token lifecycle & self-healing (verified against CJ's current docs):
+
 - Access/refresh tokens live **180 days**, but CJ **server-side caches the same token per
   account for 24 hours**: repeated `getAccessToken` calls inside the window return the SAME
   token, and only after 24h **or an explicit logout** (`POST /authentication/logout`) will a

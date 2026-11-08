@@ -3,9 +3,9 @@ import { badRequest, conflict, notFound } from '../errors';
 import { toPaise } from '../money';
 import { getSettings } from '../settings';
 import { auditLog } from '../audit';
-import { transitionOrder, recordOrderEvent, canTransition } from './state';
+import { transitionOrder, canTransition } from './state';
 import { restockOrderItems } from './inventory';
-import { createRefund } from '../payments/refunds';
+import { processRefundReservation, reserveRefund } from '../payments/refunds';
 import { queueNotification } from '../notifications/notify';
 import { renderOrderEmailVars } from '../notifications/order-vars';
 import type { OrderActorType } from '@prisma/client';
@@ -26,64 +26,81 @@ export async function requestReturn(params: {
   actorType: OrderActorType;
   actorId?: string | null;
 }): Promise<{ returnId: string }> {
-  const order = await prisma.order.findUnique({
-    where: { id: params.orderId },
-    include: { items: true, user: true },
-  });
-  if (!order) throw notFound('Order not found');
-
-  if (order.status !== 'DELIVERED') {
-    throw badRequest(
-      `Returns can only be requested for delivered orders (current status: ${order.status.replace(/_/g, ' ')}). Not delivered yet? You can cancel instead if fulfilment has not started.`
-    );
-  }
   const settings = await getSettings();
-  const deliveredAt = order.deliveredAt ?? order.updatedAt;
-  const windowMs = settings.policies.returnWindowDays * 86400e3;
-  if (windowMs > 0 && Date.now() - deliveredAt.getTime() > windowMs) {
-    throw badRequest(
-      `The ${settings.policies.returnWindowDays}-day return window for this order has closed. Please contact support for assistance.`
-    );
-  }
-  const openReturn = await prisma.returnRequest.findFirst({
-    where: { orderId: order.id, status: { in: ['REQUESTED', 'APPROVED', 'RECEIVED'] } },
-  });
-  if (openReturn) throw conflict('A return request for this order is already in progress.');
-
   const orderItemId = params.orderItemId ?? null;
-  if (orderItemId && !order.items.some((i) => i.id === orderItemId)) {
-    throw badRequest('The selected item does not belong to this order.');
-  }
+  const { order, ret } = await prisma.$transaction(
+    async (tx) => {
+      await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "orders" WHERE "id" = ${params.orderId} FOR UPDATE
+    `;
+      const lockedOrder = await tx.order.findUnique({
+        where: { id: params.orderId },
+        include: { items: true, user: true },
+      });
+      if (!lockedOrder) throw notFound('Order not found');
+      if (lockedOrder.status !== 'DELIVERED') {
+        throw badRequest(
+          `Returns can only be requested for delivered orders (current status: ${lockedOrder.status.replace(/_/g, ' ')}). Not delivered yet? You can cancel instead if fulfilment has not started.`
+        );
+      }
+      const deliveredAt = lockedOrder.deliveredAt ?? lockedOrder.updatedAt;
+      const windowMs = settings.policies.returnWindowDays * 86400e3;
+      if (windowMs > 0 && Date.now() - deliveredAt.getTime() > windowMs) {
+        throw badRequest(
+          `The ${settings.policies.returnWindowDays}-day return window for this order has closed. Please contact support for assistance.`
+        );
+      }
+      const openReturn = await tx.returnRequest.findFirst({
+        where: { orderId: lockedOrder.id, status: { in: ['REQUESTED', 'APPROVED', 'RECEIVED'] } },
+      });
+      if (openReturn) throw conflict('A return request for this order is already in progress.');
+      if (orderItemId && !lockedOrder.items.some((item) => item.id === orderItemId)) {
+        throw badRequest('The selected item does not belong to this order.');
+      }
 
-  const ret = await prisma.returnRequest.create({
-    data: {
-      orderId: order.id,
-      orderItemId,
-      reason: params.reason,
-      customerNote: params.note ?? null,
-      status: 'REQUESTED',
+      const created = await tx.returnRequest.create({
+        data: {
+          orderId: lockedOrder.id,
+          orderItemId,
+          reason: params.reason,
+          customerNote: params.note ?? null,
+          status: 'REQUESTED',
+        },
+      });
+      if (canTransition(lockedOrder.status, 'RETURN_REQUESTED')) {
+        const moved = await tx.order.updateMany({
+          where: { id: lockedOrder.id, status: 'DELIVERED' },
+          data: { status: 'RETURN_REQUESTED' },
+        });
+        if (moved.count !== 1) throw conflict('Order changed while requesting return.');
+        await tx.orderEvent.create({
+          data: {
+            orderId: lockedOrder.id,
+            type: 'STATUS_TRANSITION',
+            fromStatus: lockedOrder.status,
+            toStatus: 'RETURN_REQUESTED',
+            message: `Return requested: ${params.reason}`,
+            actorType: params.actorType,
+            actorId: params.actorId ?? null,
+            data: { returnId: created.id },
+          },
+        });
+      } else {
+        await tx.orderEvent.create({
+          data: {
+            orderId: lockedOrder.id,
+            type: 'RETURN_REQUESTED',
+            message: `Return requested: ${params.reason}`,
+            actorType: params.actorType,
+            actorId: params.actorId ?? null,
+            data: { returnId: created.id },
+          },
+        });
+      }
+      return { order: lockedOrder, ret: created };
     },
-  });
-
-  if (canTransition(order.status, 'RETURN_REQUESTED')) {
-    await transitionOrder({
-      orderId: order.id,
-      to: 'RETURN_REQUESTED',
-      actorType: params.actorType,
-      actorId: params.actorId ?? null,
-      message: `Return requested: ${params.reason}`,
-      data: { returnId: ret.id },
-    });
-  } else {
-    await recordOrderEvent({
-      orderId: order.id,
-      type: 'RETURN_REQUESTED',
-      message: `Return requested: ${params.reason}`,
-      actorType: params.actorType,
-      actorId: params.actorId ?? null,
-      data: { returnId: ret.id },
-    });
-  }
+    { isolationLevel: 'Serializable' }
+  );
 
   const vars = await renderOrderEmailVars(order.id);
   await queueNotification({
@@ -128,59 +145,117 @@ export async function decideReturn(params: {
 
   switch (params.decision) {
     case 'APPROVE': {
-      if (!['REQUESTED', 'RECEIVED'].includes(ret.status)) {
-        throw conflict(`Cannot approve a return in status ${ret.status}`);
-      }
-      const refundAmount =
-        params.refundAmountPaise != null && params.refundAmountPaise > 0
-          ? params.refundAmountPaise
-          : defaultRefundForReturn(ret.orderItemId, order.items);
-      await prisma.returnRequest.update({
-        where: { id: ret.id },
-        data: {
-          status: 'APPROVED',
-          adminNote: params.adminNote ?? ret.adminNote,
-          refundAmount: (refundAmount / 100).toFixed(2),
+      const approval = await prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "orders" WHERE "id" = ${order.id} FOR UPDATE
+        `;
+          const locked = await tx.returnRequest.findUnique({
+            where: { id: ret.id },
+            include: { order: { include: { items: true } } },
+          });
+          if (!locked) throw notFound('Return request not found');
+          if (!['REQUESTED', 'RECEIVED', 'APPROVED'].includes(locked.status)) {
+            throw conflict(`Cannot approve a return in status ${locked.status}`);
+          }
+          if (params.refundAmountPaise != null && params.refundAmountPaise < 0) {
+            throw badRequest('Refund amount cannot be negative.');
+          }
+          const refundAmount =
+            params.refundAmountPaise != null
+              ? params.refundAmountPaise
+              : locked.refundAmount != null
+                ? toPaise(locked.refundAmount)
+                : defaultRefundForReturn(locked.orderItemId, locked.order.items);
+          if (!Number.isSafeInteger(refundAmount))
+            throw badRequest('Refund amount must be a whole number of paise.');
+
+          const reservation =
+            refundAmount > 0
+              ? await reserveRefund(tx, {
+                  orderId: locked.orderId,
+                  amountPaise: refundAmount,
+                  reason: `Return approved: ${locked.reason}`,
+                  returnRequestId: locked.id,
+                  actor: 'ADMIN',
+                  actorId: params.adminId,
+                })
+              : null;
+          await tx.returnRequest.update({
+            where: { id: locked.id },
+            data: {
+              status: 'APPROVED',
+              adminNote: params.adminNote ?? locked.adminNote,
+              refundAmount: (refundAmount / 100).toFixed(2),
+            },
+          });
+          return { refundAmount, reservation };
         },
-      });
-      if (refundAmount > 0) {
-        await createRefund({
-          orderId: order.id,
-          amountPaise: refundAmount,
-          reason: `Return approved: ${ret.reason}`,
-          returnRequestId: ret.id,
-          actor: 'ADMIN',
-          actorId: params.adminId,
-        });
-      }
-      await notifyReturnUpdate(
-        order.id,
-        'APPROVED',
-        params.adminNote ?? 'Your return has been approved.'
+        { isolationLevel: 'Serializable' }
       );
+
+      if (approval.reservation) {
+        await processRefundReservation(approval.reservation, `Return approved: ${ret.reason}`);
+      }
+      const finalReturn = await prisma.returnRequest.findUniqueOrThrow({ where: { id: ret.id } });
+      const approvalNote =
+        finalReturn.status === 'REFUNDED'
+          ? 'Your return was approved and the refund is confirmed completed.'
+          : approval.reservation
+            ? 'Your return has been approved. Refund settlement is not yet confirmed.'
+            : (params.adminNote ?? 'Your return has been approved.');
+      await notifyReturnUpdate(order.id, finalReturn.status, approvalNote);
       break;
     }
     case 'REJECT': {
-      if (!['REQUESTED', 'APPROVED'].includes(ret.status)) {
-        throw conflict(`Cannot reject a return in status ${ret.status}`);
-      }
-      await prisma.returnRequest.update({
-        where: { id: ret.id },
-        data: {
-          status: 'REJECTED',
-          adminNote: params.adminNote ?? ret.adminNote,
-          resolvedAt: new Date(),
+      await prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "orders" WHERE "id" = ${order.id} FOR UPDATE
+        `;
+          const locked = await tx.returnRequest.findUnique({ where: { id: ret.id } });
+          if (!locked) throw notFound('Return request not found');
+          if (locked.status !== 'REQUESTED') {
+            throw conflict(`Cannot reject a return in status ${locked.status}`);
+          }
+          const refund = await tx.refund.findFirst({ where: { returnRequestId: locked.id } });
+          if (refund) throw conflict('A return with a refund record cannot be rejected.');
+          const update = await tx.returnRequest.updateMany({
+            where: { id: locked.id, status: 'REQUESTED' },
+            data: {
+              status: 'REJECTED',
+              adminNote: params.adminNote ?? locked.adminNote,
+              resolvedAt: new Date(),
+            },
+          });
+          if (update.count !== 1)
+            throw conflict('Return decision changed concurrently. Refresh and try again.');
+
+          if (
+            order.status === 'RETURN_REQUESTED' &&
+            canTransition('RETURN_REQUESTED', 'DELIVERED')
+          ) {
+            const moved = await tx.order.updateMany({
+              where: { id: order.id, status: 'RETURN_REQUESTED' },
+              data: { status: 'DELIVERED' },
+            });
+            if (moved.count === 1) {
+              await tx.orderEvent.create({
+                data: {
+                  orderId: order.id,
+                  type: 'STATUS_TRANSITION',
+                  fromStatus: 'RETURN_REQUESTED',
+                  toStatus: 'DELIVERED',
+                  message: 'Return rejected - order restored to delivered',
+                  actorType: 'ADMIN',
+                  actorId: params.adminId,
+                },
+              });
+            }
+          }
         },
-      });
-      if (order.status === 'RETURN_REQUESTED' && canTransition('RETURN_REQUESTED', 'DELIVERED')) {
-        await transitionOrder({
-          orderId: order.id,
-          to: 'DELIVERED',
-          actorType: 'ADMIN',
-          actorId: params.adminId,
-          message: 'Return rejected - order restored to delivered',
-        });
-      }
+        { isolationLevel: 'Serializable' }
+      );
       await notifyReturnUpdate(
         order.id,
         'REJECTED',
@@ -215,14 +290,35 @@ export async function decideReturn(params: {
       break;
     }
     case 'CLOSE': {
-      await prisma.returnRequest.update({
-        where: { id: ret.id },
-        data: {
-          status: 'CLOSED',
-          resolvedAt: new Date(),
-          adminNote: params.adminNote ?? ret.adminNote,
+      await prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "orders" WHERE "id" = ${order.id} FOR UPDATE
+        `;
+          const locked = await tx.returnRequest.findUnique({ where: { id: ret.id } });
+          if (!locked) throw notFound('Return request not found');
+          if (!['APPROVED', 'RECEIVED'].includes(locked.status)) {
+            throw conflict(`Cannot close a return in status ${locked.status}`);
+          }
+          const unresolved = await tx.refund.findFirst({
+            where: {
+              returnRequestId: locked.id,
+              status: { not: 'COMPLETED' },
+            },
+          });
+          if (unresolved) throw conflict('Cannot close a return while its refund is unresolved.');
+          const updated = await tx.returnRequest.updateMany({
+            where: { id: locked.id, status: locked.status },
+            data: {
+              status: 'CLOSED',
+              resolvedAt: new Date(),
+              adminNote: params.adminNote ?? locked.adminNote,
+            },
+          });
+          if (updated.count !== 1) throw conflict('Return status changed concurrently.');
         },
-      });
+        { isolationLevel: 'Serializable' }
+      );
       await notifyReturnUpdate(
         order.id,
         'CLOSED',
@@ -232,14 +328,28 @@ export async function decideReturn(params: {
     }
   }
 
+  const linkedRefund =
+    params.decision === 'APPROVE'
+      ? await prisma.refund.findFirst({
+          where: { returnRequestId: ret.id },
+          orderBy: { createdAt: 'desc' },
+        })
+      : null;
   await auditLog({
     actor: { id: params.adminId },
     action: `return.${params.decision.toLowerCase()}`,
     entityType: 'ReturnRequest',
     entityId: ret.id,
-    data: { orderId: order.id, note: params.adminNote ?? null },
+    data: {
+      orderId: order.id,
+      note: params.adminNote ?? null,
+      refundId: linkedRefund?.id ?? null,
+      refundStatus: linkedRefund?.status ?? null,
+      refundAmount: linkedRefund?.amount ?? null,
+    },
   });
-  return { status: params.decision };
+  const currentReturn = await prisma.returnRequest.findUniqueOrThrow({ where: { id: ret.id } });
+  return { status: currentReturn.status };
 }
 
 function defaultRefundForReturn(
