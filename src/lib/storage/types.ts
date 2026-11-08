@@ -6,13 +6,13 @@
  * upload pipeline talks only to this interface; the concrete provider is
  * selected by STORAGE_PROVIDER (local | s3 | cloudinary).
  *
- *  - local       dev/single-server default; files under public/uploads.
+ *  - local       development/test only; files under public/uploads.
  *  - s3          any S3-compatible object store (R2, MinIO, AWS S3) via SigV4;
  *                credentials only from environment variables.
- *  - cloudinary  Cloudinary REST signed uploads (upload preset optional).
+ *  - cloudinary  Cloudinary REST signed uploads.
  *
- * Secrets never reach the client; deletes/replace go through the same
- * provider so URLs remain consistent.
+ * Secrets never reach the client; deletes go through the same provider and
+ * are restricted to unattached, app-managed uploads.
  */
 
 export interface StorageObject {
@@ -31,6 +31,12 @@ export interface StorageProvider {
   isConfigured(): boolean;
   put(params: { buffer: Buffer; filename: string; mime: string }): Promise<StorageObject>;
   remove(key: string): Promise<void>;
+  /**
+   * Resolve an admin supplied key/URL to an app-managed `p-<date>-<random>`
+   * upload key. Null means deletion must be refused. This does not authorize
+   * deleting supplier/seed media or arbitrary objects in the same account.
+   */
+  keyFromTarget(target: string): string | null;
 }
 
 export class StorageNotConfiguredError extends Error {

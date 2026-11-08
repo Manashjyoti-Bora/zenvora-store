@@ -12,6 +12,7 @@ import { CheckoutSteps } from '@/components/store/checkout-steps';
 import { Alert } from '@/components/ui/feedback';
 import { BoxIcon, ClockIcon } from '@/components/ui/icons';
 import { LinkButton } from '@/components/ui/button';
+import { describeOrderPayment } from '@/lib/payments/order-messaging';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,7 @@ export default async function ConfirmationPage({
         shipments: { orderBy: { createdAt: 'desc' } },
         refunds: { orderBy: { createdAt: 'desc' } },
         returns: { orderBy: { createdAt: 'desc' } },
+        payments: { orderBy: { createdAt: 'desc' } },
         user: { select: { email: true } },
       },
     }),
@@ -65,6 +67,7 @@ export default async function ConfirmationPage({
     ['PENDING_PAYMENT', 'PAYMENT_FAILED'].includes(order.status) && order.paymentMethod !== 'COD';
   const paymentPending =
     order.paymentStatus === 'PENDING' && !needsPayment && order.paymentMethod !== 'COD';
+  const paymentCopy = describeOrderPayment(order);
 
   return (
     <div className="container-store py-6 sm:py-10">
@@ -79,17 +82,24 @@ export default async function ConfirmationPage({
             >
               <ClockIcon className="h-7 w-7" />
             </span>
-            <h1 className="display mt-3">Your order is saved — payment pending</h1>
+            <h1 className="display mt-3">
+              {order.payments.length > 0
+                ? paymentCopy.confirmationTitle
+                : 'Your order is saved — payment pending'}
+            </h1>
             <p className="mx-auto mt-2 max-w-md text-sm text-ink-400">
               Order <strong>{order.orderNumber}</strong> was created but payment is not complete
-              yet. Finish the payment to confirm it; items stay reserved until then.
+              yet.{' '}
+              {order.payments.length > 0
+                ? paymentCopy.confirmationDetail
+                : 'No payment attempt is recorded. Review the available payment option before attempting payment; items stay reserved for now.'}
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-3">
               <LinkButton
                 href={`/checkout/payment/${order.orderNumber}${guestEmail ? `?email=${encodeURIComponent(guestEmail)}` : ''}`}
                 size="lg"
               >
-                Complete payment
+                Review payment options
               </LinkButton>
               <LinkButton href="/contact" variant="outline" size="lg">
                 Need help?
@@ -98,10 +108,10 @@ export default async function ConfirmationPage({
           </div>
         ) : paymentPending ? (
           <div className="mb-6">
-            <Alert tone="info" title="Payment confirmation in progress">
-              Your bank has accepted the payment; final confirmation usually arrives within minutes.
-              We will email <strong>{order.user?.email ?? order.guestEmail}</strong> as soon as the
-              order is confirmed. Please do not pay again.
+            <Alert tone="info" title={paymentCopy.confirmationTitle}>
+              {paymentCopy.confirmationDetail} The contact email on this order is{' '}
+              <strong>{order.user?.email ?? order.guestEmail}</strong>. You can return to this page
+              for status updates; please do not pay again.
             </Alert>
           </div>
         ) : (
@@ -134,12 +144,15 @@ export default async function ConfirmationPage({
             <h1 className="mt-3">
               {order.paymentMethod === 'COD'
                 ? 'Order placed successfully!'
-                : 'Thank you — payment received!'}
+                : paymentCopy.isTest
+                  ? 'TEST simulation complete — no real payment'
+                  : paymentCopy.confirmationTitle}
             </h1>
             <p className="mx-auto mt-2 max-w-md text-sm text-ink-400">
-              Order <strong>{order.orderNumber}</strong> is confirmed and being prepared. A
-              confirmation email is on its way to{' '}
-              <strong>{order.user?.email ?? order.guestEmail}</strong>.
+              Order <strong>{order.orderNumber}</strong> is recorded.{' '}
+              {paymentCopy.confirmationDetail} The contact email on this order is{' '}
+              <strong>{order.user?.email ?? order.guestEmail}</strong>; use the tracking link below
+              for status updates.
               {order.paymentMethod === 'COD' && ' Please keep the exact amount ready for delivery.'}
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-3">
@@ -159,6 +172,7 @@ export default async function ConfirmationPage({
           shipments={order.shipments}
           refunds={order.refunds}
           returns={order.returns}
+          payments={order.payments}
         />
 
         <div className="mt-6">

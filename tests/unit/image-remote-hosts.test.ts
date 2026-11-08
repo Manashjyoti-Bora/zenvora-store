@@ -30,12 +30,17 @@ describe('resolveImageRemoteHosts', () => {
       S3_ENDPOINT: 'https://acct.r2.cloudflarestorage.com',
       S3_BUCKET: 'zenvora-media',
     });
-    expect(hosts).toEqual([
-      'cdn.zenvora.in',
-      'media.example.org',
-      'acct.r2.cloudflarestorage.com',
-      'zenvora-media.acct.r2.cloudflarestorage.com',
-    ]);
+    expect(hosts).toEqual(['cdn.zenvora.in', 'media.example.org']);
+    expect(hosts).not.toContain('acct.r2.cloudflarestorage.com');
+    expect(isOptimizableImageSrc('https://media.example.org/uploads/p-1-ABC.webp', hosts)).toBe(
+      true
+    );
+    expect(
+      isOptimizableImageSrc(
+        'https://acct.r2.cloudflarestorage.com/bucket/uploads/p-1-ABC.webp',
+        hosts
+      )
+    ).toBe(false);
   });
 });
 
@@ -68,7 +73,9 @@ describe('isOptimizableImageSrc', () => {
 
   it('allows listed https hosts and refuses everything else', () => {
     expect(isOptimizableImageSrc('https://cf.cjdropshipping.com/p/1.jpg', hosts)).toBe(true);
-    expect(isOptimizableImageSrc('https://res.cloudinary.com/zen/image/upload/x.webp', hosts)).toBe(true);
+    expect(isOptimizableImageSrc('https://res.cloudinary.com/zen/image/upload/x.webp', hosts)).toBe(
+      true
+    );
     expect(isOptimizableImageSrc('https://images.unsplash.com/photo', hosts)).toBe(false);
     expect(isOptimizableImageSrc('https://res.cloudinary.com.evil.net/x', hosts)).toBe(false);
   });

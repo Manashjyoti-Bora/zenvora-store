@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getSettings } from '@/lib/settings';
+import { describePaymentProvider } from '@/lib/payments';
 import { env } from '@/lib/env';
 import { PolicyView } from '@/components/policies/policy-view';
 import { formatINR } from '@/lib/money';
@@ -23,7 +24,10 @@ export async function generateMetadata(): Promise<Metadata> {
 const LAST_UPDATED = '2026-09-05';
 
 export default async function TermsPage() {
-  const settings = await getSettings();
+  const [settings, payments] = await Promise.all([
+    getSettings(),
+    Promise.resolve(describePaymentProvider()),
+  ]);
 
   return (
     <PolicyView
@@ -100,17 +104,39 @@ export default async function TermsPage() {
                 An order is an offer to buy. A contract forms when we confirm the order (email or
                 order status <em>Confirmed</em>), not merely when an order number is generated.
               </li>
-              <li>
-                Online payments are processed by licensed payment gateway providers; we never handle
-                card data.{' '}
-                {settings.shipping.codEnabled
-                  ? `Cash on Delivery is available${settings.shipping.codFeePaise > 0 ? ` with a ${formatINR(settings.shipping.codFeePaise)} handling fee` : ''}.`
-                  : ''}
-              </li>
-              <li>
-                Orders awaiting payment may be cancelled automatically if payment is not completed
-                within the stated window.
-              </li>
+              {payments.kind === 'RAZORPAY' && (
+                <li>
+                  Online payments are processed by licensed payment gateway providers; we never
+                  handle card data.
+                </li>
+              )}
+              {payments.kind === 'TEST' && (
+                <li>TEST payments are development-only simulations; no real money moves.</li>
+              )}
+              {settings.shipping.codEnabled && (
+                <li>
+                  Cash on Delivery is available
+                  {settings.shipping.codFeePaise > 0
+                    ? ` with a ${formatINR(settings.shipping.codFeePaise)} handling fee`
+                    : ''}
+                  .
+                </li>
+              )}
+              {payments.kind === 'NONE' && settings.shipping.codEnabled && (
+                <li>
+                  Online payments are not currently available; Cash on Delivery is the only checkout
+                  payment method.
+                </li>
+              )}
+              {payments.kind === 'NONE' && !settings.shipping.codEnabled && (
+                <li>No payment method is currently configured, so checkout is unavailable.</li>
+              )}
+              {payments.kind !== 'NONE' && (
+                <li>
+                  Orders awaiting payment may be cancelled automatically if payment is not completed
+                  within the stated window.
+                </li>
+              )}
               <li>
                 Coupons and promotions cannot be exchanged for cash and may be withdrawn at any
                 time.

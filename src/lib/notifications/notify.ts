@@ -159,16 +159,15 @@ export async function dispatchNotification(notificationId: string): Promise<void
 
   const provider = getEmailProvider();
   if (provider.name === 'smtp' && !provider.isConfigured()) {
+    const message =
+      'SMTP is not fully configured (SMTP_HOST/SMTP_USER/SMTP_PASS). See SETUP_CHECKLIST.md.';
     await prisma.notification.update({
       where: { id: notificationId },
-      data: {
-        status: 'FAILED',
-        provider: 'smtp',
-        error:
-          'SMTP is not fully configured (SMTP_HOST/SMTP_USER/SMTP_PASS). See SETUP_CHECKLIST.md.',
-      },
+      data: { status: 'FAILED', provider: 'smtp', error: message },
     });
-    return;
+    // Do not let the durable SEND_NOTIFICATION job become DONE when no
+    // provider handoff occurred. The runner will record retry/failure state.
+    throw new Error(message);
   }
 
   try {

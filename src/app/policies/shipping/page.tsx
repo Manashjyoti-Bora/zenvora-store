@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getSettings } from '@/lib/settings';
+import { describePaymentProvider } from '@/lib/payments';
 import { env } from '@/lib/env';
 import { PolicyView, policySettingsContext } from '@/components/policies/policy-view';
 import { formatINR } from '@/lib/money';
@@ -22,7 +23,10 @@ export async function generateMetadata(): Promise<Metadata> {
 const LAST_UPDATED = '2026-09-05';
 
 export default async function ShippingPolicyPage() {
-  const settings = await getSettings();
+  const [settings, payments] = await Promise.all([
+    getSettings(),
+    Promise.resolve(describePaymentProvider()),
+  ]);
   const ctx = policySettingsContext(settings);
 
   return (
@@ -37,7 +41,7 @@ export default async function ShippingPolicyPage() {
             <p>
               We currently ship to addresses within India. Serviceability of remote PIN codes
               depends on our courier partners; if your order cannot be delivered we will inform you
-              and refund any prepaid amount.
+              and any applicable refund will follow our returns policy.
             </p>
           ),
         },
@@ -45,9 +49,21 @@ export default async function ShippingPolicyPage() {
           heading: 'Processing time',
           body: (
             <p>
-              Orders are confirmed instantly on successful payment (or immediately for COD).
+              {payments.kind === 'RAZORPAY' &&
+                (settings.shipping.codEnabled
+                  ? 'Orders are confirmed on verified online payment, or immediately for Cash on Delivery. '
+                  : 'Orders are confirmed on verified online payment. ')}
+              {payments.kind === 'TEST' &&
+                `TEST payment orders are development-only simulations; no real money moves. ${settings.shipping.codEnabled ? 'Cash on Delivery orders are confirmed at checkout.' : ''} `}
+              {payments.kind === 'NONE' &&
+                settings.shipping.codEnabled &&
+                'Cash on Delivery orders are confirmed at checkout. Online payments are not currently available. '}
+              {payments.kind === 'NONE' &&
+                !settings.shipping.codEnabled &&
+                'Checkout is unavailable until a payment method is configured. '}
               Dispatch/handover to our fulfilment network typically happens within 1–2 business
-              days, subject to supplier stock. You will be notified by email at each step.
+              days, subject to supplier stock. Order status is available online; email updates are
+              also sent when email delivery is configured.
             </p>
           ),
         },
@@ -85,9 +101,9 @@ export default async function ShippingPolicyPage() {
           heading: 'Tracking',
           body: (
             <p>
-              Once dispatched, tracking details (carrier, tracking number, live status) are emailed
-              to you and shown on the order page and our public tracking page (order number + email
-              required).
+              Once dispatched, tracking details (carrier, tracking number, live status) are shown on
+              the order page and our public tracking page (order number + email required). Email
+              updates are also sent when email delivery is configured.
             </p>
           ),
         },
@@ -99,9 +115,11 @@ export default async function ShippingPolicyPage() {
                 Couriers typically attempt delivery 2–3 times; please keep your phone reachable.
               </li>
               <li>
-                Undelivered orders are returned to us. Prepaid orders can be re-shipped on request
-                or refunded (original shipping may be deducted where the courier charges us for the
-                failed attempt).
+                Undelivered orders are returned to us.
+                {payments.kind === 'RAZORPAY' &&
+                  ' Prepaid orders can be re-shipped on request or refunded (original shipping may be deducted where the courier charges us for the failed attempt).'}
+                {payments.kind === 'TEST' &&
+                  ' TEST payment outcomes are simulations; no real money moves.'}
               </li>
               <li>Repeated COD refusals may lead to COD being disabled for your account.</li>
             </ul>

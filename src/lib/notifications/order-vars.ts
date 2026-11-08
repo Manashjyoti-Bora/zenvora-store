@@ -4,6 +4,7 @@ import { toPaise, formatINR } from '../money';
 import { configuredSupportEmail, getSettings } from '../settings';
 import { formatDate } from '../utils';
 import type { TemplateVars } from './templates';
+import { describeOrderPayment } from '../payments/order-messaging';
 
 /**
  * Builds the email variables for order-related notifications from REAL order
@@ -22,7 +23,11 @@ function escapeHtml(input: string): string {
 export async function renderOrderEmailVars(orderId: string): Promise<TemplateVars> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { items: true, user: true },
+    include: {
+      items: true,
+      user: true,
+      payments: { orderBy: { createdAt: 'desc' } },
+    },
   });
   if (!order) throw new Error(`Order not found: ${orderId}`);
   const settings = await getSettings();
@@ -59,6 +64,7 @@ export async function renderOrderEmailVars(orderId: string): Promise<TemplateVar
   const base = order.placedAt ?? order.createdAt;
   const estDate = new Date(base.getTime() + estMax * 86400e3);
 
+  const paymentCopy = describeOrderPayment(order);
   const customerName = order.user?.name ?? order.guestName ?? 'there';
   const email = order.user?.email ?? order.guestEmail ?? '';
   const trackUrl = `${env.APP_URL}/track?orderNumber=${encodeURIComponent(order.orderNumber)}`;
@@ -69,7 +75,19 @@ export async function renderOrderEmailVars(orderId: string): Promise<TemplateVar
     customerName,
     orderNumber: order.orderNumber,
     placedDate: formatDate(order.placedAt ?? order.createdAt, true),
-    paymentMethod: order.paymentMethod === 'COD' ? 'Cash on Delivery' : 'Prepaid',
+    paymentMethod: paymentCopy.methodLabel,
+    paymentIsTest: String(paymentCopy.isTest),
+    paymentSubjectPrefix: paymentCopy.isTest ? '[TEST SIMULATION — NO REAL MONEY] ' : '',
+    orderConfirmationHeading: paymentCopy.confirmationTitle,
+    paymentFailureDetail: paymentCopy.paymentFailureDetail,
+    refundPendingDetail: paymentCopy.refundPendingDetail,
+    refundCompletedDetail: paymentCopy.refundCompletedDetail,
+    totalLabel:
+      order.paymentMethod === 'COD' && order.paymentStatus === 'COD_PENDING'
+        ? 'Total payable on delivery'
+        : paymentCopy.isTest
+          ? 'TEST order total (no real charge)'
+          : 'Order total',
     linesHtml,
     itemsSummary,
     subtotal: formatINR(toPaise(order.subtotal)),

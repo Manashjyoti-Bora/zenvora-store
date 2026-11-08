@@ -159,7 +159,8 @@ PostgreSQL service:
 4. **`npm run build`** — the exact release pipeline Vercel runs, including `next build`
 5. seeded dev server → **E2E** HTTP journeys (auth, checkout COD + TEST payment,
    admin authz/IDOR, webhook signature checks, storefront pages, security headers)
-6. production-dependency audit (reported, non-blocking)
+6. **Production dependency audit (blocking)** — `npm audit --omit=dev --audit-level=high`;
+   any high or critical advisory in Production dependencies fails CI and blocks promotion
 
 Promotion rule: only merge to `main` when the CI run for the **exact head commit** is
 green and the Vercel Preview for that commit is READY and has been clicked through.

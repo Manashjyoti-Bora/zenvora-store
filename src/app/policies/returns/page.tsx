@@ -1,8 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getSettings } from '@/lib/settings';
+import { describePaymentProvider } from '@/lib/payments';
 import { env } from '@/lib/env';
 import { PolicyView } from '@/components/policies/policy-view';
+import {
+  publicCancellationFaqAnswer,
+  publicReturnRefundFaqAnswer,
+} from '@/lib/payments/public-messaging';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,8 +27,12 @@ export async function generateMetadata(): Promise<Metadata> {
 const LAST_UPDATED = '2026-09-05';
 
 export default async function ReturnsPage() {
-  const settings = await getSettings();
+  const [settings, payments] = await Promise.all([
+    getSettings(),
+    Promise.resolve(describePaymentProvider()),
+  ]);
   const windowDays = settings.policies.returnWindowDays;
+  const paymentState = { provider: payments.kind, codEnabled: settings.shipping.codEnabled };
 
   return (
     <PolicyView
@@ -38,7 +47,7 @@ export default async function ReturnsPage() {
               {settings.policies.cancellationWindowHours > 0
                 ? `Orders can be cancelled from your order page within ${settings.policies.cancellationWindowHours} hours of placing them and before dispatch.`
                 : 'Orders can be cancelled from your order page before dispatch.'}{' '}
-              Cancelled prepaid orders are refunded in full (including shipping).
+              {publicCancellationFaqAnswer(paymentState)}
             </p>
           ),
         },
@@ -80,12 +89,15 @@ export default async function ReturnsPage() {
                 <Link href="/account/orders" className="link-primary">
                   My orders
                 </Link>{' '}
-                (or the confirmation email link) and tap <em>Request return / refund</em>.
+                (or the order confirmation/tracking link) and tap <em>Request return / refund</em>.
               </li>
-              <li>Choose the item and reason; add photos by email if the item is damaged.</li>
               <li>
-                Our team reviews requests within 2 business days and confirms pickup or replacement
-                by email.
+                Choose the item and reason; contact support for instructions to share photos if the
+                item is damaged.
+              </li>
+              <li>
+                Our team reviews requests within 2 business days and updates the order with pickup
+                or replacement instructions; email is also used when delivery is configured.
               </li>
             </ol>
           ),
@@ -94,14 +106,7 @@ export default async function ReturnsPage() {
           heading: 'Refunds',
           body: (
             <ul className="list-disc space-y-1 pl-5">
-              <li>
-                Refunds are issued to the <strong>original payment method</strong> after the
-                returned item is received and passes quality check — typically 5–7 business days for
-                UPI/cards/netbanking (bank processing times vary).
-              </li>
-              <li>
-                COD orders: refunds are issued via bank transfer/UPI to an account you provide.
-              </li>
+              <li>{publicReturnRefundFaqAnswer(paymentState)}</li>
               <li>
                 Partial refunds apply when only some items are returned or when usage/damage reduces
                 value (we will always tell you why).

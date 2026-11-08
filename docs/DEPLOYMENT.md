@@ -38,8 +38,9 @@ All of the above passed on 2026-09-08 against the live deployment.
 
 ## Storage on serverless
 The Vercel filesystem is ephemeral. For product uploads that survive deploys set
-`STORAGE_PROVIDER=s3` (S3/R2/MinIO) or `cloudinary` with credentials; the app falls back to local
-disk with a loud error log (and the admin UI warns) if left unconfigured.
+`STORAGE_PROVIDER=s3` (S3/R2/MinIO) or `cloudinary` with valid credentials. Production refuses local
+disk and returns 503 on misconfiguration; it never falls back to ephemeral storage. Configure and
+verify Preview first using docs/STORAGE_SETUP.md.
 
 ## Rollback
 Vercel keeps every deployment immutable — promote the previous deployment in the Vercel UI.

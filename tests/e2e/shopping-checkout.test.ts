@@ -159,6 +159,13 @@ describe('cart', () => {
 describe('checkout — prepaid + TEST payment + auto fulfilment', () => {
   const idempotencyKey = `e2e-key-${Date.now().toString(36)}`;
 
+  it('labels the online checkout option as TEST, never as a live UPI/card gateway', async () => {
+    const res = await agent.get('/checkout');
+    expect(res.status).toBe(200);
+    expect(res.body).toContain('TEST payment (simulation only');
+    expect(res.body).not.toContain('Pay online (UPI / cards / netbanking)');
+  });
+
   it('creates a PENDING_PAYMENT order; totals match the server cart view exactly', async () => {
     const res = await agent.post('/api/checkout', {
       paymentMethod: 'PREPAID_GATEWAY',
@@ -188,6 +195,14 @@ describe('checkout — prepaid + TEST payment + auto fulfilment', () => {
     const dbOrder = await prisma.order.findUnique({ where: { orderNumber } });
     expect(dbOrder?.status).toBe('PENDING_PAYMENT');
     expect(dbOrder?.userId).toBeTruthy();
+  });
+
+  it('payment page identifies TEST before starting and shows no live-gateway prompt', async () => {
+    const res = await agent.get(`/checkout/payment/${orderNumber}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toContain('Open TEST payment simulator');
+    expect(res.body).toContain('No real money moves');
+    expect(res.body).not.toContain('You will be taken to a secure payment window');
   });
 
   it('is idempotent: replaying the same key returns the SAME order (HTTP 200)', async () => {
@@ -264,6 +279,21 @@ describe('checkout — prepaid + TEST payment + auto fulfilment', () => {
     );
     expect(supplierOrder, 'demo supplier fulfilment should be queued automatically').toBeTruthy();
     expect(['QUEUED', 'SENT', 'ACCEPTED', 'SHIPPED', 'DELIVERED']).toContain(supplierOrder!.status);
+  });
+
+  it('confirmation and account history preserve TEST simulation wording', async () => {
+    const confirmation = await agent.get(`/order/${orderNumber}/confirmation`);
+    expect(confirmation.status).toBe(200);
+    expect(confirmation.body).toContain('TEST simulation complete');
+    expect(confirmation.body).toContain('No real money moved');
+    expect(confirmation.body).toContain('TEST payment (simulation only)');
+    expect(confirmation.body).not.toContain('Thank you — payment received!');
+    expect(confirmation.body).not.toContain('confirmation email is on its way');
+
+    const history = await agent.get('/account/orders');
+    expect(history.status).toBe(200);
+    expect(history.body).toContain('TEST payment (simulation only)');
+    expect(history.body).not.toContain('Paid online');
   });
 });
 

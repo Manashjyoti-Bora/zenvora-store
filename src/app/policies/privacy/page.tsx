@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getSettings } from '@/lib/settings';
+import { describePaymentProvider } from '@/lib/payments';
 import { SupportContact } from '@/components/store/support-contact';
 import { env } from '@/lib/env';
 import { PolicyView } from '@/components/policies/policy-view';
@@ -22,7 +23,10 @@ export async function generateMetadata(): Promise<Metadata> {
 const LAST_UPDATED = '2026-09-05';
 
 export default async function PrivacyPolicyPage() {
-  const settings = await getSettings();
+  const [settings, payments] = await Promise.all([
+    getSettings(),
+    Promise.resolve(describePaymentProvider()),
+  ]);
 
   return (
     <PolicyView
@@ -44,13 +48,28 @@ export default async function PrivacyPolicyPage() {
                   <strong>Order data:</strong> shipping address, order contents, amounts, and
                   order/tracking history.
                 </li>
-                <li>
-                  <strong>Payment references:</strong> gateway order/payment IDs and statuses.{' '}
-                  <strong>
-                    We never see or store card numbers, CVVs, UPI PINs or netbanking credentials
-                  </strong>{' '}
-                  — those are entered only into the payment gateway&apos;s secure interface.
-                </li>
+                {payments.kind === 'RAZORPAY' && (
+                  <li>
+                    <strong>Payment references:</strong> gateway order/payment IDs and statuses.{' '}
+                    <strong>
+                      We never see or store card numbers, CVVs, UPI PINs or netbanking credentials
+                    </strong>{' '}
+                    — those are entered only into the payment gateway&apos;s secure interface.
+                  </li>
+                )}
+                {payments.kind === 'TEST' && (
+                  <li>
+                    <strong>Payment references:</strong> TEST payment IDs and simulation statuses;
+                    no real money moves and the simulator does not request real card or bank
+                    credentials.
+                  </li>
+                )}
+                {payments.kind === 'NONE' && (
+                  <li>
+                    <strong>Payment references:</strong> order payment and collection statuses.
+                    Online card, UPI and netbanking credentials are not collected.
+                  </li>
+                )}
                 <li>
                   <strong>Technical data:</strong> IP address and request metadata for security
                   (rate limiting, fraud and abuse prevention) and error diagnosis.
@@ -98,17 +117,19 @@ export default async function PrivacyPolicyPage() {
           body: (
             <>
               <ul className="list-disc space-y-1 pl-5">
-                <li>
-                  <strong>Payment gateway providers</strong> (e.g. Razorpay) — to process payments
-                  and refunds.
-                </li>
+                {payments.kind === 'RAZORPAY' && (
+                  <li>
+                    <strong>Payment gateway providers</strong> (e.g. Razorpay) — to process payments
+                    and refunds.
+                  </li>
+                )}
                 <li>
                   <strong>Suppliers &amp; logistics partners</strong> — the minimum needed to fulfil
                   and deliver your order (name, address, phone, items).
                 </li>
                 <li>
-                  <strong>Email/SMS infrastructure providers</strong> — to send transactional
-                  notifications.
+                  <strong>Email infrastructure providers</strong> — when configured, to send
+                  transactional email notifications.
                 </li>
                 <li>
                   <strong>Hosting/infrastructure providers</strong> — where this application and
@@ -135,10 +156,15 @@ export default async function PrivacyPolicyPage() {
           body: (
             <p>
               Passwords are hashed with bcrypt. Sessions use httpOnly, SameSite cookies. All
-              sensitive operations are protected against CSRF, rate limiting is applied to
-              authentication and checkout endpoints, and payment confirmations require server-side
-              gateway verification. Despite these measures, no system is 100% secure; report any
-              concern to us immediately.
+              sensitive operations are protected against CSRF, and rate limiting is applied to
+              authentication and checkout endpoints.{' '}
+              {payments.kind === 'RAZORPAY'
+                ? 'Online payment confirmations require server-side gateway verification.'
+                : payments.kind === 'TEST'
+                  ? 'TEST confirmations are development-only simulations, not real-money gateway verification.'
+                  : 'No online gateway confirmation is performed while online payments are not configured.'}{' '}
+              Despite these measures, no system is 100% secure; report any concern to us
+              immediately.
             </p>
           ),
         },

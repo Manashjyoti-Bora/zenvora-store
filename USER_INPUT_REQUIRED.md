@@ -57,10 +57,11 @@ into chat; secrets go directly into Vercel → Project → Settings → Environm
   `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` (verified sender/domain), optional `EMAIL_REPLY_TO`.
 
 ## 🔴/ B7 — Product image storage decision
-- Uploads persist on server disk = ephemeral on Vercel (lost on redeploy). Admin UI now warns.
-- Choose: (a) use external image URLs / re-upload after deploys (zero cost), or
-  (b) object storage (Cloudflare R2 free 10 GB / any S3 / Cloudinary) — I then implement the
-  storage adapter + tests. If you already uploaded images via Admin, this is launch-relevant.
+- Server-disk uploads are ephemeral on Vercel and are now disabled in Production.
+- Configure durable object storage (Cloudflare R2 / S3 / Cloudinary) in Preview first using
+  docs/STORAGE_SETUP.md. Production has a launch blocker and returns 503 rather than falling back.
+- Existing local images are not migrated automatically; inventory and re-upload them through an
+  approved product-edit flow. Supplier-CDN URLs are not proof of admin-upload durability.
 
 ## 🟡 B8 — External cron service (reliability of retries + housekeeping)
 - Spec: `POST https://<prod>/api/cron/jobs`, header `Authorization: Bearer <CRON_SECRET>`
@@ -80,15 +81,16 @@ into chat; secrets go directly into Vercel → Project → Settings → Environm
   add it in Vercel → Domains, set DNS records, then update APP_URL + redeploy.
 
 ## 🟠 B7. Persistent image storage (new in v6) — REQUIRES CONFIGURATION
-Product uploads currently default to `STORAGE_PROVIDER=local`, which is EPHEMERAL on Vercel
-(images can disappear on redeploy; the admin UI warns while on local). To make uploads durable:
-- Option A — Cloudinary (easiest): free account at cloudinary.com → set `STORAGE_PROVIDER=cloudinary`,
-  `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (secret) in Vercel.
+Product uploads default to `STORAGE_PROVIDER=local` outside Production, which is EPHEMERAL on Vercel.
+Production uploads now fail closed with HTTP 503 and a launch blocker until durable storage is configured:
+- Option A — Cloudinary (Android-friendly): set `STORAGE_PROVIDER=cloudinary`,
+  `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (secret) in Vercel Preview first.
 - Option B — S3-compatible (AWS S3 / Cloudflare R2 / MinIO): set `STORAGE_PROVIDER=s3`,
-  `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (secrets); optional
-  `S3_ENDPOINT` (R2/MinIO) and `S3_PUBLIC_BASE_URL` (CDN).
-Where to enter: Vercel → zenvorastore → Settings → Environment Variables. Nothing breaks without
-this — uploads keep working locally-ephemeral with a visible warning. Details: docs/ENVIRONMENT.md.
+  `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (secrets). `S3_ENDPOINT` is the
+  custom API origin; `S3_PUBLIC_BASE_URL` is required with that custom endpoint.
+Where to enter: Vercel → zenvorastore → Settings → Environment Variables. Configure and verify Preview
+before separately approving Production. Exact Android steps, isolated tests and limitations:
+docs/STORAGE_SETUP.md and docs/ENVIRONMENT.md.
 
 ## ⚪ Hygiene (optional)
 - Flip `PAYMENTS_TEST_MODE=false` and `SUPPLIER_DEMO_MODE=false` in Vercel once B4/B5 are done

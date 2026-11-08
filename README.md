@@ -152,16 +152,16 @@ Demo supplier → shipped/delivered → profit finalised — all visibly marked 
 
 ### Scripts
 
-| Script                                         | Purpose                                                        |
-| ---------------------------------------------- | -------------------------------------------------------------- |
-| `npm run dev` / `build` / `start`              | develop / production build / serve                             |
-| `npm run db:migrate` / `db:deploy` / `db:seed` | Prisma migrations & demo seed                                  |
-| `npm test` / `test:unit` / `test:integration`  | vitest suites (integration needs the test DB from `.env.test`) |
+| Script                                         | Purpose                                                                                                                                   |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev` / `build` / `start`              | develop / production build / serve                                                                                                        |
+| `npm run db:migrate` / `db:deploy` / `db:seed` | Prisma migrations & demo seed                                                                                                             |
+| `npm test` / `test:unit` / `test:integration`  | vitest suites (integration needs the test DB from `.env.test`)                                                                            |
 | `npm run test:e2e`                             | 62 E2E specs over real HTTP — start `npm run dev -- --turbopack -p 3100` first (`.env.test` points E2E at :3100); needs the seeded dev DB |
-| `npm run cleanup:demo`                         | pre-launch demo-data cleanup — DRY RUN by default; add `-- --execute` to apply |
-| `npm run typecheck` / `lint` / `format`        | quality gates                                                  |
-| `npm run audit:deps`                           | dependency vulnerability audit                                 |
-| `npm run verify`                               | typecheck + lint + test + build (CI gate)                      |
+| `npm run cleanup:demo`                         | pre-launch demo-data cleanup — DRY RUN by default; add `-- --execute` to apply                                                            |
+| `npm run typecheck` / `lint` / `format`        | quality gates                                                                                                                             |
+| `npm run audit:deps`                           | dependency vulnerability audit                                                                                                            |
+| `npm run verify`                               | typecheck + lint + test + build (CI gate)                                                                                                 |
 
 ## Repository map
 
@@ -188,6 +188,10 @@ docs/ENVIRONMENT.md      every env var: required?, secret?, where to get it
 docs/SECURITY.md         security posture + verified controls
 docs/SUPPLIER_SETUP.md   CJ / manual / HTTP-REST supplier onboarding
 docs/PAYMENT_SETUP.md    Razorpay + COD + refunds
+docs/STORAGE_SETUP.md    durable upload provider + real Preview verification
+docs/OWNER_ACTION_REQUIRED.md  current owner-only business/cloud/compliance gates
+docs/OPERATIONAL_VERIFICATION.md  Preview worker/email + isolated Neon restore evidence
+docs/LAUNCH_EVIDENCE.md    commit-linked phase status, tests, Preview and release gates
 docs/DEPLOYMENT.md       Vercel + Neon deploy + post-deploy checks
 docs/TROUBLESHOOTING.md  symptom → cause → fix
 docs/SUPPLIER_API.md     supplier integration contract

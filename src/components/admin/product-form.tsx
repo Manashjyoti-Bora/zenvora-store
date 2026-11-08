@@ -236,8 +236,14 @@ export function ProductForm({
           json?.error?.details
         );
       const url = (json?.data?.url ?? json?.url) as string;
+      const persistent = (json?.data?.persistent ?? json?.persistent) as boolean | undefined;
       setForm((f) => ({ ...f, images: [...f.images, { url, alt: '' }] }));
-      toast('Image uploaded', 'success');
+      toast(
+        persistent === false
+          ? 'Image uploaded to local development storage'
+          : 'Image uploaded to durable storage',
+        persistent === false ? 'info' : 'success'
+      );
     } catch (err) {
       toast(err instanceof ApiClientError ? err.message : 'Upload failed', 'error');
     } finally {
@@ -886,10 +892,10 @@ export function ProductForm({
               </div>
             </div>
             <p className="text-xs text-ink-400">
-              Uploaded files are stored on this server&apos;s disk. On serverless hosts (for
-              example Vercel) the disk is ephemeral: uploads can disappear on the next deploy. For
-              permanent production images, prefer an external image URL (CDN/object storage) or
-              re-upload after deploys — see SETUP_CHECKLIST.md.
+              Uploads use the configured storage provider. Local disk is for development only;
+              Production uploads fail closed until durable S3-compatible or Cloudinary storage is
+              configured. Save the product to persist the returned URL in its database record. See
+              docs/STORAGE_SETUP.md.
             </p>
             {fieldErrors.images && (
               <p className="text-sm font-medium text-red-600" role="alert">
@@ -899,8 +905,8 @@ export function ProductForm({
             {form.images.length === 0 ? (
               <p className="text-sm text-ink-400">
                 No images yet. Upload (JPEG/PNG/WEBP/GIF/AVIF, max 5 MB) or paste a URL below. The
-                first image is the primary one. A product needs at least one image before it can
-                be published.
+                first image is the primary one. A product needs at least one image before it can be
+                published.
               </p>
             ) : (
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">

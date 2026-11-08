@@ -6,7 +6,7 @@ import { TableWrap, Th, Td, Pagination } from '@/components/ui/table';
 import { OrderStatusBadge, PaymentStatusBadge, FulfilmentStatusBadge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/feedback';
 import { ReceiptIcon } from '@/components/ui/icons';
-import type { Prisma } from '@prisma/client';
+import { buildAdminOrderWhere, parseAdminOrderFilters } from '@/lib/orders/admin-filters';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,35 +42,14 @@ export default async function AdminOrdersPage({
     payment?: string;
     fulfilment?: string;
     method?: string;
+    provider?: string;
     page?: string;
   }>;
 }) {
-  const sp = await searchParams;
-  const page = Math.max(1, parseInt(sp.page ?? '1', 10) || 1);
-
-  const where: Prisma.OrderWhereInput = {};
-  if (sp.q?.trim()) {
-    const term = sp.q.trim();
-    where.OR = [
-      { orderNumber: { contains: term, mode: 'insensitive' } },
-      { guestEmail: { contains: term, mode: 'insensitive' } },
-      { guestName: { contains: term, mode: 'insensitive' } },
-      {
-        user: {
-          OR: [
-            { email: { contains: term, mode: 'insensitive' } },
-            { name: { contains: term, mode: 'insensitive' } },
-          ],
-        },
-      },
-    ];
-  }
-  if (sp.status && STATUSES.includes(sp.status))
-    where.status = sp.status as Prisma.OrderWhereInput['status'];
-  if (sp.payment) where.paymentStatus = sp.payment as Prisma.OrderWhereInput['paymentStatus'];
-  if (sp.fulfilment)
-    where.fulfilmentStatus = sp.fulfilment as Prisma.OrderWhereInput['fulfilmentStatus'];
-  if (sp.method) where.paymentMethod = sp.method as Prisma.OrderWhereInput['paymentMethod'];
+  const raw = await searchParams;
+  const sp = parseAdminOrderFilters(raw);
+  const page = Math.max(1, parseInt(raw.page ?? '1', 10) || 1);
+  const where = buildAdminOrderWhere(sp);
 
   const [orders, total] = await Promise.all([
     prisma.order.findMany({
@@ -98,6 +77,14 @@ export default async function AdminOrdersPage({
     prisma.order.count({ where }),
   ]);
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+  const filterParams = {
+    q: sp.q || undefined,
+    status: sp.status === 'ALL' ? undefined : sp.status,
+    payment: sp.payment,
+    fulfilment: sp.fulfilment,
+    method: sp.method,
+    provider: sp.provider,
+  };
 
   return (
     <div className="space-y-5">
@@ -124,7 +111,7 @@ export default async function AdminOrdersPage({
         />
         <select
           name="status"
-          defaultValue={sp.status ?? ''}
+          defaultValue={sp.status === 'ALL' ? '' : sp.status}
           className="input-base w-auto"
           aria-label="Order status"
         >
@@ -180,9 +167,18 @@ export default async function AdminOrdersPage({
           aria-label="Payment method"
         >
           <option value="">Any method</option>
-          <option value="PREPAID_GATEWAY">Online</option>
+          <option value="PREPAID_GATEWAY">Online (all providers)</option>
           <option value="COD">COD</option>
-          <option value="TEST">TEST</option>
+        </select>
+        <select
+          name="provider"
+          defaultValue={sp.provider ?? ''}
+          className="input-base w-auto"
+          aria-label="Recorded payment provider"
+        >
+          <option value="">Any recorded provider</option>
+          <option value="RAZORPAY">Razorpay</option>
+          <option value="TEST">TEST simulation</option>
         </select>
         <button
           type="submit"
@@ -190,7 +186,12 @@ export default async function AdminOrdersPage({
         >
           Filter
         </button>
-        {(sp.q || sp.status || sp.payment || sp.fulfilment || sp.method) && (
+        {(sp.q ||
+          sp.status !== 'ALL' ||
+          sp.payment ||
+          sp.fulfilment ||
+          sp.method ||
+          sp.provider) && (
           <Link href="/admin/orders" className="text-sm text-brand-700 hover:underline">
             Clear
           </Link>
@@ -286,13 +287,7 @@ export default async function AdminOrdersPage({
         page={page}
         totalPages={totalPages}
         basePath="/admin/orders"
-        searchParams={{
-          q: sp.q,
-          status: sp.status,
-          payment: sp.payment,
-          fulfilment: sp.fulfilment,
-          method: sp.method,
-        }}
+        searchParams={filterParams}
       />
     </div>
   );

@@ -45,7 +45,7 @@ Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy.
 | `jobs/` | DB-backed queue (`Job` model, dedupe key), runner, handlers | Types: `FULFIL_SUPPLIER_ORDER`, `SYNC_SUPPLIER_ORDER`, `CANCEL_SUPPLIER_ORDER`, `SEND_NOTIFICATION` |
 | `notifications/` | templates, providers (SMTP / console), queue | Never sends to the placeholder `support@example.com` |
 | `images/` | `remote-hosts.mjs` allow-list shared by `next.config.mjs` and `<RemoteImage>` | Non-listed hosts render unoptimised, never 500 |
-| `storage/` | local / S3 / Cloudinary | Local is ephemeral on Vercel |
+| `storage/` | local / S3 / Cloudinary | Local is development/test-only; Production fails closed without durable configuration |
 | `rate-limit.ts` | shared counters in `rate_limit_buckets` | Keys hashed (SHA-256), purged daily |
 | `settings.ts` | single JSON `Setting` row, zod-validated, 30 s cache | `autoImport.autoPublishEligible` defaults to **false** |
 

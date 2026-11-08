@@ -7,6 +7,7 @@ import { apiFetch, ApiClientError } from '@/lib/client/api';
 import { toast } from '@/components/ui/toaster';
 import { Button, Spinner } from '@/components/ui/button';
 import { Alert } from '@/components/ui/feedback';
+import type { PublicPaymentProvider } from '@/lib/payments/public-messaging';
 import { formatINR } from '@/lib/money';
 
 /* Razorpay Checkout.js is loaded on demand (only when a real gateway payment
@@ -78,11 +79,13 @@ interface CreateResponse {
 export function PaymentFlow({
   orderNumber,
   amountPaise,
+  providerKind,
   guestEmail,
   initialFailure,
 }: {
   orderNumber: string;
   amountPaise: number;
+  providerKind: PublicPaymentProvider;
   guestEmail?: string;
   initialFailure?: string | null;
 }) {
@@ -212,14 +215,43 @@ export function PaymentFlow({
       {phase === 'idle' && (
         <>
           {error && <Alert tone="warning">{error}</Alert>}
-          <p className="text-sm text-ink-500">
-            You will be taken to a secure payment window to pay{' '}
-            <strong className="tabular-nums">{formatINR(amountPaise)}</strong> for order{' '}
-            <strong>{orderNumber}</strong>. We never see or store your card or UPI credentials.
-          </p>
-          <Button size="lg" className="w-full" onClick={start}>
-            Pay {formatINR(amountPaise)} securely
-          </Button>
+          {providerKind === 'NONE' ? (
+            <Alert tone="warning" title="Online payment unavailable">
+              Online payments are not configured for order <strong>{orderNumber}</strong>. Do not
+              attempt a bank transfer or repeat payment. Contact support so the owner can review the
+              saved order.
+            </Alert>
+          ) : (
+            <>
+              {providerKind === 'TEST' && (
+                <Alert tone="warning" title="TEST payment mode">
+                  This is a development-only simulation. No real money moves and no real card or
+                  bank credentials are needed.
+                </Alert>
+              )}
+              <p className="text-sm text-ink-500">
+                {providerKind === 'TEST' ? (
+                  <>
+                    Open the TEST payment simulator for{' '}
+                    <strong className="tabular-nums">{formatINR(amountPaise)}</strong> on order{' '}
+                    <strong>{orderNumber}</strong>. The simulated amount is not a real charge.
+                  </>
+                ) : (
+                  <>
+                    You will be taken to a secure payment window to pay{' '}
+                    <strong className="tabular-nums">{formatINR(amountPaise)}</strong> for order{' '}
+                    <strong>{orderNumber}</strong>. We never see or store your card or UPI
+                    credentials.
+                  </>
+                )}
+              </p>
+              <Button size="lg" className="w-full" onClick={start}>
+                {providerKind === 'TEST'
+                  ? 'Open TEST payment simulator'
+                  : `Pay ${formatINR(amountPaise)} securely`}
+              </Button>
+            </>
+          )}
         </>
       )}
 
@@ -228,8 +260,12 @@ export function PaymentFlow({
           <Spinner className="h-7 w-7 text-brand-600" />
           <p className="text-sm text-ink-500">
             {phase === 'starting'
-              ? 'Opening secure payment window…'
-              : 'Verifying your payment with the gateway…'}
+              ? providerKind === 'TEST'
+                ? 'Starting TEST payment simulator…'
+                : 'Opening secure payment window…'
+              : providerKind === 'TEST'
+                ? 'Confirming TEST payment — no real money moves…'
+                : 'Verifying your payment with the gateway…'}
           </p>
           <p className="text-xs text-ink-400">Please do not close or refresh this page.</p>
         </div>
@@ -248,9 +284,8 @@ export function PaymentFlow({
       {phase === 'test-panel' && (
         <div className="space-y-4">
           <Alert tone="warning" title="TEST payment mode">
-            This store has no live payment gateway credentials yet. The TEST provider runs the exact
-            same order pipeline but <strong>no real money moves</strong>. This panel never appears
-            in production.
+            This environment uses the TEST provider to exercise the order pipeline, but{' '}
+            <strong>no real money moves</strong>. This panel never appears in production.
           </Alert>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Button
@@ -281,13 +316,14 @@ export function PaymentFlow({
             {error ?? 'The payment could not be completed.'}
           </Alert>
           <p className="text-sm text-ink-500">
-            Your order <strong>{orderNumber}</strong> is saved and its items are reserved. Nothing
-            has been charged unless your bank shows a debit — in that case do not retry and contact
-            support immediately.
+            Your order <strong>{orderNumber}</strong> is saved and its items are reserved.{' '}
+            {providerKind === 'TEST'
+              ? 'This was a TEST simulation; no real money moved.'
+              : 'Nothing has been charged unless your bank shows a debit — in that case do not retry and contact support immediately.'}
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button size="lg" onClick={start} className="flex-1">
-              Retry payment
+              {providerKind === 'TEST' ? 'Retry TEST simulation' : 'Retry payment'}
             </Button>
             <Link
               href="/contact"
@@ -301,10 +337,17 @@ export function PaymentFlow({
 
       {phase === 'pending' && (
         <div className="space-y-4">
-          <Alert tone="info" title="Payment is being confirmed">
-            Your bank has accepted the payment but final confirmation is still in progress. This
-            usually resolves within a few minutes. We will email you as soon as it is confirmed —
-            please do not pay again.
+          <Alert
+            tone="info"
+            title={
+              providerKind === 'TEST'
+                ? 'TEST simulation is being confirmed'
+                : 'Payment is being confirmed'
+            }
+          >
+            {providerKind === 'TEST'
+              ? 'TEST payment confirmation is still in progress; no real money moves.'
+              : 'Your bank has accepted the payment but final confirmation is still in progress. This usually resolves within a few minutes. Use the order-status page for updates and please do not pay again.'}
           </Alert>
           <Button
             variant="outline"

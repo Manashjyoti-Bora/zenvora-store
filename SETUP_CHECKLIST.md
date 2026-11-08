@@ -224,9 +224,10 @@ before forwarding (the UI states this).
 
 ## Addendum 2026-09-08 (v6)
 
-- New optional configuration: STORAGE_PROVIDER (local|s3|cloudinary) for durable product images —
-  see USER_INPUT_REQUIRED.md item B7 and docs/ENVIRONMENT.md. Without it uploads work but are
-  ephemeral on Vercel (the admin UI warns).
+- Storage configuration: STORAGE_PROVIDER (local|s3|cloudinary) for product images —
+  see USER_INPUT_REQUIRED.md item B7, docs/ENVIRONMENT.md and docs/STORAGE_SETUP.md. Local disk is
+  development/test-only and ephemeral on Vercel. Production now fails closed with a launch blocker
+  and HTTP 503 instead of silently falling back when durable storage is absent or misconfigured.
 - New admin capabilities requiring no setup: pricing settings (Admin → Settings → Pricing &
   margin protection), first-order coupons, per-product low-stock thresholds (Admin → Inventory),
   RTO marking (Admin → Orders), auto-pricing on supplier-product mapping (Admin → Supplier

@@ -9,6 +9,7 @@ import { LinkButton } from '@/components/ui/button';
 import { Pagination } from '@/components/ui/table';
 import type { OrderStatus, Prisma } from '@prisma/client';
 import { BoxIcon } from '@/components/ui/icons';
+import { describeOrderPayment } from '@/lib/payments/order-messaging';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +81,10 @@ export default async function OrdersPage({
         paymentMethod: true,
         _count: { select: { items: true } },
         items: { take: 1, select: { productSnapshot: true } },
+        payments: {
+          orderBy: { createdAt: 'desc' },
+          select: { provider: true, status: true, createdAt: true, paidAt: true },
+        },
       },
     }),
     prisma.order.count({ where }),
@@ -143,7 +148,7 @@ export default async function OrdersPage({
                         timeStyle: 'short',
                       }).format(o.createdAt)}{' '}
                       · {o._count.items} item{o._count.items === 1 ? '' : 's'} ·{' '}
-                      {o.paymentMethod === 'COD' ? 'Cash on Delivery' : 'Paid online'}
+                      {describeOrderPayment(o).methodLabel}
                     </p>
                     {snap.name && (
                       <p className="mt-1 line-clamp-1 text-xs text-ink-400">

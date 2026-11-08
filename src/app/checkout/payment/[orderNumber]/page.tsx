@@ -5,6 +5,7 @@ import { findOrderForAccess } from '@/lib/orders/access';
 import { toPaise, formatINR } from '@/lib/money';
 import { PaymentFlow } from '@/components/checkout/payment-flow';
 import { CheckoutSteps } from '@/components/store/checkout-steps';
+import { describePaymentProvider } from '@/lib/payments';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,6 +59,7 @@ export default async function PaymentPage({
         <PaymentFlow
           orderNumber={order.orderNumber}
           amountPaise={toPaise(order.grandTotal)}
+          providerKind={describePaymentProvider().kind}
           guestEmail={order.guestEmail ?? undefined}
           initialFailure={
             order.status === 'PAYMENT_FAILED'
