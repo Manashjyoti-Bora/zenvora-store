@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { logger, persistError } from './logger';
 import { verifyCsrfFromRequest } from './csrf';
+import { StorageNotConfiguredError } from './storage/types';
 
 /** Typed HTTP error with a machine-readable code and optional field details. */
 export class ApiError extends Error {
@@ -95,6 +96,14 @@ export function handleApiError(err: unknown, req?: Request): Response {
         },
       },
       { status: 400 }
+    );
+  }
+
+  if (err instanceof StorageNotConfiguredError) {
+    logger.error('Storage is not configured', { code: 'STORAGE_NOT_CONFIGURED', url });
+    return NextResponse.json(
+      { error: { code: 'STORAGE_NOT_CONFIGURED', message: err.message, details: null } },
+      { status: 503 }
     );
   }
 

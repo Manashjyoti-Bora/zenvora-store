@@ -20,8 +20,8 @@
  * Configuration: `IMAGE_REMOTE_HOSTS="cdn.example.com,**.other.net"`
  * (comma-separated, Next.js `remotePatterns` hostname syntax; `*` = one
  * label, `**` = any number of labels). The value REPLACES the defaults so an
- * operator can also tighten the list. Hosts of configured storage providers
- * (S3 public base URL / endpoint, Cloudinary) are always appended.
+ * operator can also tighten the list. Hosts of configured public storage URLs
+ * (S3 public base URL, Cloudinary) are always appended; API-only endpoints are not.
  */
 
 /** Hosts the project integrates with out of the box. */
@@ -57,12 +57,7 @@ export function resolveImageRemoteHosts(env = process.env) {
     .map((h) => h.trim().toLowerCase())
     .filter(Boolean);
   const base = configured.length > 0 ? configured : [...DEFAULT_IMAGE_REMOTE_HOSTS];
-  const extra = [hostOf(env.S3_PUBLIC_BASE_URL), hostOf(env.S3_ENDPOINT)].filter(Boolean);
-  if (env.S3_BUCKET && env.S3_ENDPOINT) {
-    // R2 / MinIO style virtual-hosted URL (`<bucket>.<endpoint host>`), see src/lib/storage/s3.ts.
-    const endpointHost = hostOf(env.S3_ENDPOINT);
-    if (endpointHost) extra.push(`${env.S3_BUCKET}.${endpointHost}`.toLowerCase());
-  }
+  const extra = [hostOf(env.S3_PUBLIC_BASE_URL)].filter(Boolean);
   const all = [...base, ...extra].filter((h) => HOST_PATTERN.test(h));
   return [...new Set(all)];
 }

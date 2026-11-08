@@ -66,7 +66,12 @@ export class HttpAgent {
     this.jar.set(name, value);
   }
 
-  async request(method: string, path: string, body?: Json, opts: RequestOptions = {}): Promise<E2EResponse> {
+  async request(
+    method: string,
+    path: string,
+    body?: Json,
+    opts: RequestOptions = {}
+  ): Promise<E2EResponse> {
     const headers: Record<string, string> = {
       accept: 'application/json, text/html;q=0.9',
       'user-agent': 'resellix-e2e/1.0',
@@ -77,10 +82,13 @@ export class HttpAgent {
       headers.cookie = [...this.jar.entries()].map(([n, v]) => `${n}=${v}`).join('; ');
     }
 
-    let payload: string | undefined;
+    let payload: BodyInit | undefined;
     if (opts.rawBody !== undefined) {
       payload = opts.rawBody;
       headers['content-type'] ??= 'application/json';
+    } else if (body instanceof FormData) {
+      // fetch supplies the multipart boundary; never overwrite it with JSON.
+      payload = body;
     } else if (body !== undefined) {
       payload = JSON.stringify(body);
       headers['content-type'] = 'application/json';
@@ -90,7 +98,12 @@ export class HttpAgent {
       headers['x-csrf-token'] = this.csrfToken;
     }
 
-    const res = await fetch(`${this.baseUrl}${path}`, { method, headers, body: payload, redirect: 'manual' });
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method,
+      headers,
+      body: payload,
+      redirect: 'manual',
+    });
 
     for (const raw of res.headers.getSetCookie?.() ?? []) {
       const parsed = parseSetCookie(raw);
@@ -140,7 +153,10 @@ export class HttpAgent {
 }
 
 /** Poll a URL until the dev server answers (compile-on-first-request can take a while). */
-export async function waitForServer(baseUrl: string = E2E_BASE_URL, timeoutMs = 120_000): Promise<void> {
+export async function waitForServer(
+  baseUrl: string = E2E_BASE_URL,
+  timeoutMs = 120_000
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let lastError: unknown;
   while (Date.now() < deadline) {
@@ -181,7 +197,11 @@ export function errCode(res: E2EResponse): string | undefined {
 }
 
 /** Poll a predicate until it returns a truthy value (job runner is async). */
-export async function pollUntil<T>(fn: () => Promise<T> | T, timeoutMs = 20_000, intervalMs = 500): Promise<T> {
+export async function pollUntil<T>(
+  fn: () => Promise<T> | T,
+  timeoutMs = 20_000,
+  intervalMs = 500
+): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   let last: T | undefined;
   while (Date.now() < deadline) {

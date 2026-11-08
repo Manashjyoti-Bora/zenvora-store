@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { prisma } from './db';
 import { env } from './env';
+import { isPlaceholderEmail } from './support-email';
+
+export { isPlaceholderEmail } from './support-email';
 
 /**
  * Store settings: typed key-value configuration stored in the database,
@@ -251,11 +254,6 @@ export const settingsPatchSchema = z.record(z.string(), z.unknown());
  * pages must never advertise it and notifications must never be sent to it.
  * (RFC 2606 reserves example.com/.net/.org for documentation.)
  */
-export function isPlaceholderEmail(email: string | null | undefined): boolean {
-  if (!email) return true;
-  return /@(?:[a-z0-9-]+\.)*example\.(?:com|net|org)$/i.test(email.trim());
-}
-
 /** The configured support address, or null while it is still the placeholder. */
 export function configuredSupportEmail(
   settings: Pick<StoreSettings, 'supportEmail'>
