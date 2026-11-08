@@ -188,5 +188,4 @@ jobs:
 
       # Required release gate for production-dependency advisories.
       - name: Production dependency audit (high+)
-        continue-on-error: true
         run: npm audit --omit=dev --audit-level=high
