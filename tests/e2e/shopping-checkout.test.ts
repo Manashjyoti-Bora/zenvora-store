@@ -201,7 +201,7 @@ describe('checkout — prepaid + TEST payment + auto fulfilment', () => {
     const res = await agent.get(`/checkout/payment/${orderNumber}`);
     expect(res.status).toBe(200);
     expect(res.body).toContain('Open TEST payment simulator');
-    expect(res.body).toContain('no real money moves');
+    expect(res.body).toContain('No real money moves');
     expect(res.body).not.toContain('You will be taken to a secure payment window');
   });
 
