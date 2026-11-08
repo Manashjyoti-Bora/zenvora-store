@@ -51,8 +51,10 @@ jobs:
       - name: Install dependencies (lockfile must be in sync)
         run: npm ci
 
-      - name: Prisma schema validation + client generation
+      - name: Prisma 6.19.3 schema validation + client generation
         run: |
+          test "$(node -p "require('prisma/package.json').version")" = "6.19.3"
+          test "$(node -p "require('@prisma/client/package.json').version")" = "6.19.3"
           npx prisma validate
           npx prisma generate
 
@@ -184,8 +186,7 @@ jobs:
         if: failure()
         run: tail -200 /tmp/next-dev.log || true
 
-      # Production-dependency advisories. Reported in the job log; does not block
-      # unrelated PRs, but keeps the signal visible on every run.
+      # Required release gate for production-dependency advisories.
       - name: Production dependency audit (high+)
         continue-on-error: true
         run: npm audit --omit=dev --audit-level=high

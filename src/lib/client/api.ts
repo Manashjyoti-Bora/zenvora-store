@@ -34,11 +34,12 @@ export interface ApiFetchOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
   signal?: AbortSignal;
+  headers?: Record<string, string>;
 }
 
 export async function apiFetch<T = unknown>(url: string, opts: ApiFetchOptions = {}): Promise<T> {
   const method = opts.method ?? 'POST';
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...opts.headers };
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (method !== 'GET') {
     const csrf = getCookie('resellix_csrf');

@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto';
 import { prisma } from '../db';
+import { withSerializableTransactionRetry } from '../db-transaction';
 import { badRequest, conflict, notFound } from '../errors';
 import { formatINR, toPaise } from '../money';
 import { logger } from '../logger';
@@ -26,6 +28,8 @@ export interface CreateRefundInput {
   returnRequestId?: string | null;
   actor?: OrderActorType;
   actorId?: string | null;
+  /** Stable across retries of one admin operation. */
+  idempotencyKey?: string | null;
 }
 
 export interface RefundReservation {
@@ -48,6 +52,13 @@ export async function reserveRefund(tx: Tx, input: CreateRefundInput): Promise<R
   if (!Number.isSafeInteger(input.amountPaise) || input.amountPaise <= 0) {
     throw badRequest('Refund amount must be a positive whole number of paise.');
   }
+  const idempotencyKey = input.idempotencyKey?.trim() || null;
+  if (idempotencyKey && idempotencyKey.length > 200) {
+    throw badRequest('Refund idempotency key must not exceed 200 characters.');
+  }
+  const reservationId = idempotencyKey
+    ? keyedRefundReservationId(input.orderId, idempotencyKey)
+    : null;
 
   await tx.$queryRaw<Array<{ id: string }>>`
     SELECT "id" FROM "orders" WHERE "id" = ${input.orderId} FOR UPDATE
@@ -58,28 +69,35 @@ export async function reserveRefund(tx: Tx, input: CreateRefundInput): Promise<R
   });
   if (!order) throw notFound('Order not found');
 
-  if (input.returnRequestId) {
-    const prior = order.refunds.find(
-      (refund) => refund.returnRequestId === input.returnRequestId && refund.status !== 'FAILED'
-    );
-    if (prior) {
-      if (toPaise(prior.amount) !== input.amountPaise) {
-        throw conflict(
-          'A refund reservation already exists for this return with a different amount.'
-        );
-      }
-      const payment = order.payments.find((candidate) => candidate.id === prior.paymentId);
-      return {
-        refundId: prior.id,
-        orderId: order.id,
-        paymentId: prior.paymentId,
-        providerPaymentId: payment?.providerPaymentId ?? null,
-        provider: prior.provider,
-        amountPaise: toPaise(prior.amount),
-        status: prior.status,
-        existing: true,
-      };
+  const existingReservation = (prior: (typeof order.refunds)[number]): RefundReservation => {
+    if (
+      toPaise(prior.amount) !== input.amountPaise ||
+      (prior.returnRequestId ?? null) !== (input.returnRequestId ?? null)
+    ) {
+      throw conflict('The refund idempotency key was already used for a different request.');
     }
+    const payment = order.payments.find((candidate) => candidate.id === prior.paymentId);
+    return {
+      refundId: prior.id,
+      orderId: order.id,
+      paymentId: prior.paymentId,
+      providerPaymentId: payment?.providerPaymentId ?? null,
+      provider: prior.provider,
+      amountPaise: toPaise(prior.amount),
+      status: prior.status,
+      existing: true,
+    };
+  };
+
+  if (reservationId) {
+    const prior = order.refunds.find((refund) => refund.id === reservationId);
+    if (prior) return existingReservation(prior);
+  }
+  if (input.returnRequestId) {
+    // A return has one durable refund reservation, including unresolved FAILED
+    // outcomes that may later be confirmed completed by the provider.
+    const prior = order.refunds.find((refund) => refund.returnRequestId === input.returnRequestId);
+    if (prior) return existingReservation(prior);
   }
 
   const paidPayments = order.payments.filter((payment) =>
@@ -133,6 +151,7 @@ export async function reserveRefund(tx: Tx, input: CreateRefundInput): Promise<R
   const actor = input.actor ?? 'ADMIN';
   const refund = await tx.refund.create({
     data: {
+      id: reservationId ?? undefined,
       orderId: order.id,
       paymentId: payment?.id ?? null,
       returnRequestId: input.returnRequestId ?? null,
@@ -191,10 +210,8 @@ export async function reserveRefund(tx: Tx, input: CreateRefundInput): Promise<R
 /** Reserve first, then perform any provider request outside the DB transaction. */
 export async function createRefund(
   input: CreateRefundInput
-): Promise<{ refundId: string; status: string }> {
-  const reservation = await prisma.$transaction((tx) => reserveRefund(tx, input), {
-    isolationLevel: 'Serializable',
-  });
+): Promise<{ refundId: string; status: string; duplicate: boolean }> {
+  const reservation = await withSerializableTransactionRetry((tx) => reserveRefund(tx, input));
   const result = await processRefundReservation(reservation, input.reason);
   if (!reservation.existing) {
     await auditLog({
@@ -209,7 +226,11 @@ export async function createRefund(
       },
     });
   }
-  return result;
+  return { ...result, duplicate: reservation.existing };
+}
+
+function keyedRefundReservationId(orderId: string, idempotencyKey: string): string {
+  return `refund_${createHash('sha256').update(`${orderId}\0${idempotencyKey}`).digest('hex').slice(0, 48)}`;
 }
 
 /**
@@ -263,6 +284,7 @@ export async function processRefundReservation(
       providerPaymentId: reservation.providerPaymentId,
       amountPaise: reservation.amountPaise,
       reason,
+      refundId: current.id,
     });
     if (result.providerRefundId) {
       await prisma.refund.updateMany({
@@ -345,18 +367,35 @@ export async function settleRefund(params: {
     `;
     const refund = await tx.refund.findUnique({ where: { id: candidate.id } });
     if (!refund) return null;
-    if (refund.status === params.status || refund.status === 'COMPLETED') return null;
+    if (
+      params.providerRefundId &&
+      refund.providerRefundId &&
+      refund.providerRefundId !== params.providerRefundId
+    ) {
+      throw conflict('Refund provider id does not match the existing reservation.');
+    }
+    // COMPLETED is terminal. FAILED remains an unresolved reservation because
+    // a verified later completion may arrive out of order.
+    if (refund.status === 'COMPLETED' && params.status !== 'COMPLETED') return null;
+    if (refund.status === params.status) {
+      // Repair a provider-id persistence gap without duplicating ledger events.
+      if (params.providerRefundId && refund.providerRefundId !== params.providerRefundId) {
+        await tx.refund.update({
+          where: { id: refund.id },
+          data: { providerRefundId: params.providerRefundId },
+        });
+      }
+      return null;
+    }
 
-    // COMPLETED is a terminal financial fact. A late FAILED delivery never
-    // reverses money already confirmed as returned. A later verified success
-    // may supersede FAILED because webhook deliveries can be out of order.
     const update = await tx.refund.updateMany({
       where: { id: refund.id, status: refund.status },
       data: {
         status: params.status,
+        providerRefundId: params.providerRefundId ?? refund.providerRefundId,
         failureReason:
           params.status === 'FAILED' ? (params.failureReason ?? refund.failureReason) : null,
-        ...(params.status === 'COMPLETED' ? { processedAt: new Date() } : {}),
+        ...(params.status === 'COMPLETED' ? { processedAt: refund.processedAt ?? new Date() } : {}),
       },
     });
     if (update.count !== 1) return null;
@@ -371,7 +410,10 @@ export async function settleRefund(params: {
             : `Refund failed: ${params.failureReason ?? 'provider confirmed failure'}`,
         actorType: params.actor ?? 'PAYMENT_PROVIDER',
         actorId: params.actorId ?? null,
-        data: { refundId: refund.id, providerRefundId: refund.providerRefundId },
+        data: {
+          refundId: refund.id,
+          providerRefundId: params.providerRefundId ?? refund.providerRefundId,
+        },
       },
     });
 
@@ -471,18 +513,10 @@ async function applyRefundLedgerInTransaction(tx: Tx, orderId: string): Promise<
     canTransition(currentOrder.status, 'REFUND_PENDING')
   ) {
     nextStatus = 'REFUND_PENDING';
-  } else if (
-    !hasUnsettledObligation &&
-    settledTotal > 0 &&
-    currentOrder.status === 'REFUND_PENDING'
-  ) {
-    const candidates = currentOrder.cancelledAt
-      ? (['CANCELLED'] as const)
-      : (['DELIVERED', 'SHIPPED', 'PROCESSING', 'ORDER_CONFIRMED'] as const);
-    nextStatus =
-      candidates.find((candidate) => canTransition(currentOrder.status, candidate)) ??
-      currentOrder.status;
   }
+  // A partial settlement stays REFUND_PENDING for explicit operational review.
+  // The schema does not record the pre-refund status, so guessing a return to
+  // DELIVERED/SHIPPED/PROCESSING could fabricate fulfilment that never happened.
 
   if (nextStatus !== currentOrder.status) {
     const updated = await tx.order.updateMany({
@@ -500,9 +534,7 @@ async function applyRefundLedgerInTransaction(tx: Tx, orderId: string): Promise<
         message:
           nextStatus === 'REFUNDED'
             ? 'All captured funds are confirmed refunded'
-            : nextStatus === 'REFUND_PENDING'
-              ? 'Refund obligation remains unresolved'
-              : 'Partial refund settled; order state restored',
+            : 'Refund obligation remains unresolved',
         actorType: 'SYSTEM',
       },
     });

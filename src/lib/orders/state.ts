@@ -121,6 +121,8 @@ export interface TransitionParams {
   set?: Prisma.OrderUpdateInput;
   /** When provided, the transition only applies if current status matches. */
   expectedFrom?: OrderStatus[];
+  /** Optional second CAS dimension for payment/failure/capture races. */
+  expectedPaymentStatus?: OrderPaymentStatus[];
 }
 
 /**
@@ -130,6 +132,28 @@ export interface TransitionParams {
  * because another process already moved the order (idempotent pipelines).
  */
 export async function transitionOrder(params: TransitionParams): Promise<Order | null> {
+  return prisma.$transaction((tx) => transitionOrderInTransaction(tx, params));
+}
+
+/** Serialize financial decisions for one order without holding a long transaction. */
+export async function lockOrderForUpdate(
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<boolean> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE
+  `;
+  return rows.length === 1;
+}
+
+/**
+ * Transaction-client variant for financial workflows that already hold the
+ * order row lock. Ordinary callers should continue to use transitionOrder.
+ */
+export async function transitionOrderInTransaction(
+  tx: Prisma.TransactionClient,
+  params: TransitionParams
+): Promise<Order | null> {
   const {
     orderId,
     to,
@@ -139,63 +163,74 @@ export async function transitionOrder(params: TransitionParams): Promise<Order |
     data,
     set,
     expectedFrom,
+    expectedPaymentStatus,
   } = params;
 
-  return prisma.$transaction(async (tx) => {
-    const order = await tx.order.findUnique({ where: { id: orderId } });
-    if (!order) throw conflict('Order not found');
+  const order = await tx.order.findUnique({ where: { id: orderId } });
+  if (!order) throw conflict('Order not found');
 
-    if (order.status === to) {
-      logger.info('Order transition no-op (already in target status)', { orderId, to });
-      return order;
-    }
-    if (!canTransition(order.status, to)) {
-      throw conflict(`Illegal order status transition: ${order.status} → ${to}`);
-    }
-    if (expectedFrom && !expectedFrom.includes(order.status)) {
-      logger.info('Order transition skipped (concurrent update)', {
-        orderId,
-        from: order.status,
-        expectedFrom,
-        to,
-      });
-      return null;
-    }
-
-    // Compare-and-swap: only update if the status is still what we read.
-    // Under concurrent transitions (e.g. customer cancel racing a payment
-    // webhook) exactly ONE writer wins; the loser returns null instead of
-    // overwriting the winner's state.
-    const { count } = await tx.order.updateMany({
-      where: { id: orderId, status: order.status },
-      data: { status: to, ...(set ?? {}) },
+  if (expectedPaymentStatus && !expectedPaymentStatus.includes(order.paymentStatus)) {
+    logger.info('Order transition skipped (payment status changed)', {
+      orderId,
+      paymentStatus: order.paymentStatus,
+      to,
     });
-    if (count === 0) {
-      logger.info('Order transition lost concurrent race (CAS)', {
-        orderId,
-        readStatus: order.status,
-        to,
-      });
-      return null;
-    }
-    const updated = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
-
-    await tx.orderEvent.create({
-      data: {
-        orderId,
-        type: 'STATUS_TRANSITION',
-        fromStatus: order.status,
-        toStatus: to,
-        message: message ?? null,
-        actorType,
-        actorId,
-        data: (data ?? {}) as Prisma.InputJsonValue,
-      },
+    return null;
+  }
+  if (order.status === to) {
+    logger.info('Order transition no-op (already in target status)', { orderId, to });
+    return order;
+  }
+  if (!canTransition(order.status, to)) {
+    throw conflict(`Illegal order status transition: ${order.status} → ${to}`);
+  }
+  if (expectedFrom && !expectedFrom.includes(order.status)) {
+    logger.info('Order transition skipped (concurrent update)', {
+      orderId,
+      from: order.status,
+      expectedFrom,
+      to,
     });
+    return null;
+  }
 
-    logger.info('Order status transition', { orderId, from: order.status, to, actorType });
-    return updated;
+  // Compare-and-swap: only update if the status is still what we read.
+  // Under concurrent transitions (e.g. customer cancel racing a payment
+  // webhook) exactly ONE writer wins; the loser returns null instead of
+  // overwriting the winner's state.
+  const { count } = await tx.order.updateMany({
+    where: {
+      id: orderId,
+      status: order.status,
+      ...(expectedPaymentStatus ? { paymentStatus: { in: expectedPaymentStatus } } : {}),
+    },
+    data: { status: to, ...(set ?? {}) },
   });
+  if (count === 0) {
+    logger.info('Order transition lost concurrent race (CAS)', {
+      orderId,
+      readStatus: order.status,
+      to,
+    });
+    return null;
+  }
+  const updated = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
+
+  await tx.orderEvent.create({
+    data: {
+      orderId,
+      type: 'STATUS_TRANSITION',
+      fromStatus: order.status,
+      toStatus: to,
+      message: message ?? null,
+      actorType,
+      actorId,
+      data: (data ?? {}) as Prisma.InputJsonValue,
+    },
+  });
+
+  logger.info('Order status transition', { orderId, from: order.status, to, actorType });
+  return updated;
 }
 
 /** Record a non-transition order event (payment captured, note added, ...). */

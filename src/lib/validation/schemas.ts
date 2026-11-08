@@ -157,26 +157,24 @@ export const contactSchema = z.object({
 
 const rupees = (label: string) =>
   z.coerce
-    .number({ invalid_type_error: `${label} must be a number` })
+    .number({ error: `${label} must be a number` })
     .nonnegative(`${label} cannot be negative`)
     .max(10_000_000, `${label} is too large`)
     .transform((v) => Math.round(v * 100)); // -> paise
 
 const optionalRupees = (label: string) =>
-  z
-    .union([z.number(), z.string()])
-    .optional()
-    .nullable()
-    .transform((v) => (v === '' || v === null || v === undefined ? null : Number(v)))
-    .pipe(
-      z
-        .number()
-        .nonnegative(`${label} cannot be negative`)
-        .max(10_000_000)
-        .transform((v) => Math.round(v * 100))
-        .nullable()
-        .optional()
-    );
+  z.preprocess(
+    (value) => {
+      if (value === '' || value === null || value === undefined) return null;
+      return typeof value === 'number' || typeof value === 'string' ? Number(value) : value;
+    },
+    z
+      .number({ error: `${label} must be a number` })
+      .nonnegative(`${label} cannot be negative`)
+      .max(10_000_000, `${label} is too large`)
+      .transform((value) => Math.round(value * 100))
+      .nullable()
+  );
 
 export const percentSchema = (max = 1000) =>
   z.coerce

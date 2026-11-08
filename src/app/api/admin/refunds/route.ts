@@ -11,6 +11,10 @@ export const POST = apiRoute(async (req: Request) => {
   const raw = await readJson(req);
   if (!raw || typeof raw !== 'object') throw badRequest('Invalid request body');
   const body = refundCreateSchema.parse(raw);
+  const idempotencyKey = req.headers.get('Idempotency-Key')?.trim() || null;
+  if (idempotencyKey && idempotencyKey.length > 200) {
+    throw badRequest('Idempotency-Key must not exceed 200 characters');
+  }
 
   const result = await createRefund({
     orderId: body.orderId,
@@ -19,6 +23,7 @@ export const POST = apiRoute(async (req: Request) => {
     returnRequestId: body.returnRequestId ?? null,
     actor: 'ADMIN',
     actorId: admin.id,
+    idempotencyKey,
   });
-  return jsonOk(result, { status: 201 });
+  return jsonOk(result, { status: result.duplicate ? 200 : 201 });
 });

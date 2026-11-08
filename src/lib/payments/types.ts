@@ -29,6 +29,40 @@ export interface CreatePaymentOrderResult {
 }
 
 export type PaymentOutcome = 'PAID' | 'FAILED' | 'PENDING';
+export type PaymentResultOutcome = Exclude<PaymentOutcome, 'PENDING'>;
+export type PaymentRecordStatus = 'CREATED' | 'PAID' | 'FAILED' | 'PARTIALLY_REFUNDED' | 'REFUNDED';
+
+const CAPTURED_PAYMENT_STATUSES: readonly PaymentRecordStatus[] = [
+  'PAID',
+  'PARTIALLY_REFUNDED',
+  'REFUNDED',
+];
+
+/**
+ * Captured and refunded payment states must never be erased by an out-of-order
+ * gateway delivery. PAID may be repeated for crash recovery, but a failure is
+ * valid only before capture and neither outcome may rewrite a refund state.
+ */
+export const PAYMENT_RESULT_ELIGIBLE_STATUSES: Record<
+  PaymentResultOutcome,
+  readonly PaymentRecordStatus[]
+> = {
+  PAID: ['CREATED', 'FAILED', 'PAID'],
+  FAILED: ['CREATED', 'FAILED'],
+};
+
+export function isCapturedPaymentStatus(
+  status: string
+): status is 'PAID' | 'PARTIALLY_REFUNDED' | 'REFUNDED' {
+  return (CAPTURED_PAYMENT_STATUSES as readonly string[]).includes(status);
+}
+
+export function canApplyPaymentResultToStatus(
+  status: PaymentRecordStatus,
+  outcome: PaymentResultOutcome
+): boolean {
+  return PAYMENT_RESULT_ELIGIBLE_STATUSES[outcome].includes(status);
+}
 
 export interface VerifyPaymentInput {
   providerOrderId: string;
@@ -53,6 +87,8 @@ export interface RefundInput {
   providerPaymentId: string;
   amountPaise: number;
   reason?: string;
+  /** Local durable reservation id for provider-side reconciliation metadata. */
+  refundId?: string;
 }
 
 export interface RefundResult {

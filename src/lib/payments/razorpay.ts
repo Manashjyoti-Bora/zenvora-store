@@ -195,6 +195,7 @@ export class RazorpayAdapter implements PaymentProviderAdapter {
   async refund(input: RefundInput): Promise<RefundResult> {
     const raw = (await this.getClient().payments.refund(input.providerPaymentId, {
       amount: input.amountPaise,
+      ...(input.refundId ? { notes: { localRefundId: input.refundId } } : {}),
     })) as unknown as Record<string, unknown>;
     const refund: RazorpayRefundEntity = {
       id: String(raw.id ?? ''),
