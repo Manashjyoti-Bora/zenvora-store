@@ -187,4 +187,5 @@ jobs:
       # Production-dependency advisories. Reported in the job log; does not block
       # unrelated PRs, but keeps the signal visible on every run.
       - name: Production dependency audit (high+)
+        continue-on-error: true
         run: npm audit --omit=dev --audit-level=high
