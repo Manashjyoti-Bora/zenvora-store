@@ -1,11 +1,6 @@
 import type { StoreSettings } from '@/lib/settings';
 import { isPlaceholderEmail } from '@/lib/support-email';
-import {
-  cloudinaryConfigurationIssue,
-  s3ConfigurationIssue,
-  type CloudinaryConfigurationEnv,
-  type S3ConfigurationEnv,
-} from '@/lib/storage/configuration';
+import { cloudinaryConfigurationIssue, s3ConfigurationIssue } from '@/lib/storage/configuration';
 
 /**
  * Launch blockers and configuration gaps, derived from stored settings and
@@ -20,7 +15,7 @@ export interface LaunchReadiness {
   configGaps: string[];
 }
 
-export interface LaunchReadinessEnv extends S3ConfigurationEnv, CloudinaryConfigurationEnv {
+export interface LaunchReadinessEnv {
   NODE_ENV: string;
   EMAIL_PROVIDER: string;
   CRON_SECRET?: string;

@@ -1,7 +1,6 @@
 import { isSafeMediaUrl } from '@/lib/images/url-safety';
 
 export interface S3ConfigurationEnv {
-  [key: string]: string | undefined;
   NODE_ENV?: string;
   S3_BUCKET?: string;
   S3_REGION?: string;
@@ -12,7 +11,6 @@ export interface S3ConfigurationEnv {
 }
 
 export interface CloudinaryConfigurationEnv {
-  [key: string]: string | undefined;
   CLOUDINARY_CLOUD_NAME?: string;
   CLOUDINARY_API_KEY?: string;
   CLOUDINARY_API_SECRET?: string;
@@ -21,11 +19,13 @@ export interface CloudinaryConfigurationEnv {
 
 const SAFE_FOLDER = /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/;
 
-export function cloudinaryFolder(env: CloudinaryConfigurationEnv): string {
+export function cloudinaryFolder(env: CloudinaryConfigurationEnv | NodeJS.ProcessEnv): string {
   return env.CLOUDINARY_FOLDER || 'zenvora';
 }
 
-export function cloudinaryConfigurationIssue(env: CloudinaryConfigurationEnv): string | null {
+export function cloudinaryConfigurationIssue(
+  env: CloudinaryConfigurationEnv | NodeJS.ProcessEnv
+): string | null {
   const missing = [
     !env.CLOUDINARY_CLOUD_NAME && 'CLOUDINARY_CLOUD_NAME',
     !env.CLOUDINARY_API_KEY && 'CLOUDINARY_API_KEY',
