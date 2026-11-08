@@ -1,6 +1,7 @@
 import { isSafeMediaUrl } from '@/lib/images/url-safety';
 
 export interface S3ConfigurationEnv {
+  [key: string]: string | undefined;
   NODE_ENV?: string;
   S3_BUCKET?: string;
   S3_REGION?: string;
@@ -11,6 +12,7 @@ export interface S3ConfigurationEnv {
 }
 
 export interface CloudinaryConfigurationEnv {
+  [key: string]: string | undefined;
   CLOUDINARY_CLOUD_NAME?: string;
   CLOUDINARY_API_KEY?: string;
   CLOUDINARY_API_SECRET?: string;
