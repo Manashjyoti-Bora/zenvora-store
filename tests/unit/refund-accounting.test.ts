@@ -21,14 +21,14 @@ describe('refund ledger accounting', () => {
     expect(reservedRefundTotalPaise(refunds)).toBe(12_000);
   });
 
-  it('releases a definitively failed refund reservation without counting it as settled', () => {
+  it('retains unresolved FAILED capacity without counting it as settled', () => {
     const refunds = rows(
       { amountPaise: 5_000, status: 'FAILED' },
       { amountPaise: 1_500, status: 'COMPLETED' }
     );
 
     expect(settledRefundTotalPaise(refunds)).toBe(1_500);
-    expect(reservedRefundTotalPaise(refunds)).toBe(1_500);
+    expect(reservedRefundTotalPaise(refunds)).toBe(6_500);
   });
 
   it('marks Payment refunded only at settled amount and leaves it PAID before settlement', () => {

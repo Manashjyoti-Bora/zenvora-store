@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 const bodySchema = z
   .object({
     tool: z.string().min(1).max(64),
-    input: z.record(z.unknown()).optional(),
+    input: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
 

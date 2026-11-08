@@ -116,6 +116,10 @@ export const settingsSchema = z.object({
 
 export type StoreSettings = z.infer<typeof settingsSchema>;
 
+/** Arbitrary patch input is accepted only over known keys; updateSettings then
+ * validates the fully merged candidate against settingsSchema. */
+export const settingsPatchSchema = z.record(z.string(), z.unknown());
+
 const SETTINGS_KEY = 'store';
 const CACHE_TTL_MS = 30_000;
 
@@ -169,6 +173,9 @@ function deepMerge<T>(base: T, patch: unknown): T {
   }
   const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
   for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+    // Match Zod object's unknown-key stripping without allowing special keys
+    // such as __proto__ to affect the merge target.
+    if (!Object.prototype.hasOwnProperty.call(out, key)) continue;
     const baseValue = out[key];
     out[key] =
       value !== null &&

@@ -46,6 +46,7 @@ export function OrderAdminActions({ order }: { order: OrderActionInfo }) {
   const refundablePaise = Math.max(0, order.grandTotalPaise - order.refundedPaise);
   const [refundAmount, setRefundAmount] = useState((refundablePaise / 100).toFixed(2));
   const [refundReason, setRefundReason] = useState('');
+  const [refundRequestKey, setRefundRequestKey] = useState('');
 
   const canCancel = !['CANCELLED', 'REFUNDED', 'DELIVERED'].includes(order.status);
   const canCodCollect =
@@ -106,6 +107,7 @@ export function OrderAdminActions({ order }: { order: OrderActionInfo }) {
           variant="outline"
           size="sm"
           onClick={() => {
+            setRefundRequestKey(`refund_${crypto.randomUUID()}`);
             setModal('refund');
             setError(null);
           }}
@@ -387,6 +389,7 @@ export function OrderAdminActions({ order }: { order: OrderActionInfo }) {
                 call(
                   () =>
                     apiFetch('/api/admin/refunds', {
+                      headers: { 'Idempotency-Key': refundRequestKey },
                       body: {
                         orderId: order.id,
                         amount: Number(refundAmount),

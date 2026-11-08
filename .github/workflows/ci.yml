@@ -51,8 +51,10 @@ jobs:
       - name: Install dependencies (lockfile must be in sync)
         run: npm ci
 
-      - name: Prisma schema validation + client generation
+      - name: Prisma 6.19.3 schema validation + client generation
         run: |
+          test "$(node -p "require('prisma/package.json').version")" = "6.19.3"
+          test "$(node -p "require('@prisma/client/package.json').version")" = "6.19.3"
           npx prisma validate
           npx prisma generate
 
@@ -184,7 +186,167 @@ jobs:
         if: failure()
         run: tail -200 /tmp/next-dev.log || true
 
-      # Production-dependency advisories. Reported in the job log; does not block
-      # unrelated PRs, but keeps the signal visible on every run.
+      # Required release gate for production-dependency advisories.
       - name: Production dependency audit (high+)
+        run: npm audit --omit=dev --audit-level=high
+
+  resellix-verify:
+    name: Resellix PostgreSQL 16 typecheck + tests + release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: resellix
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: resellix_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
+      DIRECT_URL: postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: resellix/package-lock.json
+
+      - name: Install Resellix dependencies (lockfile must be in sync)
+        run: npm ci
+
+      - name: Resellix Prisma 6.19.3 schema validation + client generation
+        run: |
+          test "$(node -p "require('prisma/package.json').version")" = "6.19.3"
+          test "$(node -p "require('@prisma/client/package.json').version")" = "6.19.3"
+          npx prisma validate
+          npx prisma generate
+
+      - name: Write Resellix .env.test and .env
+        run: |
+          cat > .env.test <<'EOF'
+          NODE_ENV=test
+          APP_URL=http://127.0.0.1:3200
+          APP_NAME=Resellix CI Test
+          DATABASE_URL=postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
+          DIRECT_URL=postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
+          SESSION_TTL_DAYS=30
+          PASSWORD_RESET_TTL_MINUTES=60
+          PAYMENTS_TEST_MODE=true
+          SUPPLIER_DEMO_MODE=true
+          SUPPLIER_WEBHOOK_SECRET=ci_supplier_webhook_secret
+          CRON_SECRET=ci_cron_secret
+          EMAIL_PROVIDER=console
+          EMAIL_FROM="Resellix CI Test <no-reply@ci.test>"
+          EOF
+          cat > .env <<'EOF'
+          NODE_ENV=development
+          APP_URL=http://127.0.0.1:3200
+          APP_NAME=Resellix CI
+          DATABASE_URL=postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
+          DIRECT_URL=postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_ci?schema=public
+          SESSION_TTL_DAYS=30
+          PASSWORD_RESET_TTL_MINUTES=60
+          ADMIN_EMAIL=admin@ci.local
+          ADMIN_PASSWORD=CiAdmin!Pass1234
+          PAYMENTS_TEST_MODE=true
+          SUPPLIER_DEMO_MODE=true
+          SUPPLIER_WEBHOOK_SECRET=ci_supplier_webhook_secret
+          CRON_SECRET=ci_cron_secret
+          EMAIL_PROVIDER=console
+          EMAIL_FROM="Resellix CI <no-reply@ci.test>"
+          E2E_BASE_URL=http://127.0.0.1:3200
+          EOF
+
+      - name: Apply Resellix migrations to CI database (fresh-database check)
+        run: npx prisma migrate deploy
+
+      - name: Check Resellix latest migration with legacy rows
+        env:
+          PGPASSWORD: ci_only_password
+        run: |
+          set -eEuo pipefail
+          trap 'rc=$?; echo "::error title=Resellix legacy migration verification failed::command failed at shell line ${LINENO} (exit ${rc})"; exit "$rc"' ERR
+          legacy_url='postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_legacy?schema=public'
+          legacy_psql_url='postgresql://ci:ci_only_password@127.0.0.1:5432/resellix_legacy'
+          createdb -h 127.0.0.1 -p 5432 -U ci resellix_legacy
+          migration_dir=$(mktemp -d)
+          trap 'rm -rf "$migration_dir"' EXIT
+          mkdir -p "$migration_dir/migrations"
+          cp prisma/schema.prisma "$migration_dir/schema.prisma"
+          cp prisma/migrations/migration_lock.toml "$migration_dir/migrations/"
+          for migration in prisma/migrations/*; do
+            [ -d "$migration" ] || continue
+            [ "$(basename "$migration")" = "20260908213301_low_stock_threshold_first_order_coupon" ] && continue
+            cp -a "$migration" "$migration_dir/migrations/"
+          done
+          DATABASE_URL="$legacy_url" DIRECT_URL="$legacy_url" npx prisma migrate deploy --schema "$migration_dir/schema.prisma"
+          psql "$legacy_psql_url" -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO "products" ("id", "name", "slug", "description", "updatedAt")
+          VALUES ('ci-legacy-product', 'CI legacy product', 'ci-legacy-product', 'Legacy row', NOW());
+          INSERT INTO "coupons" ("code", "type", "value", "updatedAt")
+          VALUES ('CILEGACY', 'PERCENT', 10, NOW());
+          SQL
+          DATABASE_URL="$legacy_url" DIRECT_URL="$legacy_url" npx prisma migrate deploy
+          psql "$legacy_psql_url" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF (SELECT "lowStockThreshold" FROM "products" WHERE "id" = 'ci-legacy-product') IS DISTINCT FROM 5 THEN
+              RAISE EXCEPTION 'legacy product did not receive the low-stock default';
+            END IF;
+            IF (SELECT "firstOrderOnly" FROM "coupons" WHERE "code" = 'CILEGACY') IS DISTINCT FROM false THEN
+              RAISE EXCEPTION 'legacy coupon did not receive the first-order default';
+            END IF;
+          END $$;
+          SQL
+
+      - name: Resellix typecheck
+        run: npm run typecheck
+
+      - name: Resellix lint
+        run: npm run lint
+
+      - name: Resellix unit + integration tests
+        run: npm test
+
+      - name: Resellix release build (npm run build)
+        env:
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Seed Resellix demo catalog for E2E
+        run: npm run db:seed
+
+      - name: Start Resellix dev server for E2E
+        run: |
+          nohup npx next dev -p 3200 > /tmp/resellix-next-dev.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3200/api/health > /dev/null; then echo "server up"; exit 0; fi
+            sleep 2
+          done
+          echo "Resellix dev server did not become healthy"; tail -50 /tmp/resellix-next-dev.log; exit 1
+
+      - name: Resellix E2E tests
+        run: npm run test:e2e
+
+      - name: Resellix dev server log (on failure)
+        if: failure()
+        run: tail -200 /tmp/resellix-next-dev.log || true
+
+      - name: Resellix production dependency audit (high+)
         run: npm audit --omit=dev --audit-level=high

@@ -13,12 +13,14 @@ export function settledRefundTotalPaise(refunds: readonly RefundLedgerEntry[]): 
   );
 }
 
-/** Non-failed requests reserve refundable balance; FAILED is a confirmed no-movement result. */
+/**
+ * Every durable reservation retains capacity until its final outcome is known.
+ * FAILED is unresolved, not proof that no money moved: a verified later
+ * COMPLETED event may settle the same reservation, so capacity cannot be
+ * safely released to a replacement refund.
+ */
 export function reservedRefundTotalPaise(refunds: readonly RefundLedgerEntry[]): number {
-  return refunds.reduce(
-    (sum, refund) => sum + (refund.status === 'FAILED' ? 0 : refund.amountPaise),
-    0
-  );
+  return refunds.reduce((sum, refund) => sum + refund.amountPaise, 0);
 }
 
 export function paymentRefundStatus(

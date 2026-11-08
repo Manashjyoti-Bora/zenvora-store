@@ -10,10 +10,12 @@ import { z } from 'zod';
 const boolStr = z
   .union([z.boolean(), z.enum(['true', 'false', '1', '0'])])
   .transform((v) => (typeof v === 'boolean' ? v : v === 'true' || v === '1'))
-  .default('false');
+  .default(false);
 
-const optionalNonEmpty = (schema: z.ZodTypeAny) =>
-  schema.optional().transform((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v));
+const optionalNonEmpty = <T extends z.ZodTypeAny>(schema: T) =>
+  schema.optional().transform((value): z.infer<T> | undefined =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value
+  );
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

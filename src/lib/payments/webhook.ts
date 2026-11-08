@@ -38,7 +38,13 @@ interface RazorpayPaymentEntityPayload {
 
 interface RazorpayRefundEntityPayload {
   id?: string;
-  entity?: { id?: string; status?: string; payment_id?: string; amount?: number };
+  entity?: {
+    id?: string;
+    status?: string;
+    payment_id?: string;
+    amount?: number;
+    notes?: { localRefundId?: string };
+  };
 }
 
 export async function handleRazorpayWebhook(
@@ -194,7 +200,14 @@ async function routeRazorpayEvent(
     case 'refund.failed': {
       const entity = refundPayload?.entity;
       if (!entity?.id) return { handled: false, retryable: true };
-      const refund = await prisma.refund.findFirst({ where: { providerRefundId: entity.id } });
+      const linked = await prisma.refund.findFirst({ where: { providerRefundId: entity.id } });
+      // The signed provider note correlates a webhook that wins the race with
+      // provider-result persistence. Never create a new refund from a webhook.
+      const refund =
+        linked ??
+        (entity.notes?.localRefundId
+          ? await prisma.refund.findUnique({ where: { id: entity.notes.localRefundId } })
+          : null);
       if (!refund) {
         logger.warn('Refund webhook has no durable local reservation', {
           providerRefundId: entity.id,
@@ -203,6 +216,7 @@ async function routeRazorpayEvent(
         return { handled: false, retryable: true };
       }
       await settleRefund({
+        refundId: refund.id,
         providerRefundId: entity.id,
         status: eventType === 'refund.processed' ? 'COMPLETED' : 'FAILED',
         failureReason:

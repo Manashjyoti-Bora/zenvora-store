@@ -10,7 +10,7 @@ export const maxDuration = 60;
 const bodySchema = z
   .object({
     actionKey: z.string().min(1).max(64),
-    args: z.record(z.unknown()).optional(),
+    args: z.record(z.string(), z.unknown()).optional(),
     idempotencyKey: z.string().min(8).max(128),
   })
   .strict();
