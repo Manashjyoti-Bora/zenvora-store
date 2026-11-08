@@ -191,6 +191,7 @@ docs/PAYMENT_SETUP.md    Razorpay + COD + refunds
 docs/STORAGE_SETUP.md    durable upload provider + real Preview verification
 docs/OWNER_ACTION_REQUIRED.md  current owner-only business/cloud/compliance gates
 docs/OPERATIONAL_VERIFICATION.md  Preview worker/email + isolated Neon restore evidence
+docs/LAUNCH_EVIDENCE.md    commit-linked phase status, tests, Preview and release gates
 docs/DEPLOYMENT.md       Vercel + Neon deploy + post-deploy checks
 docs/TROUBLESHOOTING.md  symptom → cause → fix
 docs/SUPPLIER_API.md     supplier integration contract
