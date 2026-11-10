@@ -60,7 +60,7 @@ export interface CreateOrderInput {
   user?: SessionUser | null;
   guest?: GuestInfo | null;
   address: AddressInput;
-  paymentMethod: 'PREPAID_GATEWAY' | 'COD';
+  paymentMethod: 'PREPAID_GATEWAY' | 'COD' | 'MANUAL_UPI';
   couponCode?: string | null;
   customerNote?: string | null;
   idempotencyKey?: string | null;
@@ -71,7 +71,7 @@ export interface CreateOrderResult {
   orderId: string;
   orderNumber: string;
   grandTotalPaise: number;
-  paymentMethod: 'PREPAID_GATEWAY' | 'COD';
+  paymentMethod: 'PREPAID_GATEWAY' | 'COD' | 'MANUAL_UPI';
   alreadyExisted: boolean;
   status: string;
 }
@@ -86,6 +86,9 @@ export async function createOrderFromCart(input: CreateOrderInput): Promise<Crea
 
   if (input.paymentMethod === 'COD' && !settings.shipping.codEnabled) {
     throw badRequest('Cash on Delivery is not available for this store right now.');
+  }
+  if (input.paymentMethod === 'MANUAL_UPI' && !settings.manualUpi.enabled) {
+    throw badRequest('Manual UPI payment is not available for this store right now.');
   }
   if (!input.user && !input.guest) {
     throw badRequest('Guest details are required for guest checkout.');
@@ -424,7 +427,7 @@ function existingToResult(
     id: string;
     orderNumber: string;
     grandTotal: Prisma.Decimal;
-    paymentMethod: 'PREPAID_GATEWAY' | 'COD';
+    paymentMethod: 'PREPAID_GATEWAY' | 'COD' | 'MANUAL_UPI';
     status: string;
   },
   alreadyExisted: boolean

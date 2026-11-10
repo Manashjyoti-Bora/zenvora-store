@@ -27,7 +27,7 @@ export interface ShippingCalc {
 export function calcShipping(
   subtotalAfterDiscountPaise: number,
   settings: StoreSettings,
-  paymentMethod: 'PREPAID_GATEWAY' | 'COD'
+  paymentMethod: 'PREPAID_GATEWAY' | 'COD' | 'MANUAL_UPI'
 ): ShippingCalc {
   const { flatRatePaise, freeAbovePaise, codEnabled, codFeePaise } = settings.shipping;
   const freeShippingApplied =

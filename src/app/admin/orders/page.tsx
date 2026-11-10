@@ -53,6 +53,7 @@ export default async function AdminOrdersPage({
     const term = sp.q.trim();
     where.OR = [
       { orderNumber: { contains: term, mode: 'insensitive' } },
+      { upiUtr: { contains: term, mode: 'insensitive' } },
       { guestEmail: { contains: term, mode: 'insensitive' } },
       { guestName: { contains: term, mode: 'insensitive' } },
       {
@@ -142,7 +143,7 @@ export default async function AdminOrdersPage({
           aria-label="Payment status"
         >
           <option value="">Any payment</option>
-          {['PENDING', 'COD_PENDING', 'PAID', 'FAILED', 'PARTIALLY_REFUNDED', 'REFUNDED'].map(
+          {['PENDING', 'COD_PENDING', 'PENDING_VERIFICATION', 'PAID', 'FAILED', 'PARTIALLY_REFUNDED', 'REFUNDED'].map(
             (s) => (
               <option key={s} value={s}>
                 {s.replace(/_/g, ' ')}

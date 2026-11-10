@@ -20,15 +20,19 @@ interface OrderActionInfo {
   refundedPaise: number;
   shippingCostPaise: number;
   otherCostPaise: number;
+  upiUtr?: string | null;
 }
 
-type ModalKind = 'cancel' | 'costs' | 'shipment' | 'refund' | null;
+type ModalKind = 'cancel' | 'costs' | 'shipment' | 'refund' | 'upi-verify' | null;
 
 export function OrderAdminActions({ order }: { order: OrderActionInfo }) {
   const router = useRouter();
   const [modal, setModal] = useState<ModalKind>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [upiDecision, setUpiDecision] = useState<'APPROVE' | 'REJECT'>('APPROVE');
+  const [upiReason, setUpiReason] = useState('');
 
   const [cancelReason, setCancelReason] = useState('');
   const [cancelRefund, setCancelRefund] = useState(true);
@@ -53,6 +57,10 @@ export function OrderAdminActions({ order }: { order: OrderActionInfo }) {
     order.paymentMethod === 'COD' &&
     order.status === 'DELIVERED' &&
     order.paymentStatus === 'COD_PENDING';
+  const canVerifyUpi =
+    order.paymentMethod === 'MANUAL_UPI' &&
+    order.paymentStatus === 'PENDING_VERIFICATION' &&
+    Boolean(order.upiUtr);
   const canRefund =
     ['PAID', 'PARTIALLY_REFUNDED'].includes(order.paymentStatus) && refundablePaise > 0;
 
@@ -100,6 +108,20 @@ export function OrderAdminActions({ order }: { order: OrderActionInfo }) {
           }
         >
           Mark COD cash collected
+        </Button>
+      )}
+      {canVerifyUpi && (
+        <Button
+          variant="success"
+          size="sm"
+          onClick={() => {
+            setModal('upi-verify');
+            setUpiDecision('APPROVE');
+            setUpiReason('');
+            setError(null);
+          }}
+        >
+          Verify manual UPI ({order.upiUtr})
         </Button>
       )}
       {canRefund && (
@@ -368,6 +390,89 @@ export function OrderAdminActions({ order }: { order: OrderActionInfo }) {
               />
             )}
           </Field>
+        </div>
+      </Modal>
+
+      {/* Manual UPI Verification */}
+      <Modal
+        open={modal === 'upi-verify'}
+        onClose={() => setModal(null)}
+        title="Verify Manual UPI Payment"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setModal(null)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button
+              variant={upiDecision === 'APPROVE' ? 'success' : 'danger'}
+              loading={busy}
+              onClick={() =>
+                call(
+                  () =>
+                    apiFetch(`/api/admin/orders/${order.id}/verify-upi`, {
+                      body: {
+                        decision: upiDecision,
+                        reason: upiDecision === 'REJECT' ? upiReason.trim() : null,
+                      },
+                    }),
+                  upiDecision === 'APPROVE'
+                    ? 'Payment verified — order confirmed for fulfilment'
+                    : 'Payment rejected — customer notified'
+                )
+              }
+            >
+              {upiDecision === 'APPROVE' ? 'Confirm & Mark Paid' : 'Reject Payment'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {error && <Alert tone="error">{error}</Alert>}
+          <Alert tone="info">
+            Customer submitted UTR: <strong className="font-mono">{order.upiUtr}</strong>
+            <p className="mt-1 text-xs">
+              Check your bank account / merchant statement for a credit of{' '}
+              <strong>{formatINR(order.grandTotalPaise)}</strong> with this reference before approving.
+            </p>
+          </Alert>
+
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold text-ink-900">Verification Decision</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-sm text-ink-700">
+                <input
+                  type="radio"
+                  name="upiDecision"
+                  checked={upiDecision === 'APPROVE'}
+                  onChange={() => setUpiDecision('APPROVE')}
+                />
+                Approve (Payment Received)
+              </label>
+              <label className="flex items-center gap-2 text-sm text-ink-700">
+                <input
+                  type="radio"
+                  name="upiDecision"
+                  checked={upiDecision === 'REJECT'}
+                  onChange={() => setUpiDecision('REJECT')}
+                />
+                Reject (Not Found / Incorrect)
+              </label>
+            </div>
+          </div>
+
+          {upiDecision === 'REJECT' && (
+            <Field label="Rejection Reason" required hint="Visible to the customer on checkout & order tracking">
+              {(p) => (
+                <Textarea
+                  {...p}
+                  value={upiReason}
+                  onChange={(e) => setUpiReason(e.target.value)}
+                  maxLength={300}
+                  placeholder="e.g. UTR not found on statement for the specified amount"
+                />
+              )}
+            </Field>
+          )}
         </div>
       </Modal>
 

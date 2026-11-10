@@ -104,6 +104,8 @@ export default async function CheckoutPage() {
           storeName: settings.storeName,
           codEnabled: settings.shipping.codEnabled,
           codFeePaise: settings.shipping.codFeePaise,
+          manualUpiEnabled: settings.manualUpi.enabled,
+          upiVpa: settings.manualUpi.upiVpa,
           flatShippingPaise: settings.shipping.flatRatePaise,
           freeShippingAbovePaise: settings.shipping.freeAbovePaise,
           estimatedDaysMin: settings.shipping.estimatedDaysMin,
