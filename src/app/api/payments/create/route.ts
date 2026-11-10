@@ -39,6 +39,9 @@ export const POST = apiRoute(async (req: Request) => {
   if (order.paymentMethod === 'COD') {
     throw conflict('This is a Cash-on-Delivery order; no online payment is required.');
   }
+  if (order.paymentMethod === 'MANUAL_UPI') {
+    throw conflict('This order uses Manual UPI QR payment; online payment gateway is not permitted.');
+  }
   if (!['PENDING_PAYMENT', 'PAYMENT_FAILED'].includes(order.status)) {
     throw conflict(`Payment is not possible in order status ${order.status.replace(/_/g, ' ')}.`);
   }

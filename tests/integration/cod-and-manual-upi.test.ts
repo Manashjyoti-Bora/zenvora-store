@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import './mock-headers';
 import { prisma } from '@/lib/db';
 import { createOrderFromCart } from '@/lib/orders/create';
 import { confirmCodOrder, markCodCollected } from '@/lib/payments/confirm';
@@ -239,5 +240,59 @@ describe('COD and Manual UPI Order Lifecycle', () => {
     expect(verifiedOrder.upiVerifiedAt).not.toBeNull();
     // Order total never manipulated or changed
     expect(verifiedOrder.grandTotal.toString()).toBe(initialGrandTotal);
+  });
+
+  it('rejects gateway payment creation for COD and Manual UPI orders (gateway payment isolation)', async () => {
+    const product = await createFixtureProduct();
+    const cartCod = await createCartWithProduct(product.id, 1);
+    const cartUpi = await createCartWithProduct(product.id, 1);
+
+    const codOrder = await createOrderFromCart({
+      cartId: cartCod.id,
+      guest: { name: 'COD Gateway Isolation', email: 'codiso@example.com', phone: '9876543210' },
+      address: ADDRESS,
+      paymentMethod: 'COD',
+    });
+
+    const upiOrder = await createOrderFromCart({
+      cartId: cartUpi.id,
+      guest: { name: 'UPI Gateway Isolation', email: 'upiiso@example.com', phone: '9876543210' },
+      address: ADDRESS,
+      paymentMethod: 'MANUAL_UPI',
+    });
+
+    // Directly test the route logic: import and call POST /api/payments/create
+    const { POST: createPayment } = await import('@/app/api/payments/create/route');
+
+    const csrfToken = 'test_csrf_token_123456';
+    const g = globalThis as { __cookieJar?: Map<string, { value: string }> };
+    if (!g.__cookieJar) g.__cookieJar = new Map();
+    g.__cookieJar.set('resellix_csrf', { value: csrfToken });
+
+    const codReq = new Request('http://localhost:3000/api/payments/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': csrfToken,
+      },
+      body: JSON.stringify({ orderNumber: codOrder.orderNumber, email: 'codiso@example.com' }),
+    });
+    const codRes = await createPayment(codReq, {} as never);
+    expect(codRes.status).toBe(409);
+    const codBody = await codRes.json();
+    expect(codBody.error.message).toContain('Cash-on-Delivery');
+
+    const upiReq = new Request('http://localhost:3000/api/payments/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': csrfToken,
+      },
+      body: JSON.stringify({ orderNumber: upiOrder.orderNumber, email: 'upiiso@example.com' }),
+    });
+    const upiRes = await createPayment(upiReq, {} as never);
+    expect(upiRes.status).toBe(409);
+    const upiBody = await upiRes.json();
+    expect(upiBody.error.message).toContain('Manual UPI');
   });
 });
