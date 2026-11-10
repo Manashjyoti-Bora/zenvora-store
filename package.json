@@ -76,6 +76,7 @@
   },
   "overrides": {
     "postcss": "^8.5.28",
-    "deepmerge-ts": "^8.0.2"
+    "deepmerge-ts": "^8.0.2",
+    "minimatch": "^10.2.7 || ^11.0.5"
   }
 }
