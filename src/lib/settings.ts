@@ -175,7 +175,7 @@ export const settingsSchema = z.object({
     .object({
       flatRatePaise: z.number().int().min(0).max(1000000).default(4900),
       freeAbovePaise: z.number().int().min(0).max(100000000).default(99900),
-      codEnabled: z.boolean().default(false),
+      codEnabled: z.boolean().default(true),
       codFeePaise: z.number().int().min(0).max(100000).default(0),
       estimatedDaysMin: z.number().int().min(0).max(60).default(3),
       estimatedDaysMax: z.number().int().min(0).max(90).default(7),
@@ -183,10 +183,26 @@ export const settingsSchema = z.object({
     .default({
       flatRatePaise: 4900,
       freeAbovePaise: 99900,
-      codEnabled: false,
+      codEnabled: true,
       codFeePaise: 0,
       estimatedDaysMin: 3,
       estimatedDaysMax: 7,
+    }),
+
+  manualUpi: z
+    .object({
+      enabled: z.boolean().default(false),
+      upiVpa: z.string().max(100).default(''),
+      payeeName: z.string().max(100).default(''),
+      qrImageUrl: z.string().max(500).default(''),
+      instructions: z.string().max(1000).default('Scan the QR code or pay to the UPI ID, then enter your 12-digit UTR/transaction reference below for admin verification.'),
+    })
+    .default({
+      enabled: false,
+      upiVpa: '',
+      payeeName: '',
+      qrImageUrl: '',
+      instructions: 'Scan the QR code or pay to the UPI ID, then enter your 12-digit UTR/transaction reference below for admin verification.',
     }),
 
   tax: z

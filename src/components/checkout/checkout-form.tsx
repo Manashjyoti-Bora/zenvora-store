@@ -41,6 +41,8 @@ export interface CheckoutProps {
     storeName: string;
     codEnabled: boolean;
     codFeePaise: number;
+    manualUpiEnabled?: boolean;
+    upiVpa?: string;
     flatShippingPaise: number;
     freeShippingAbovePaise: number;
     estimatedDaysMin: number;
@@ -62,7 +64,7 @@ interface FormState {
   guestName: string;
   guestEmail: string;
   guestPhone: string;
-  paymentMethod: 'PREPAID_GATEWAY' | 'COD';
+  paymentMethod: 'PREPAID_GATEWAY' | 'COD' | 'MANUAL_UPI';
   customerNote: string;
 }
 
@@ -83,11 +85,13 @@ export function CheckoutForm(props: CheckoutProps) {
     guestName: props.userName,
     guestEmail: props.userEmail,
     guestPhone: props.userPhone,
-    paymentMethod: payments.gatewayAvailable
-      ? 'PREPAID_GATEWAY'
-      : settings.codEnabled
-        ? 'COD'
-        : 'PREPAID_GATEWAY',
+    paymentMethod: settings.codEnabled
+      ? 'COD'
+      : settings.manualUpiEnabled
+        ? 'MANUAL_UPI'
+        : payments.gatewayAvailable
+          ? 'PREPAID_GATEWAY'
+          : 'COD',
     customerNote: '',
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -122,7 +126,8 @@ export function CheckoutForm(props: CheckoutProps) {
     afterDiscount + (form.paymentMethod === 'COD' ? baseShipping + codFee : cart.shippingPaise)
   );
   const canPayOnline = payments.gatewayAvailable;
-  const canCheckout = canPayOnline || settings.codEnabled;
+  const canPayUpi = Boolean(settings.manualUpiEnabled);
+  const canCheckout = canPayOnline || canPayUpi || settings.codEnabled;
 
   function err(path: string): string | undefined {
     return fieldErrors[path];
@@ -488,6 +493,34 @@ export function CheckoutForm(props: CheckoutProps) {
                   {settings.codEnabled
                     ? 'Pay in cash/UPI when your order arrives. Keep exact change handy.'
                     : 'Cash on Delivery is not available on this store right now.'}
+                </span>
+              </span>
+            </label>
+
+            <label
+              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3.5 transition-colors ${
+                form.paymentMethod === 'MANUAL_UPI'
+                  ? 'border-brand-500 bg-brand-50'
+                  : 'border-ink-900/10 hover:border-brand-300'
+              } ${!canPayUpi ? 'cursor-not-allowed opacity-50' : ''}`}
+            >
+              <input
+                type="radio"
+                name="paymentMethod"
+                value="MANUAL_UPI"
+                checked={form.paymentMethod === 'MANUAL_UPI'}
+                onChange={() => set('paymentMethod', 'MANUAL_UPI')}
+                disabled={!canPayUpi}
+                className="mt-0.5 h-4 w-4 border-ink-900/20 text-brand-600 focus:ring-brand-500"
+              />
+              <span className="text-sm">
+                <span className="block font-semibold text-ink-900">
+                  UPI QR Payment (Direct Pay / Scan & Pay)
+                </span>
+                <span className="mt-0.5 block text-xs text-ink-400">
+                  {canPayUpi
+                    ? `Scan our official UPI QR code or pay to ${settings.upiVpa || 'our store UPI ID'}, then submit your transaction UTR.`
+                    : 'UPI QR payment is not enabled on this store right now.'}
                 </span>
               </span>
             </label>

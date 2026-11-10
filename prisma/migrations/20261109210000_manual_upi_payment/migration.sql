@@ -1,0 +1,15 @@
+-- AlterEnum
+ALTER TYPE "PaymentMethod" ADD VALUE IF NOT EXISTS 'MANUAL_UPI';
+
+-- AlterEnum
+ALTER TYPE "OrderPaymentStatus" ADD VALUE IF NOT EXISTS 'PENDING_VERIFICATION';
+
+-- AlterTable
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "upiUtr" TEXT;
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "upiSubmittedAt" TIMESTAMP(3);
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "upiVerifiedAt" TIMESTAMP(3);
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "upiVerifiedBy" TEXT;
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "upiRejectionReason" TEXT;
+
+-- CreateIndex
+CREATE UNIQUE INDEX IF NOT EXISTS "orders_upiUtr_key" ON "orders"("upiUtr");

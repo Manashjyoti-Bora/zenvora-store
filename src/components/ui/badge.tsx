@@ -95,6 +95,7 @@ export function OrderStatusBadge({ status }: { status: OrderStatus }) {
 const PAYMENT_STATUS_LABELS: Record<OrderPaymentStatus, string> = {
   PENDING: 'Pending',
   COD_PENDING: 'COD - due on delivery',
+  PENDING_VERIFICATION: 'Verification pending',
   PAID: 'Paid',
   FAILED: 'Failed',
   PARTIALLY_REFUNDED: 'Partially refunded',
@@ -103,6 +104,7 @@ const PAYMENT_STATUS_LABELS: Record<OrderPaymentStatus, string> = {
 const PAYMENT_STATUS_TONES: Record<OrderPaymentStatus, Tone> = {
   PENDING: 'amber',
   COD_PENDING: 'amber',
+  PENDING_VERIFICATION: 'purple',
   PAID: 'green',
   FAILED: 'red',
   PARTIALLY_REFUNDED: 'blue',

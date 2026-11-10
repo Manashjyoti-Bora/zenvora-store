@@ -535,11 +535,13 @@ model CartItem {
 enum PaymentMethod {
   PREPAID_GATEWAY
   COD
+  MANUAL_UPI
 }
 
 enum OrderPaymentStatus {
   PENDING
   COD_PENDING
+  PENDING_VERIFICATION
   PAID
   FAILED
   PARTIALLY_REFUNDED
@@ -634,6 +636,13 @@ model Order {
   cancelReason String?
   cancelledBy OrderActorType?
   deliveredAt DateTime?
+
+  // Manual UPI QR payment verification fields
+  upiUtr              String?             @unique
+  upiSubmittedAt       DateTime?
+  upiVerifiedAt        DateTime?
+  upiVerifiedBy        String?
+  upiRejectionReason   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

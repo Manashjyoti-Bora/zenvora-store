@@ -101,6 +101,7 @@ export default async function AdminOrderDetail({ params }: Ctx) {
           refundedPaise: refunded,
           shippingCostPaise: costs.shipping,
           otherCostPaise: costs.other,
+          upiUtr: order.upiUtr,
         }}
       />
 

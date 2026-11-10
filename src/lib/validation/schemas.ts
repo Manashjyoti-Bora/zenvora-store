@@ -88,7 +88,7 @@ export const updateCartItemSchema = z.object({
 });
 
 export const checkoutSchema = z.object({
-  paymentMethod: z.enum(['PREPAID_GATEWAY', 'COD']),
+  paymentMethod: z.enum(['PREPAID_GATEWAY', 'COD', 'MANUAL_UPI']),
   address: addressSchema,
   couponCode: z.string().trim().max(40).optional().or(z.literal('')).nullable(),
   customerNote: z.string().trim().max(500).optional().or(z.literal('')).nullable(),

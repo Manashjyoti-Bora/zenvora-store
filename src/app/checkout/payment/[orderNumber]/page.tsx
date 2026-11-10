@@ -3,7 +3,9 @@ import { notFound, redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth/guards';
 import { findOrderForAccess } from '@/lib/orders/access';
 import { toPaise, formatINR } from '@/lib/money';
+import { getSettings } from '@/lib/settings';
 import { PaymentFlow } from '@/components/checkout/payment-flow';
+import { ManualUpiPayment } from '@/components/checkout/manual-upi-payment';
 import { CheckoutSteps } from '@/components/store/checkout-steps';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +23,10 @@ export default async function PaymentPage({
 }: Ctx & { searchParams: Promise<{ email?: string }> }) {
   const { orderNumber } = await params;
   const sp = await searchParams;
-  const user = await getCurrentUser();
+  const [user, settings] = await Promise.all([
+    getCurrentUser(),
+    getSettings(),
+  ]);
 
   let order;
   try {
@@ -55,16 +60,33 @@ export default async function PaymentPage({
         </span>
       </p>
       <div className="mt-8">
-        <PaymentFlow
-          orderNumber={order.orderNumber}
-          amountPaise={toPaise(order.grandTotal)}
-          guestEmail={order.guestEmail ?? undefined}
-          initialFailure={
-            order.status === 'PAYMENT_FAILED'
-              ? 'The previous payment attempt failed. You can retry below — your order and items are reserved.'
-              : null
-          }
-        />
+        {order.paymentMethod === 'MANUAL_UPI' ? (
+          <ManualUpiPayment
+            orderNumber={order.orderNumber}
+            amountPaise={toPaise(order.grandTotal)}
+            guestEmail={order.guestEmail ?? undefined}
+            upiConfig={{
+              upiVpa: settings.manualUpi.upiVpa,
+              payeeName: settings.manualUpi.payeeName,
+              qrImageUrl: settings.manualUpi.qrImageUrl,
+              instructions: settings.manualUpi.instructions,
+            }}
+            currentUtr={order.upiUtr}
+            paymentStatus={order.paymentStatus}
+            rejectionReason={order.upiRejectionReason}
+          />
+        ) : (
+          <PaymentFlow
+            orderNumber={order.orderNumber}
+            amountPaise={toPaise(order.grandTotal)}
+            guestEmail={order.guestEmail ?? undefined}
+            initialFailure={
+              order.status === 'PAYMENT_FAILED'
+                ? 'The previous payment attempt failed. You can retry below — your order and items are reserved.'
+                : null
+            }
+          />
+        )}
       </div>
     </div>
   );
